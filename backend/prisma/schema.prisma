@@ -1,0 +1,144 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model FormDefinition {
+  id        String   @id @default(uuid())
+  name      String
+  schema    Json     // フォーム構造定義 (RJSF schema)
+  defaultFlowId String? @map("default_flow_id") // デフォルトフローID
+  version   Int      @default(1)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  applications Application[]
+  applicationDefinitions ApplicationDefinition[]
+
+  @@map("form_definitions")
+}
+
+model FlowDefinition {
+  id        String   @id @default(uuid())
+  name      String
+  nodes     Json     // フローノード定義
+  edges     Json     // フロー接続定義
+  swimlanes Json?    // スイムレーン定義 (担当者割当ルール含む)
+  version   Int      @default(1)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  applications Application[]
+  applicationDefinitions ApplicationDefinition[]
+
+  @@map("flow_definitions")
+}
+
+model Application {
+  id                      String   @id @default(uuid())
+  applicationNumber       Int      @default(autoincrement()) @map("application_number")
+  applicationDefinitionId String?  @map("application_definition_id")
+  formDefinitionId        String   @map("form_definition_id")
+  flowDefinitionId        String   @map("flow_definition_id")
+  applicantId             String   @map("applicant_id")
+  status                  ApplicationStatus @default(DRAFT)
+  inputData               Json     @map("input_data")
+  currentNodeId           String?  @map("current_node_id")
+  createdAt               DateTime @default(now()) @map("created_at")
+  updatedAt               DateTime @updatedAt @map("updated_at")
+
+  applicationDefinition ApplicationDefinition? @relation(fields: [applicationDefinitionId], references: [id])
+  formDefinition        FormDefinition         @relation(fields: [formDefinitionId], references: [id])
+  flowDefinition        FlowDefinition         @relation(fields: [flowDefinitionId], references: [id])
+  tasks                 ApprovalTask[]
+  history               ApprovalHistory[]
+
+  @@map("applications")
+}
+
+enum ApplicationStatus {
+  DRAFT
+  IN_PROGRESS
+  APPROVED
+  REJECTED
+  REMANDED
+}
+
+model ApprovalTask {
+  id            String   @id @default(uuid())
+  applicationId String   @map("application_id")
+  status        TaskStatus @default(PENDING)
+  stepId        String     @map("step_id") // 対応するノードID
+  assignedTo    String?  @map("assigned_to") // UserId or RoleId
+  dueDate       DateTime? @map("due_date")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  application   Application @relation(fields: [applicationId], references: [id])
+
+  @@map("approval_tasks")
+}
+
+enum TaskStatus {
+  PENDING
+  COMPLETED
+}
+
+model ApprovalHistory {
+  id            String   @id @default(uuid())
+  applicationId String   @map("application_id")
+  actorId       String   @map("actor_id")
+  action        String   // APPROVE, REJECT, REMAND
+  comment       String?
+  stepId        String   @map("step_id")
+  actedAt       DateTime @default(now()) @map("acted_at")
+
+  application   Application @relation(fields: [applicationId], references: [id])
+
+  @@map("approval_histories")
+}
+
+// 申請アプリ定義（フォームとフローを紐づける）
+model ApplicationDefinition {
+  id               String       @id @default(uuid())
+  name             String
+  description      String?
+  formDefinitionId String?      @map("form_definition_id")
+  flowDefinitionId String?      @map("flow_definition_id")
+  status           AppDefStatus @default(DRAFT)
+  version          Int          @default(1)
+  publishedAt      DateTime?    @map("published_at")
+  createdAt        DateTime     @default(now()) @map("created_at")
+  updatedAt        DateTime     @updatedAt @map("updated_at")
+
+  formDefinition   FormDefinition? @relation(fields: [formDefinitionId], references: [id])
+  flowDefinition   FlowDefinition? @relation(fields: [flowDefinitionId], references: [id])
+  applications     Application[]
+  versions         AppVersion[]
+
+  @@map("application_definitions")
+}
+
+enum AppDefStatus {
+  DRAFT
+  ACTIVE
+  ARCHIVED
+}
+
+// アプリバージョン履歴
+model AppVersion {
+  id                      String   @id @default(uuid())
+  applicationDefinitionId String   @map("application_definition_id")
+  version                 Int
+  formSchema              Json?    @map("form_schema")
+  flowNodes               Json?    @map("flow_nodes")
+  flowEdges               Json?    @map("flow_edges")
+  publishedAt             DateTime @default(now()) @map("published_at")
+  publishedBy             String?  @map("published_by")
+
+  applicationDefinition   ApplicationDefinition @relation(fields: [applicationDefinitionId], references: [id])
+
+  @@unique([applicationDefinitionId, version])
+  @@map("app_versions")
+}

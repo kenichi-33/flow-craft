@@ -1,0 +1,19 @@
+import { IsString, IsNotEmpty, IsOptional, IsObject, IsUUID } from 'class-validator';
+
+export class CreateApplicationDto {
+    @IsUUID()
+    @IsNotEmpty()
+    formDefinitionId: string;
+
+    @IsUUID()
+    @IsNotEmpty()
+    flowDefinitionId: string;
+
+    @IsString()
+    @IsNotEmpty()
+    applicantId: string;
+
+    @IsObject()
+    @IsOptional()
+    inputData?: object;
+}
