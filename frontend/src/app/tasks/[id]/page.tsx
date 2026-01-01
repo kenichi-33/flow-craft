@@ -11,13 +11,19 @@ import {
     Button,
     Alert,
     Divider,
-    Table,
-    TableBody,
-    TableCell,
-    TableRow,
     ButtonGroup,
     Chip,
     Grid,
+    FormControl,
+    FormLabel,
+    RadioGroup,
+    FormControlLabel,
+    Radio,
+    Checkbox,
+    Select,
+    MenuItem,
+    InputLabel,
+    FormGroup,
 } from '@mui/material';
 import { useRouter, useParams } from 'next/navigation';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
@@ -148,6 +154,83 @@ export default function TaskDetailPage() {
         return { flowNodes, flowEdges };
     }, [task]);
 
+    // Get schema data for form display
+    const schema = task?.application?.formDefinition?.schema || {};
+    const properties = schema.properties || {};
+    const layout = schema['x-layout'] || [];
+    const currentStepLabel = getStepLabel(task?.stepId || '', task?.application?.flowDefinition?.nodes);
+
+    // Get layout-sorted fields
+    const sortedFields = useMemo(() => {
+        interface FieldDef {
+            type: string;
+            title: string;
+            options?: string[];
+        }
+        const fields = Object.entries(properties as Record<string, FieldDef>)
+            .map(([id, prop]) => {
+                const layoutItem = layout.find((l: any) => l.i === id);
+                return {
+                    id,
+                    ...prop,
+                    x: layoutItem?.x ?? 0,
+                    y: layoutItem?.y ?? 0,
+                    w: layoutItem?.w ?? 12,
+                };
+            });
+        fields.sort((a, b) => {
+            if (a.y !== b.y) return a.y - b.y;
+            return a.x - b.x;
+        });
+        return fields;
+    }, [properties, layout]);
+
+    // Group fields by row
+    const rows = useMemo(() => {
+        const rowMap: Record<number, typeof sortedFields> = {};
+        for (const field of sortedFields) {
+            if (!rowMap[field.y]) rowMap[field.y] = [];
+            rowMap[field.y].push(field);
+        }
+        return Object.entries(rowMap)
+            .sort(([a], [b]) => Number(a) - Number(b))
+            .map(([, fields]) => fields.sort((a, b) => a.x - b.x));
+    }, [sortedFields]);
+
+    // Read-only field rendering function
+    const renderReadOnlyField = (field: any) => {
+        const value = task?.application?.inputData?.[field.id] ?? '';
+        const gridWidth = Math.min(12, Math.max(1, field.w));
+
+        if (field.type === 'divider') {
+            return <Grid key={field.id} size={12}><Divider sx={{ my: 1 }} /></Grid>;
+        }
+        if (field.type === 'label') {
+            return (
+                <Grid key={field.id} size={12}>
+                    <Typography variant="subtitle1" fontWeight="bold" sx={{ mt: 1 }}>{field.title}</Typography>
+                </Grid>
+            );
+        }
+
+        let displayValue = value;
+        if (Array.isArray(value)) displayValue = value.join(', ');
+        if (typeof value === 'boolean') displayValue = value ? 'はい' : 'いいえ';
+
+        return (
+            <Grid key={field.id} size={{ xs: 12, md: gridWidth }}>
+                <TextField
+                    label={field.title}
+                    value={displayValue}
+                    fullWidth
+                    size="small"
+                    slotProps={{ input: { readOnly: true } }}
+                    sx={{ '& .MuiInputBase-input': { bgcolor: '#f5f5f5' } }}
+                />
+            </Grid>
+        );
+    };
+
     if (isLoading) {
         return <Box sx={{ p: 3 }}>読み込み中...</Box>;
     }
@@ -164,10 +247,6 @@ export default function TaskDetailPage() {
             </Box>
         );
     }
-
-    const schema = task.application?.formDefinition?.schema || {};
-    const properties = schema.properties || {};
-    const currentStepLabel = getStepLabel(task.stepId, task.application?.flowDefinition?.nodes);
 
     return (
         <Box sx={{ p: 3, maxWidth: 1200, mx: 'auto' }}>
@@ -191,56 +270,44 @@ export default function TaskDetailPage() {
             {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
             {success && <Alert severity="success" sx={{ mb: 2 }}>{success}</Alert>}
 
-            <Grid container spacing={3}>
-                {/* Flow Visualization */}
-                <Grid size={{ xs: 12, md: 5 }}>
-                    <Paper sx={{ p: 2, height: 350 }}>
-                        <Typography variant="h6" gutterBottom>フロー進捗</Typography>
-                        <Box sx={{ height: 280, bgcolor: '#fafafa', borderRadius: 1 }}>
-                            {flowNodes.length > 0 ? (
-                                <ReactFlow
-                                    nodes={flowNodes}
-                                    edges={flowEdges}
-                                    fitView
-                                    nodesDraggable={false}
-                                    nodesConnectable={false}
-                                    elementsSelectable={false}
-                                    panOnDrag={false}
-                                    zoomOnScroll={false}
-                                >
-                                    <Background />
-                                </ReactFlow>
-                            ) : (
-                                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
-                                    <Typography color="text.secondary">フロー情報なし</Typography>
-                                </Box>
-                            )}
+            {/* 1. フロー進捗 - Full Width */}
+            <Paper sx={{ p: 2, mb: 3 }}>
+                <Typography variant="h6" gutterBottom>フロー進捗</Typography>
+                <Box sx={{ height: 280, bgcolor: '#fafafa', borderRadius: 1 }}>
+                    {flowNodes.length > 0 ? (
+                        <ReactFlow
+                            nodes={flowNodes}
+                            edges={flowEdges}
+                            fitView
+                            nodesDraggable={false}
+                            nodesConnectable={false}
+                            elementsSelectable={false}
+                            panOnDrag={false}
+                            zoomOnScroll={false}
+                        >
+                            <Background />
+                        </ReactFlow>
+                    ) : (
+                        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
+                            <Typography color="text.secondary">フロー情報なし</Typography>
                         </Box>
-                    </Paper>
-                </Grid>
+                    )}
+                </Box>
+            </Paper>
 
-                {/* Application Content */}
-                <Grid size={{ xs: 12, md: 7 }}>
-                    <Paper sx={{ p: 3 }}>
-                        <Typography variant="h6" gutterBottom>申請内容</Typography>
-                        <Divider sx={{ mb: 2 }} />
-                        <Table size="small">
-                            <TableBody>
-                                {Object.entries(task.application?.inputData || {}).map(([key, value]) => (
-                                    <TableRow key={key}>
-                                        <TableCell sx={{ fontWeight: 'bold', width: 150 }}>
-                                            {properties[key]?.title || key}
-                                        </TableCell>
-                                        <TableCell>{String(value)}</TableCell>
-                                    </TableRow>
-                                ))}
-                            </TableBody>
-                        </Table>
-                    </Paper>
-                </Grid>
-            </Grid>
+            {/* 2. 申請内容 - Full Width, Form-style Layout */}
+            <Paper sx={{ p: 3, mb: 3 }}>
+                <Typography variant="h6" gutterBottom>申請内容</Typography>
+                <Divider sx={{ mb: 2 }} />
+                {rows.map((rowFields, rowIdx) => (
+                    <Grid container spacing={2} key={rowIdx} sx={{ mb: 1 }}>
+                        {rowFields.map(renderReadOnlyField)}
+                    </Grid>
+                ))}
+            </Paper>
 
-            <Paper sx={{ p: 3, mt: 3 }}>
+            {/* 3. 承認アクション */}
+            <Paper sx={{ p: 3 }}>
                 <Typography variant="h6" gutterBottom>承認アクション</Typography>
                 <Divider sx={{ mb: 2 }} />
 

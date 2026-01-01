@@ -196,6 +196,17 @@ export class WorkflowEngineService {
                 },
             });
 
+            // 分岐ノードの通過を履歴に記録
+            await this.prisma.approvalHistory.create({
+                data: {
+                    applicationId,
+                    actorId: 'SYSTEM',
+                    action: 'BRANCH',
+                    stepId: nextNodeId,
+                    comment: `条件: ${conditionMet ? 'true' : 'false'} (${branchHandle}ルート)`,
+                },
+            });
+
             // 分岐先が見つかれば進む
             if (branchEdge) {
                 // 分岐先のノードを次のノードとして設定
@@ -223,10 +234,41 @@ export class WorkflowEngineService {
                             status: 'PENDING',
                         },
                     });
+                } else if (['apiCall', 'llmCall'].includes(branchTarget?.type)) {
+                    // 分岐先がサービスタスクの場合は直接実行
+                    await this.prisma.approvalHistory.create({
+                        data: {
+                            applicationId,
+                            actorId: 'SYSTEM',
+                            action: 'SERVICE_TASK',
+                            stepId: branchTargetId,
+                            comment: `${branchTarget.type} 実行開始`,
+                        },
+                    });
+                    await this.executeServiceTask(applicationId, branchTarget, application.inputData);
                 } else {
                     await this.advanceToNextNode(applicationId);
                 }
             }
+        } else if (['apiCall', 'llmCall'].includes(nextNode.type)) {
+            // サービスタスク: 実行処理
+            await this.prisma.application.update({
+                where: { id: applicationId },
+                data: { currentNodeId: nextNodeId },
+            });
+
+            // サービスタスク実行前に履歴を記録
+            await this.prisma.approvalHistory.create({
+                data: {
+                    applicationId,
+                    actorId: 'SYSTEM',
+                    action: 'SERVICE_TASK',
+                    stepId: nextNodeId,
+                    comment: `${nextNode.type} 実行開始`,
+                },
+            });
+
+            await this.executeServiceTask(applicationId, nextNode, application.inputData);
         } else {
             // その他のノード: 次へ進む
             await this.prisma.application.update({
@@ -322,6 +364,9 @@ export class WorkflowEngineService {
                 tasks: {
                     orderBy: { createdAt: 'desc' },
                 },
+                serviceTasks: {
+                    orderBy: { createdAt: 'desc' },
+                },
                 history: {
                     orderBy: { actedAt: 'desc' },
                 },
@@ -340,5 +385,148 @@ export class WorkflowEngineService {
             ...application,
             currentNode,
         };
+    }
+
+    /**
+     * サービスタスクを実行
+     */
+    async executeServiceTask(applicationId: string, node: any, inputData: any, existingTaskId?: string) {
+        let task;
+        const taskData = {
+            applicationId,
+            stepId: node.id,
+            type: node.type,
+            status: 'PENDING' as any, // TaskStatus
+            updatedAt: new Date(),
+        };
+
+        if (existingTaskId) {
+            task = await this.prisma.serviceTask.update({
+                where: { id: existingTaskId },
+                data: { ...taskData, error: null, retries: { increment: 1 } },
+            });
+        } else {
+            task = await this.prisma.serviceTask.create({
+                data: taskData,
+            });
+        }
+
+        try {
+            let result: any = {};
+
+            if (node.type === 'apiCall') {
+                const url = this.replaceVariables(node.data.url, inputData);
+                const method = node.data.method || 'GET';
+                const headersStr = this.replaceVariables(node.data.headers || '{}', inputData);
+                const bodyStr = this.replaceVariables(node.data.body || '{}', inputData);
+
+                let headers = {};
+                try { headers = JSON.parse(headersStr); } catch { }
+
+                let body: any = undefined;
+                if (method !== 'GET' && method !== 'HEAD') {
+                    try { body = JSON.parse(bodyStr); } catch { body = bodyStr; }
+                }
+
+                console.log(`Executing API Call: ${method} ${url}`);
+                const response = await fetch(url, {
+                    method,
+                    headers: { 'Content-Type': 'application/json', ...headers },
+                    body: body ? JSON.stringify(body) : undefined,
+                });
+
+                const responseText = await response.text();
+                let responseData;
+                try {
+                    responseData = JSON.parse(responseText);
+                } catch {
+                    responseData = { text: responseText };
+                }
+
+                // Check success codes from node configuration
+                const successCodesStr = node.data.successCodes || '200,201,204';
+                const successCodesList = successCodesStr.split(',').map((c: string) => parseInt(c.trim(), 10)).filter((n: number) => !isNaN(n));
+                const isSuccess = successCodesList.includes(response.status);
+                const errorBehavior = node.data.errorBehavior || 'stop';
+
+                if (!isSuccess) {
+                    if (errorBehavior === 'stop') {
+                        throw new Error(`API Error: ${response.status} ${response.statusText} - ${responseText}`);
+                    } else {
+                        // Log error but continue
+                        console.warn(`API returned ${response.status} but continuing due to errorBehavior=continue`);
+                        result = { ...responseData, _statusCode: response.status, _isError: true };
+                    }
+                } else {
+                    result = { ...responseData, _statusCode: response.status };
+                }
+
+            } else if (node.type === 'llmCall') {
+                const prompt = this.replaceVariables(node.data.prompt || '', inputData);
+                console.log(`Executing Mock LLM Call with prompt: ${prompt}`);
+                // Mock Response
+                result = {
+                    response: `This is a mock response for prompt: "${prompt}". LLM integration is not yet configured.`,
+                    timestamp: new Date().toISOString()
+                };
+            }
+
+            // 成功
+            await this.prisma.serviceTask.update({
+                where: { id: task.id },
+                data: { status: 'COMPLETED' as any, result },
+            });
+
+            // 次のノードへ
+            await this.advanceToNextNode(applicationId);
+
+        } catch (error: any) {
+            console.error('Service Task Failed:', error);
+            await this.prisma.serviceTask.update({
+                where: { id: task.id },
+                data: {
+                    status: 'FAILED' as any,
+                    error: error.message || 'Unknown error',
+                },
+            });
+            // 失敗時はフロー停止（ここで終了）
+        }
+    }
+
+    /**
+     * 変数置換 helper
+     */
+    private replaceVariables(text: string, data: any): string {
+        if (!text) return '';
+        return text.replace(/\{\{(.+?)\}\}/g, (_, key) => {
+            const val = data?.[key.trim()];
+            return val !== undefined ? String(val) : '';
+        });
+    }
+
+    /**
+     * タスク再実行
+     */
+    async retryServiceTask(taskId: string) {
+        const task = await this.prisma.serviceTask.findUnique({
+            where: { id: taskId },
+            include: { application: { include: { flowDefinition: true } } }
+        });
+
+        if (!task || task.status !== 'FAILED') {
+            throw new BadRequestException('Task is not in FAILED state');
+        }
+
+        const nodes = task.application.flowDefinition.nodes as any[];
+        const node = nodes.find(n => n.id === task.stepId);
+
+        if (!node) {
+            throw new NotFoundException('Node not found in flow definition');
+        }
+
+        // 再実行
+        await this.executeServiceTask(task.applicationId, node, task.application.inputData, taskId);
+
+        return { success: true };
     }
 }

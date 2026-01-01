@@ -229,7 +229,8 @@ export default function SubmitApplicationPage() {
 
     const renderField = (field: any) => {
         const value = formData[field.id] ?? '';
-        const gridWidth = field.w <= 6 ? 6 : 12;
+        // Map layout width (out of 12) to MD grid columns
+        const gridWidth = Math.min(12, Math.max(1, field.w));
         const fieldError = errors[field.id];
 
         // Handle UI-only elements

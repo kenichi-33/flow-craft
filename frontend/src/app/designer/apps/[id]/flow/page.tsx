@@ -222,7 +222,22 @@ const VALIDATION_RULES: ValidationRule[] = [
         category: 'connectivity',
         check: (nodes, edges) => {
             for (const n of nodes) {
-                if (!['branch', 'parallel'].includes(n.type || '')) {
+                if (n.type === 'parallel') continue;
+
+                if (n.type === 'branch') {
+                    // Branch: Check per handle
+                    const outEdges = edges.filter(e => e.source === n.id);
+                    const yesEdges = outEdges.filter(e => e.sourceHandle === 'yes');
+                    const noEdges = outEdges.filter(e => e.sourceHandle === 'no');
+
+                    if (yesEdges.length > 1) {
+                        return `分岐 "${n.data?.label || '分岐'}" の「はい」から複数の接続が出ています`;
+                    }
+                    if (noEdges.length > 1) {
+                        return `分岐 "${n.data?.label || '分岐'}" の「いいえ」から複数の接続が出ています`;
+                    }
+                } else {
+                    // Other nodes: Max 1 output total
                     const outEdges = edges.filter(e => e.source === n.id);
                     if (outEdges.length > 1) {
                         return `"${n.data?.label || n.id}" からの出力は1つしか許可されていません`;
@@ -353,7 +368,7 @@ function FlowEditorContent({ appId }: { appId: string }) {
             if ((app as any).flowDefinition.nodes?.length > 0) {
                 // Inject formFields into branch nodes
                 const nodesWithFields = (app as any).flowDefinition.nodes.map((node: any) => {
-                    if (node.type === 'branch') {
+                    if (['branch', 'apiCall', 'llmCall'].includes(node.type)) {
                         return { ...node, data: { ...node.data, formFields } };
                     }
                     return node;

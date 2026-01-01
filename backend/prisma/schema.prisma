@@ -53,6 +53,7 @@ model Application {
   formDefinition        FormDefinition         @relation(fields: [formDefinitionId], references: [id])
   flowDefinition        FlowDefinition         @relation(fields: [flowDefinitionId], references: [id])
   tasks                 ApprovalTask[]
+  serviceTasks          ServiceTask[]
   history               ApprovalHistory[]
 
   @@map("applications")
@@ -83,6 +84,7 @@ model ApprovalTask {
 enum TaskStatus {
   PENDING
   COMPLETED
+  FAILED
 }
 
 model ApprovalHistory {
@@ -97,6 +99,23 @@ model ApprovalHistory {
   application   Application @relation(fields: [applicationId], references: [id])
 
   @@map("approval_histories")
+}
+
+model ServiceTask {
+  id            String   @id @default(uuid())
+  applicationId String   @map("application_id")
+  stepId        String   @map("step_id")
+  type          String
+  status        TaskStatus @default(PENDING)
+  result        Json?
+  error         String?
+  retries       Int      @default(0)
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  application   Application @relation(fields: [applicationId], references: [id])
+
+  @@map("service_tasks")
 }
 
 // 申請アプリ定義（フォームとフローを紐づける）

@@ -42,6 +42,11 @@ export class WorkflowEngineController {
         });
     }
 
+    @Post('tasks/:id/retry')
+    retryTask(@Param('id') taskId: string) {
+        return this.workflowService.retryServiceTask(taskId);
+    }
+
     @Get('applications/:id/status')
     getWorkflowStatus(@Param('id') applicationId: string) {
         return this.workflowService.getWorkflowStatus(applicationId);

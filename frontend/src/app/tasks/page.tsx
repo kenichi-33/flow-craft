@@ -25,12 +25,22 @@ interface Task {
     createdAt: string;
     application: {
         id: string;
+        applicationNumber: number;
         inputData: any;
         applicationDefinition?: {
             id: string;
             name: string;
         };
+        flowDefinition?: {
+            nodes: any[];
+        };
     };
+}
+
+function getStepLabel(stepId: string, nodes?: any[]): string {
+    if (!nodes) return stepId;
+    const node = nodes.find(n => n.id === stepId);
+    return node?.data?.label || stepId;
 }
 
 export default function TasksListPage() {
@@ -52,8 +62,9 @@ export default function TasksListPage() {
                 <Table>
                     <TableHead>
                         <TableRow>
+                            <TableCell>申請番号</TableCell>
                             <TableCell>アプリ名</TableCell>
-                            <TableCell>ステップ</TableCell>
+                            <TableCell>タスク</TableCell>
                             <TableCell>ステータス</TableCell>
                             <TableCell>受付日</TableCell>
                             <TableCell>操作</TableCell>
@@ -62,23 +73,24 @@ export default function TasksListPage() {
                     <TableBody>
                         {isLoading ? (
                             <TableRow>
-                                <TableCell colSpan={5}>読み込み中...</TableCell>
+                                <TableCell colSpan={6}>読み込み中...</TableCell>
                             </TableRow>
                         ) : pendingTasks.length === 0 ? (
                             <TableRow>
-                                <TableCell colSpan={5}>承認待ちのタスクはありません</TableCell>
+                                <TableCell colSpan={6}>承認待ちのタスクはありません</TableCell>
                             </TableRow>
                         ) : (
                             pendingTasks.map((task) => (
                                 <TableRow key={task.id} hover>
+                                    <TableCell>#{task.application?.applicationNumber}</TableCell>
                                     <TableCell>
                                         <strong>{task.application?.applicationDefinition?.name || '不明'}</strong>
                                     </TableCell>
-                                    <TableCell>{task.stepId}</TableCell>
+                                    <TableCell>{getStepLabel(task.stepId, task.application?.flowDefinition?.nodes)}</TableCell>
                                     <TableCell>
                                         <Chip label="承認待ち" color="warning" size="small" />
                                     </TableCell>
-                                    <TableCell>{new Date(task.createdAt).toLocaleDateString()}</TableCell>
+                                    <TableCell suppressHydrationWarning>{new Date(task.createdAt).toLocaleString('ja-JP')}</TableCell>
                                     <TableCell>
                                         <Button
                                             variant="contained"

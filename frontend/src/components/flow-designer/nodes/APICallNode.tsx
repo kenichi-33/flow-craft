@@ -5,7 +5,7 @@ import { Handle, Position, useReactFlow } from 'reactflow';
 import {
     Box, Typography, IconButton, Dialog, DialogTitle, DialogContent,
     DialogActions, TextField, Button, Select, MenuItem, FormControl, InputLabel,
-    Divider, Grid, Tabs, Tab
+    Divider, Grid, Tabs, Tab, Chip
 } from '@mui/material';
 import EditIcon from '@mui/icons-material/Edit';
 import HttpIcon from '@mui/icons-material/Http';
@@ -129,6 +129,8 @@ export default function APICallNode({ id, data }: { id: string; data: any }) {
     const [method, setMethod] = useState(data.method || 'GET');
     const [headers, setHeaders] = useState(data.headers || '{}');
     const [body, setBody] = useState(data.body || '{}');
+    const [successCodes, setSuccessCodes] = useState(data.successCodes || '200,201,204');
+    const [errorBehavior, setErrorBehavior] = useState(data.errorBehavior || 'stop');
     const [tabValue, setTabValue] = useState(0);
 
     const { setNodes } = useReactFlow();
@@ -146,6 +148,8 @@ export default function APICallNode({ id, data }: { id: string; data: any }) {
                             method,
                             headers,
                             body,
+                            successCodes,
+                            errorBehavior,
                         }
                     }
                     : node
@@ -234,6 +238,30 @@ export default function APICallNode({ id, data }: { id: string; data: any }) {
             <Dialog open={dialogOpen} onClose={() => setDialogOpen(false)} maxWidth="md" fullWidth>
                 <DialogTitle>API呼び出し設定</DialogTitle>
                 <DialogContent>
+                    {data.formFields && data.formFields.length > 0 && (
+                        <Box sx={{ mb: 2, p: 1.5, bgcolor: '#f5f5f5', borderRadius: 1 }}>
+                            <Typography variant="caption" color="text.secondary" fontWeight="bold" sx={{ mb: 1, display: 'block' }}>
+                                使用可能なフォーム項目 (クリックしてIDをコピー)
+                            </Typography>
+                            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                                {data.formFields.map((field: any) => (
+                                    <Chip
+                                        key={field.id}
+                                        label={`${field.label} (${field.id})`}
+                                        size="small"
+                                        onClick={() => {
+                                            navigator.clipboard.writeText(`{{${field.id}}}`);
+                                        }}
+                                        sx={{ fontSize: '0.7rem', height: 20 }}
+                                    />
+                                ))}
+                            </Box>
+                            <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block', fontSize: '0.65rem' }}>
+                                ※ 値の入力欄で <code>{`{{フィールドID}}`}</code> と記述するとフォームの値が埋め込まれます
+                            </Typography>
+                        </Box>
+                    )}
+
                     <Grid container spacing={2} sx={{ mt: 0 }}>
                         <Grid size={{ xs: 12, sm: 6 }}>
                             <TextField
@@ -313,6 +341,36 @@ export default function APICallNode({ id, data }: { id: string; data: any }) {
                             placeholder='{"key": "{{formField}}"}'
                         />
                     </CustomTabPanel>
+
+                    <Divider sx={{ my: 3 }} />
+
+                    <Typography variant="subtitle2" gutterBottom>レスポンス判定設定</Typography>
+                    <Grid container spacing={2}>
+                        <Grid size={{ xs: 12, sm: 6 }}>
+                            <TextField
+                                label="成功ステータスコード"
+                                value={successCodes}
+                                onChange={(e) => setSuccessCodes(e.target.value)}
+                                fullWidth
+                                size="small"
+                                placeholder="200,201,204"
+                                helperText="カンマ区切りで複数指定可"
+                            />
+                        </Grid>
+                        <Grid size={{ xs: 12, sm: 6 }}>
+                            <FormControl fullWidth size="small">
+                                <InputLabel>エラー時の動作</InputLabel>
+                                <Select
+                                    value={errorBehavior}
+                                    onChange={(e) => setErrorBehavior(e.target.value)}
+                                    label="エラー時の動作"
+                                >
+                                    <MenuItem value="stop">フローを停止</MenuItem>
+                                    <MenuItem value="continue">次のステップへ進む</MenuItem>
+                                </Select>
+                            </FormControl>
+                        </Grid>
+                    </Grid>
 
                 </DialogContent>
                 <DialogActions>

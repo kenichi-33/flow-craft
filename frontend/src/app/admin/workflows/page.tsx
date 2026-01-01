@@ -30,7 +30,16 @@ interface Application {
         id: string;
         name: string;
     };
+    flowDefinition?: {
+        nodes: any[];
+    };
     applicantId: string;
+}
+
+function getStepLabel(nodeId: string | null, nodes?: any[]): string {
+    if (!nodeId || !nodes) return nodeId || '-';
+    const node = nodes.find(n => n.id === nodeId);
+    return node?.data?.label || nodeId;
 }
 
 export default function WorkflowsListPage() {
@@ -81,19 +90,20 @@ export default function WorkflowsListPage() {
                             <TableCell>アプリ名</TableCell>
                             <TableCell>申請者</TableCell>
                             <TableCell>ステータス</TableCell>
-                            <TableCell>現在のノード</TableCell>
+                            <TableCell>ステップ</TableCell>
                             <TableCell>申請日</TableCell>
+                            <TableCell>更新日</TableCell>
                             <TableCell>操作</TableCell>
                         </TableRow>
                     </TableHead>
                     <TableBody>
                         {isLoading ? (
                             <TableRow>
-                                <TableCell colSpan={7}>読み込み中...</TableCell>
+                                <TableCell colSpan={8}>読み込み中...</TableCell>
                             </TableRow>
                         ) : applications?.length === 0 ? (
                             <TableRow>
-                                <TableCell colSpan={7}>ワークフローがありません</TableCell>
+                                <TableCell colSpan={8}>ワークフローがありません</TableCell>
                             </TableRow>
                         ) : (
                             applications?.map((app) => (
@@ -112,8 +122,9 @@ export default function WorkflowsListPage() {
                                             size="small"
                                         />
                                     </TableCell>
-                                    <TableCell>{app.currentNodeId || '-'}</TableCell>
-                                    <TableCell>{new Date(app.createdAt).toLocaleString('ja-JP')}</TableCell>
+                                    <TableCell>{getStepLabel(app.currentNodeId, app.flowDefinition?.nodes)}</TableCell>
+                                    <TableCell suppressHydrationWarning>{new Date(app.createdAt).toLocaleString('ja-JP')}</TableCell>
+                                    <TableCell suppressHydrationWarning>{new Date(app.updatedAt).toLocaleString('ja-JP')}</TableCell>
                                     <TableCell>
                                         <Button
                                             size="small"

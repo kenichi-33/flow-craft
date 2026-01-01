@@ -48,15 +48,21 @@ const TOOLBOX_ITEMS = [
     { type: 'label', label: '見出し', icon: <TitleIcon /> },
 ];
 
+
 // WYSIWYG Preview Component
-function FieldPreview({ field, onUpdateLabel, onDelete, onUpdateOptions }: {
+function FieldPreview({ field, onUpdateLabel, onDelete, onUpdateOptions, onUpdateId, existingIds }: {
     field: FormField;
     onUpdateLabel: (label: string) => void;
     onDelete: () => void;
     onUpdateOptions: (options: string[]) => void;
+    onUpdateId: (newId: string) => void;
+    existingIds: string[];
 }) {
     const [isEditing, setIsEditing] = useState(false);
+    const [isEditingId, setIsEditingId] = useState(false);
     const [labelValue, setLabelValue] = useState(field.label);
+    const [idValue, setIdValue] = useState(field.id);
+    const [idError, setIdError] = useState<string | null>(null);
     const [optionsText, setOptionsText] = useState((field.options || []).join(', '));
     const sampleOptions = field.options && field.options.length > 0
         ? field.options
@@ -67,6 +73,40 @@ function FieldPreview({ field, onUpdateLabel, onDelete, onUpdateOptions }: {
         setLabelValue(field.label);
     }, [field.label]);
 
+    // Sync id value when field.id changes
+    useEffect(() => {
+        setIdValue(field.id);
+    }, [field.id]);
+
+    const validateId = (newId: string): string | null => {
+        if (!newId.trim()) return 'IDは必須です';
+        if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(newId)) return 'IDは英数字とアンダースコアのみ（先頭は英字または_）';
+        if (newId !== field.id && existingIds.includes(newId)) return 'このIDは既に使用されています';
+        return null;
+    };
+
+    const handleIdChange = (newId: string) => {
+        setIdValue(newId);
+        setIdError(validateId(newId));
+    };
+
+    const handleIdSave = () => {
+        const error = validateId(idValue);
+        if (error) {
+            setIdError(error);
+            return;
+        }
+        onUpdateId(idValue);
+        setIsEditingId(false);
+        setIdError(null);
+    };
+
+    const handleIdCancel = () => {
+        setIdValue(field.id);
+        setIsEditingId(false);
+        setIdError(null);
+    };
+
     const handleSaveOptions = () => {
         const newOptions = optionsText.split(',').map(s => s.trim()).filter(s => s);
         onUpdateOptions(newOptions);
@@ -76,6 +116,68 @@ function FieldPreview({ field, onUpdateLabel, onDelete, onUpdateOptions }: {
     const handleLabelChange = (newLabel: string) => {
         setLabelValue(newLabel);
         onUpdateLabel(newLabel);
+    };
+
+    // Render editable ID chip
+    const renderIdChip = () => {
+        if (isEditingId) {
+            return (
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, pointerEvents: 'auto' }} onMouseDown={e => e.stopPropagation()}>
+                    <TextField
+                        size="small"
+                        value={idValue}
+                        onChange={(e) => handleIdChange(e.target.value)}
+                        error={!!idError}
+                        helperText={idError}
+                        autoFocus
+                        onKeyDown={(e) => {
+                            if (e.key === 'Enter') handleIdSave();
+                            if (e.key === 'Escape') handleIdCancel();
+                        }}
+                        sx={{
+                            width: 150,
+                            '& .MuiInputBase-input': { fontSize: '0.75rem', py: 0.5, px: 1 },
+                            '& .MuiFormHelperText-root': { fontSize: '0.6rem', mt: 0.25 }
+                        }}
+                    />
+                    <Button size="small" onClick={handleIdSave} sx={{ minWidth: 'auto', p: 0.5, fontSize: '0.7rem' }}>
+                        保存
+                    </Button>
+                    <Button size="small" onClick={handleIdCancel} sx={{ minWidth: 'auto', p: 0.5, fontSize: '0.7rem' }}>
+                        ×
+                    </Button>
+                </Box>
+            );
+        }
+        return (
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, pointerEvents: 'auto' }}>
+                <Chip
+                    label={`ID: ${field.id}`}
+                    size="small"
+                    sx={{
+                        height: 20,
+                        fontSize: '0.625rem',
+                        bgcolor: 'grey.100',
+                        color: 'text.secondary',
+                    }}
+                />
+                <IconButton
+                    size="small"
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        e.preventDefault();
+                        setIsEditingId(true);
+                    }}
+                    onMouseDown={e => e.stopPropagation()}
+                    sx={{
+                        p: 0.25,
+                        '&:hover': { bgcolor: 'primary.light', color: 'white' }
+                    }}
+                >
+                    <EditIcon sx={{ fontSize: 14 }} />
+                </IconButton>
+            </Box>
+        );
     };
 
     const renderPreview = () => {
@@ -89,108 +191,147 @@ function FieldPreview({ field, onUpdateLabel, onDelete, onUpdateOptions }: {
 
             case 'label':
                 return (
-                    <Typography variant="h6" sx={{ fontWeight: 'bold', color: '#333' }}>
-                        {field.label || '見出しテキスト'}
-                    </Typography>
+                    <Box>
+                        <Box sx={{ display: 'flex', alignItems: 'center', mb: 0.5, gap: 1 }}>
+                            <Typography variant="h6" sx={{ fontWeight: 'bold', color: '#333' }}>
+                                {field.label || '見出しテキスト'}
+                            </Typography>
+                            {renderIdChip()}
+                        </Box>
+                    </Box>
                 );
 
             case 'text':
                 return (
-                    <TextField
-                        label={field.label}
-                        placeholder="テキストを入力"
-                        fullWidth
-                        size="small"
-                        disabled
-                        sx={{ bgcolor: 'white' }}
-                    />
+                    <Box>
+                        <Box sx={{ display: 'flex', alignItems: 'center', mb: 0.5, gap: 1 }}>
+                            <FormLabel>{field.label}</FormLabel>
+                            {renderIdChip()}
+                        </Box>
+                        <TextField
+                            fullWidth
+                            disabled
+                            size="small"
+                            placeholder="テキストを入力"
+                            sx={{ bgcolor: 'white' }}
+                        />
+                    </Box>
                 );
 
             case 'textarea':
                 return (
-                    <TextField
-                        label={field.label}
-                        placeholder="長文テキストを入力"
-                        fullWidth
-                        multiline
-                        rows={3}
-                        size="small"
-                        disabled
-                        sx={{ bgcolor: 'white' }}
-                    />
+                    <Box>
+                        <Box sx={{ display: 'flex', alignItems: 'center', mb: 0.5, gap: 1 }}>
+                            <FormLabel>{field.label}</FormLabel>
+                            {renderIdChip()}
+                        </Box>
+                        <TextField
+                            fullWidth
+                            disabled
+                            multiline
+                            rows={3}
+                            placeholder="長文テキストを入力"
+                            sx={{ bgcolor: 'white' }}
+                        />
+                    </Box>
                 );
 
             case 'number':
                 return (
-                    <TextField
-                        label={field.label}
-                        type="number"
-                        placeholder="0"
-                        fullWidth
-                        size="small"
-                        disabled
-                        sx={{ bgcolor: 'white' }}
-                    />
-                );
-
-            case 'date':
-                return (
-                    <TextField
-                        label={field.label}
-                        type="date"
-                        fullWidth
-                        size="small"
-                        disabled
-                        InputLabelProps={{ shrink: true }}
-                        sx={{ bgcolor: 'white' }}
-                    />
+                    <Box>
+                        <Box sx={{ display: 'flex', alignItems: 'center', mb: 0.5, gap: 1 }}>
+                            <FormLabel>{field.label}</FormLabel>
+                            {renderIdChip()}
+                        </Box>
+                        <TextField
+                            type="number"
+                            fullWidth
+                            disabled
+                            size="small"
+                            placeholder="0"
+                            sx={{ bgcolor: 'white' }}
+                        />
+                    </Box>
                 );
 
             case 'select':
                 return (
-                    <FormControl fullWidth size="small" disabled>
-                        <InputLabel>{field.label}</InputLabel>
-                        <Select label={field.label} value="" sx={{ bgcolor: 'white' }}>
-                            {sampleOptions.map((opt) => (
-                                <MenuItem key={opt} value={opt}>{opt}</MenuItem>
+                    <Box>
+                        <Box sx={{ display: 'flex', alignItems: 'center', mb: 0.5, gap: 1 }}>
+                            <FormLabel>{field.label}</FormLabel>
+                            {renderIdChip()}
+                        </Box>
+                        <Select
+                            fullWidth
+                            disabled
+                            size="small"
+                            value=""
+                            displayEmpty
+                            sx={{ bgcolor: 'white' }}
+                        >
+                            <MenuItem value="">選択してください</MenuItem>
+                            {sampleOptions.map((opt, i) => (
+                                <MenuItem key={i} value={opt}>{opt}</MenuItem>
                             ))}
                         </Select>
-                    </FormControl>
+                    </Box>
                 );
 
             case 'radio':
                 return (
-                    <FormControl component="fieldset">
-                        <FormLabel component="legend" sx={{ fontSize: '0.875rem' }}>{field.label}</FormLabel>
+                    <Box>
+                        <Box sx={{ display: 'flex', alignItems: 'center', mb: 0.5, gap: 1 }}>
+                            <FormLabel>{field.label}</FormLabel>
+                            {renderIdChip()}
+                        </Box>
                         <RadioGroup row>
-                            {sampleOptions.map((opt) => (
+                            {sampleOptions.map((opt, i) => (
                                 <FormControlLabel
-                                    key={opt}
+                                    key={i}
                                     value={opt}
                                     control={<Radio size="small" disabled />}
                                     label={opt}
-                                    sx={{ '& .MuiFormControlLabel-label': { fontSize: '0.875rem' } }}
                                 />
                             ))}
                         </RadioGroup>
-                    </FormControl>
+                    </Box>
                 );
 
             case 'checkbox':
                 return (
-                    <FormControl component="fieldset">
-                        <FormLabel component="legend" sx={{ fontSize: '0.875rem' }}>{field.label}</FormLabel>
+                    <Box>
+                        <Box sx={{ display: 'flex', alignItems: 'center', mb: 0.5, gap: 1 }}>
+                            <FormLabel>{field.label}</FormLabel>
+                            {renderIdChip()}
+                        </Box>
                         <FormGroup row>
-                            {sampleOptions.map((opt) => (
+                            {sampleOptions.map((opt, i) => (
                                 <FormControlLabel
-                                    key={opt}
+                                    key={i}
                                     control={<Checkbox size="small" disabled />}
                                     label={opt}
-                                    sx={{ '& .MuiFormControlLabel-label': { fontSize: '0.875rem' } }}
                                 />
                             ))}
                         </FormGroup>
-                    </FormControl>
+                    </Box>
+                );
+
+            case 'date':
+                return (
+                    <Box>
+                        <Box sx={{ display: 'flex', alignItems: 'center', mb: 0.5, gap: 1 }}>
+                            <FormLabel>{field.label}</FormLabel>
+                            {renderIdChip()}
+                        </Box>
+                        <TextField
+                            type="date"
+                            fullWidth
+                            disabled
+                            size="small"
+                            InputLabelProps={{ shrink: true }}
+                            sx={{ bgcolor: 'white' }}
+                        />
+                    </Box>
                 );
 
             default:
@@ -464,6 +605,13 @@ export default function AppFormEditorPage() {
         setFields(fields.map(f => f.id === id ? { ...f, ...updates } : f));
     };
 
+    const handleUpdateFieldId = (oldId: string, newId: string) => {
+        // Update fields array
+        setFields(fields.map(f => f.id === oldId ? { ...f, id: newId } : f));
+        // Update layout to use new ID
+        setLayout(layout.map((l: any) => l.i === oldId ? { ...l, i: newId } : l));
+    };
+
     const handleSave = () => {
         if (!formName.trim()) {
             setError('フォーム名を入力してください');
@@ -557,6 +705,8 @@ export default function AppFormEditorPage() {
                                                 onUpdateLabel={(label) => handleUpdateField(field.id, { label })}
                                                 onDelete={() => handleRemoveField(field.id)}
                                                 onUpdateOptions={(options) => handleUpdateField(field.id, { options })}
+                                                onUpdateId={(newId) => handleUpdateFieldId(field.id, newId)}
+                                                existingIds={fields.map(f => f.id)}
                                             />
                                         </div>
                                     ))}

@@ -123,19 +123,30 @@ export default function WorkflowDetailPage() {
         const rawNodes = application.flowDefinition.nodes || [];
         const rawEdges = application.flowDefinition.edges || [];
         const currentNodeId = application.currentNodeId;
-        const traversalOrder = getTraversalOrder(rawNodes, rawEdges);
-        const currentIndex = traversalOrder.indexOf(currentNodeId || '');
+
+        // Get actually completed steps from history (not traversal order)
+        const completedStepIds = new Set(
+            (application.history || []).map(h => h.stepId)
+        );
+        // Also add start node if there's any history
+        if (completedStepIds.size > 0) {
+            const startNode = rawNodes.find((n: any) => n.type === 'start');
+            if (startNode) completedStepIds.add(startNode.id);
+        }
 
         // Transform nodes for display
         const displayNodes = rawNodes.map((node: any) => {
-            const isCompleted = traversalOrder.indexOf(node.id) < currentIndex;
+            const isCompleted = completedStepIds.has(node.id);
             const isCurrent = node.id === currentNodeId;
             const isApproved = application.status === 'APPROVED';
 
             let bgColor = '#f5f5f5';
             let borderColor = '#ccc';
 
-            if (isCompleted || (isApproved && node.type === 'end')) {
+            if (isApproved && node.type === 'end') {
+                bgColor = '#c8e6c9';
+                borderColor = '#4caf50';
+            } else if (isCompleted) {
                 bgColor = '#c8e6c9';
                 borderColor = '#4caf50';
             } else if (isCurrent) {
@@ -161,7 +172,7 @@ export default function WorkflowDetailPage() {
                             {isCurrent && (
                                 <Chip label="現在" size="small" color="primary" sx={{ mt: 0.5 }} />
                             )}
-                            {isCompleted && (
+                            {isCompleted && !isCurrent && (
                                 <Chip label="完了" size="small" color="success" sx={{ mt: 0.5 }} />
                             )}
                         </Box>
@@ -170,20 +181,31 @@ export default function WorkflowDetailPage() {
             };
         });
 
-        // Transform edges
-        const displayEdges = rawEdges.map((edge: any) => ({
-            ...edge,
-            markerEnd: { type: MarkerType.ArrowClosed },
-            style: { strokeWidth: 2 },
-        }));
+        // Transform edges - highlight edges between completed nodes
+        const displayEdges = rawEdges.map((edge: any) => {
+            const sourceCompleted = completedStepIds.has(edge.source);
+            const targetCompleted = completedStepIds.has(edge.target) || edge.target === currentNodeId;
+            const isTraversed = sourceCompleted && targetCompleted;
 
-        // Create ordered steps for stepper
+            return {
+                ...edge,
+                markerEnd: { type: MarkerType.ArrowClosed, color: isTraversed ? '#4caf50' : '#999' },
+                style: {
+                    strokeWidth: isTraversed ? 3 : 2,
+                    stroke: isTraversed ? '#4caf50' : '#999',
+                },
+            };
+        });
+
+        // Create ordered steps for stepper (use traversal order for display order, but use history for status)
+        const traversalOrder = getTraversalOrder(rawNodes, rawEdges);
         const orderedSteps = traversalOrder.map(nodeId => {
             const node = rawNodes.find((n: any) => n.id === nodeId);
             return {
                 id: nodeId,
                 label: node?.data?.label || node?.type || nodeId,
                 type: node?.type,
+                isCompleted: completedStepIds.has(nodeId),
             };
         });
 
@@ -263,7 +285,7 @@ export default function WorkflowDetailPage() {
                         <Typography variant="h6" gutterBottom>ステップ一覧</Typography>
                         <Divider sx={{ mb: 2 }} />
                         {orderedSteps.map((step, idx) => {
-                            const isCompleted = idx < currentStepIndex || application.status === 'APPROVED';
+                            const isCompleted = step.isCompleted || (application.status === 'APPROVED' && step.type === 'end');
                             const isCurrent = step.id === application.currentNodeId;
                             return (
                                 <Box
@@ -321,20 +343,42 @@ export default function WorkflowDetailPage() {
                 ) : (
                     <Table>
                         <TableBody>
-                            {application.history?.map((h) => (
-                                <TableRow key={h.id}>
-                                    <TableCell>{new Date(h.actedAt).toLocaleString('ja-JP')}</TableCell>
-                                    <TableCell>
-                                        <Chip
-                                            label={h.action === 'APPROVE' ? '承認' : h.action === 'REJECT' ? '却下' : '差戻し'}
-                                            color={h.action === 'APPROVE' ? 'success' : h.action === 'REJECT' ? 'error' : 'warning'}
-                                            size="small"
-                                        />
-                                    </TableCell>
-                                    <TableCell>{h.actorId}</TableCell>
-                                    <TableCell>{h.comment || '-'}</TableCell>
-                                </TableRow>
-                            ))}
+                            {application.history?.map((h) => {
+                                const getActionLabel = (action: string) => {
+                                    switch (action) {
+                                        case 'APPROVE': return '承認';
+                                        case 'REJECT': return '却下';
+                                        case 'REMAND': return '差戻し';
+                                        case 'BRANCH': return '条件分岐';
+                                        case 'SERVICE_TASK': return 'システム処理';
+                                        default: return action;
+                                    }
+                                };
+                                const getActionColor = (action: string) => {
+                                    switch (action) {
+                                        case 'APPROVE': return 'success';
+                                        case 'REJECT': return 'error';
+                                        case 'REMAND': return 'warning';
+                                        case 'BRANCH': return 'info';
+                                        case 'SERVICE_TASK': return 'secondary';
+                                        default: return 'default';
+                                    }
+                                };
+                                return (
+                                    <TableRow key={h.id}>
+                                        <TableCell suppressHydrationWarning>{new Date(h.actedAt).toLocaleString('ja-JP')}</TableCell>
+                                        <TableCell>
+                                            <Chip
+                                                label={getActionLabel(h.action)}
+                                                color={getActionColor(h.action) as any}
+                                                size="small"
+                                            />
+                                        </TableCell>
+                                        <TableCell>{h.actorId === 'SYSTEM' ? 'システム' : h.actorId}</TableCell>
+                                        <TableCell>{h.comment || '-'}</TableCell>
+                                    </TableRow>
+                                );
+                            })}
                         </TableBody>
                     </Table>
                 )}
