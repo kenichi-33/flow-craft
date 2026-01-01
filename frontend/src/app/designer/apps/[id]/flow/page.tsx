@@ -33,6 +33,7 @@ import APICallNode from '@/components/flow-designer/nodes/APICallNode';
 import LLMCallNode from '@/components/flow-designer/nodes/LLMCallNode';
 import ParallelGatewayNode from '@/components/flow-designer/nodes/ParallelGatewayNode';
 import JoinGatewayNode from '@/components/flow-designer/nodes/JoinGatewayNode';
+import SwimLaneNode from '@/components/flow-designer/nodes/SwimLaneNode';
 
 const nodeTypes = {
     start: StartNode,
@@ -43,10 +44,17 @@ const nodeTypes = {
     llmCall: LLMCallNode,
     parallel: ParallelGatewayNode,
     join: JoinGatewayNode,
+    swimlane: SwimLaneNode,
 };
 
 // BPMN.io style toolbox groups
 const TOOLBOX_GROUPS = [
+    {
+        name: 'スイムレーン',
+        items: [
+            { type: 'swimlane', label: 'レーン', color: '#90caf9', icon: '═' },
+        ],
+    },
     {
         name: 'イベント',
         items: [
@@ -165,7 +173,7 @@ const VALIDATION_RULES: ValidationRule[] = [
         category: 'connectivity',
         check: (nodes, edges) => {
             for (const n of nodes) {
-                if (!['start', 'end', 'branch'].includes(n.type || '')) {
+                if (!['start', 'end', 'branch', 'swimlane'].includes(n.type || '')) {
                     if (!edges.some(e => e.target === n.id)) {
                         return `"${n.data?.label || n.id}" への入力接続がありません`;
                     }
@@ -181,7 +189,7 @@ const VALIDATION_RULES: ValidationRule[] = [
         category: 'connectivity',
         check: (nodes, edges) => {
             for (const n of nodes) {
-                if (!['start', 'end', 'branch'].includes(n.type || '')) {
+                if (!['start', 'end', 'branch', 'swimlane'].includes(n.type || '')) {
                     if (!edges.some(e => e.source === n.id)) {
                         return `"${n.data?.label || n.id}" からの出力接続がありません`;
                     }
@@ -222,7 +230,7 @@ const VALIDATION_RULES: ValidationRule[] = [
         category: 'connectivity',
         check: (nodes, edges) => {
             for (const n of nodes) {
-                if (n.type === 'parallel') continue;
+                if (n.type === 'parallel' || n.type === 'swimlane') continue;
 
                 if (n.type === 'branch') {
                     // Branch: Check per handle
@@ -343,6 +351,7 @@ function FlowEditorContent({ appId }: { appId: string }) {
     const [success, setSuccess] = useState<string | null>(null);
     const [selectedNodes, setSelectedNodes] = useState<string[]>([]);
     const [selectedEdges, setSelectedEdges] = useState<string[]>([]);
+
 
     const { data: app } = useQuery({
         queryKey: ['apps', appId],
@@ -475,6 +484,7 @@ function FlowEditorContent({ appId }: { appId: string }) {
             branch: '条件分岐',
             remand: '差戻し',
             end: '終了',
+            swimlane: 'レーン',
         };
 
         const newNode: Node = {
@@ -485,7 +495,18 @@ function FlowEditorContent({ appId }: { appId: string }) {
                 label: labelMap[type] || type,
                 assignee: type === 'approval' ? '承認者' : undefined,
                 formFields: type === 'branch' ? formFields : undefined,
+                // スイムレーン用デフォルト設定
+                ...(type === 'swimlane' && {
+                    width: 800,
+                    height: 200,
+                    color: '#e3f2fd',
+                }),
             },
+            // スイムレーンは背景として表示 (zIndex小)
+            ...(type === 'swimlane' && {
+                style: { width: 800, height: 200 },
+                zIndex: -100,
+            }),
         };
         setNodes((nds) => nds.concat(newNode));
     }, [setNodes, screenToFlowPosition, formFields]);

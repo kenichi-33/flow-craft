@@ -46,6 +46,10 @@ model Application {
   status                  ApplicationStatus @default(DRAFT)
   inputData               Json     @map("input_data")
   currentNodeId           String?  @map("current_node_id")
+  // スナップショット: 申請時点のフォーム・フロー定義を保存（バージョン互換性のため）
+  formSchema              Json?    @map("form_schema")
+  flowNodes               Json?    @map("flow_nodes")
+  flowEdges               Json?    @map("flow_edges")
   createdAt               DateTime @default(now()) @map("created_at")
   updatedAt               DateTime @updatedAt @map("updated_at")
 
@@ -55,6 +59,7 @@ model Application {
   tasks                 ApprovalTask[]
   serviceTasks          ServiceTask[]
   history               ApprovalHistory[]
+  serviceTaskHistories  ServiceTaskHistory[]
 
   @@map("applications")
 }
@@ -114,8 +119,27 @@ model ServiceTask {
   updatedAt     DateTime @updatedAt @map("updated_at")
 
   application   Application @relation(fields: [applicationId], references: [id])
+  history       ServiceTaskHistory[]
 
   @@map("service_tasks")
+}
+
+// サービスタスク実行履歴（再実行時も全件保存）
+model ServiceTaskHistory {
+  id            String   @id @default(uuid())
+  serviceTaskId String   @map("service_task_id")
+  applicationId String   @map("application_id")
+  stepId        String   @map("step_id")
+  type          String
+  status        TaskStatus
+  result        Json?
+  error         String?
+  executedAt    DateTime @default(now()) @map("executed_at")
+
+  serviceTask   ServiceTask @relation(fields: [serviceTaskId], references: [id])
+  application   Application @relation(fields: [applicationId], references: [id])
+
+  @@map("service_task_histories")
 }
 
 // 申請アプリ定義（フォームとフローを紐づける）

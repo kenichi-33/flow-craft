@@ -4,8 +4,10 @@ import React, { useState, useEffect } from 'react';
 import {
     Box, Button, TextField, Paper, Typography, Grid, IconButton, Alert,
     FormControl, FormLabel, RadioGroup, FormControlLabel, Radio,
-    Checkbox, Select, MenuItem, InputLabel, FormGroup, Chip, Divider
+    Checkbox, Select, MenuItem, InputLabel, FormGroup, Chip, Divider,
+    Dialog, DialogTitle, DialogContent, DialogActions
 } from '@mui/material';
+import VisibilityIcon from '@mui/icons-material/Visibility';
 import { useRouter, useParams } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { ReactGridLayout, useContainerWidth } from 'react-grid-layout';
@@ -491,6 +493,7 @@ export default function AppFormEditorPage() {
     const [counter, setCounter] = useState(0);
     const [error, setError] = useState<string | null>(null);
     const [success, setSuccess] = useState<string | null>(null);
+    const [previewOpen, setPreviewOpen] = useState(false);
 
     const { width, containerRef, mounted } = useContainerWidth({
         measureBeforeMount: false,
@@ -717,11 +720,116 @@ export default function AppFormEditorPage() {
                 </Grid>
             </Grid>
 
-            <Box sx={{ mt: 3, display: 'flex', justifyContent: 'flex-end' }}>
+            <Box sx={{ mt: 3, display: 'flex', justifyContent: 'flex-end', gap: 2 }}>
+                <Button
+                    variant="outlined"
+                    startIcon={<VisibilityIcon />}
+                    onClick={() => setPreviewOpen(true)}
+                    size="large"
+                >
+                    プレビュー
+                </Button>
                 <Button variant="contained" onClick={handleSave} disabled={saveMutation.isPending} size="large">
                     {saveMutation.isPending ? '保存中...' : 'フォームを保存'}
                 </Button>
             </Box>
+
+            {/* プレビューモーダル */}
+            <Dialog
+                open={previewOpen}
+                onClose={() => setPreviewOpen(false)}
+                maxWidth="md"
+                fullWidth
+            >
+                <DialogTitle>
+                    申請フォーム プレビュー
+                    <Typography variant="caption" sx={{ display: 'block', color: 'text.secondary' }}>
+                        実際の申請画面と同じ見た目でフォームを確認できます
+                    </Typography>
+                </DialogTitle>
+                <DialogContent dividers>
+                    <Box sx={{ p: 2 }}>
+                        {fields.length === 0 ? (
+                            <Typography color="text.secondary" textAlign="center">
+                                フィールドがまだ追加されていません。<br />
+                                ツールボックスからフィールドをドラッグして追加してください。
+                            </Typography>
+                        ) : (
+                            <Box>
+                                {/* レイアウト順にソートしてフィールドを表示 */}
+                                {[...layout]
+                                    .sort((a, b) => (a.y * 100 + a.x) - (b.y * 100 + b.x))
+                                    .map((layoutItem) => {
+                                        const field = fields.find(f => f.id === layoutItem.i);
+                                        if (!field) return null;
+                                        const isHalfWidth = layoutItem.w <= 6;
+                                        return (
+                                            <Box
+                                                key={field.id}
+                                                sx={{
+                                                    mb: 2,
+                                                    display: isHalfWidth ? 'inline-block' : 'block',
+                                                    width: isHalfWidth ? '48%' : '100%',
+                                                    mr: isHalfWidth ? '2%' : 0,
+                                                    verticalAlign: 'top',
+                                                }}
+                                            >
+                                                {field.type === 'divider' && <Divider sx={{ my: 2 }} />}
+                                                {field.type === 'label' && (
+                                                    <Typography variant="h6" sx={{ fontWeight: 'bold', mb: 1 }}>
+                                                        {field.label}
+                                                    </Typography>
+                                                )}
+                                                {field.type === 'text' && (
+                                                    <TextField fullWidth label={field.label} size="small" />
+                                                )}
+                                                {field.type === 'textarea' && (
+                                                    <TextField fullWidth label={field.label} multiline rows={3} />
+                                                )}
+                                                {field.type === 'number' && (
+                                                    <TextField fullWidth label={field.label} type="number" size="small" />
+                                                )}
+                                                {field.type === 'date' && (
+                                                    <TextField fullWidth label={field.label} type="date" InputLabelProps={{ shrink: true }} size="small" />
+                                                )}
+                                                {field.type === 'select' && (
+                                                    <TextField select fullWidth label={field.label} size="small" defaultValue="">
+                                                        {(field.options || []).map(opt => (
+                                                            <MenuItem key={opt} value={opt}>{opt}</MenuItem>
+                                                        ))}
+                                                    </TextField>
+                                                )}
+                                                {field.type === 'radio' && (
+                                                    <FormControl component="fieldset">
+                                                        <FormLabel>{field.label}</FormLabel>
+                                                        <RadioGroup row>
+                                                            {(field.options || []).map(opt => (
+                                                                <FormControlLabel key={opt} value={opt} control={<Radio />} label={opt} />
+                                                            ))}
+                                                        </RadioGroup>
+                                                    </FormControl>
+                                                )}
+                                                {field.type === 'checkbox' && (
+                                                    <FormControl component="fieldset">
+                                                        <FormLabel>{field.label}</FormLabel>
+                                                        <FormGroup row>
+                                                            {(field.options || []).map(opt => (
+                                                                <FormControlLabel key={opt} control={<Checkbox />} label={opt} />
+                                                            ))}
+                                                        </FormGroup>
+                                                    </FormControl>
+                                                )}
+                                            </Box>
+                                        );
+                                    })}
+                            </Box>
+                        )}
+                    </Box>
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={() => setPreviewOpen(false)}>閉じる</Button>
+                </DialogActions>
+            </Dialog>
         </Box>
     );
 }

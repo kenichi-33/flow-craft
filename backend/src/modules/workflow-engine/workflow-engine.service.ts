@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { Prisma } from '@prisma/client';
 
 @Injectable()
 export class WorkflowEngineService {
@@ -49,7 +50,7 @@ export class WorkflowEngineService {
             throw new BadRequestException('Flow has no start node');
         }
 
-        // 申請を作成
+        // 申請を作成（スナップショット保存でバージョン互換性を確保）
         const application = await this.prisma.application.create({
             data: {
                 applicationDefinitionId: appDef.id,
@@ -59,6 +60,10 @@ export class WorkflowEngineService {
                 status: 'IN_PROGRESS',
                 inputData: input.inputData,
                 currentNodeId: startNode.id,
+                // スナップショット: 申請時点のフォーム・フロー定義を保存
+                formSchema: (appDef.formDefinition?.schema ?? undefined) as Prisma.InputJsonValue | undefined,
+                flowNodes: (flowDef.nodes ?? undefined) as Prisma.InputJsonValue | undefined,
+                flowEdges: (flowDef.edges ?? undefined) as Prisma.InputJsonValue | undefined,
             },
         });
 
@@ -89,8 +94,9 @@ export class WorkflowEngineService {
             throw new NotFoundException('Application not found');
         }
 
-        const nodes = application.flowDefinition.nodes as any[] || [];
-        const edges = application.flowDefinition.edges as any[] || [];
+        // スナップショットがある場合はそちらを使用（バージョン互換性）
+        const nodes = (application.flowNodes || application.flowDefinition.nodes || []) as any[];
+        const edges = (application.flowEdges || application.flowDefinition.edges || []) as any[];
         const currentNodeId = application.currentNodeId;
 
         // 現在のノードから出ているエッジを見つける
@@ -103,6 +109,16 @@ export class WorkflowEngineService {
                 data: {
                     status: 'APPROVED',
                     currentNodeId: null,
+                },
+            });
+            // 申請完了を履歴に記録
+            await this.prisma.approvalHistory.create({
+                data: {
+                    applicationId,
+                    actorId: 'SYSTEM',
+                    action: 'APPLICATION_COMPLETE',
+                    stepId: currentNodeId || '',
+                    comment: '申請が完了しました',
                 },
             });
             return;
@@ -123,6 +139,16 @@ export class WorkflowEngineService {
                 data: {
                     status: 'APPROVED',
                     currentNodeId: nextNodeId,
+                },
+            });
+            // 申請完了を履歴に記録
+            await this.prisma.approvalHistory.create({
+                data: {
+                    applicationId,
+                    actorId: 'SYSTEM',
+                    action: 'APPLICATION_COMPLETE',
+                    stepId: nextNodeId,
+                    comment: '申請が完了しました',
                 },
             });
         } else if (nextNode.type === 'approval') {
@@ -420,19 +446,40 @@ export class WorkflowEngineService {
                 const headersStr = this.replaceVariables(node.data.headers || '{}', inputData);
                 const bodyStr = this.replaceVariables(node.data.body || '{}', inputData);
 
-                let headers = {};
-                try { headers = JSON.parse(headersStr); } catch { }
+                let parsedHeaders: Record<string, string> = {};
+                try { parsedHeaders = JSON.parse(headersStr); } catch { }
 
-                let body: any = undefined;
+                // HTTPヘッダーはASCIIのみ許可されるため、非ASCII文字をエンコード
+                const safeHeaders: Record<string, string> = {};
+                for (const [key, value] of Object.entries(parsedHeaders)) {
+                    // ヘッダー値に非ASCII文字がある場合はURLエンコード
+                    const isAscii = /^[\x00-\x7F]*$/.test(value);
+                    safeHeaders[key] = isAscii ? value : encodeURIComponent(value);
+                }
+
+                let bodyPayload: string | undefined = undefined;
                 if (method !== 'GET' && method !== 'HEAD') {
-                    try { body = JSON.parse(bodyStr); } catch { body = bodyStr; }
+                    try {
+                        const parsed = JSON.parse(bodyStr);
+                        bodyPayload = JSON.stringify(parsed);
+                    } catch {
+                        bodyPayload = bodyStr;
+                    }
                 }
 
                 console.log(`Executing API Call: ${method} ${url}`);
+                console.log(`Raw Headers:`, parsedHeaders);
+                console.log(`Safe Headers:`, safeHeaders);
+                console.log(`Body:`, bodyPayload);
+
+                // リクエスト送信
                 const response = await fetch(url, {
                     method,
-                    headers: { 'Content-Type': 'application/json', ...headers },
-                    body: body ? JSON.stringify(body) : undefined,
+                    headers: {
+                        'Content-Type': 'application/json; charset=utf-8',
+                        ...safeHeaders
+                    },
+                    body: bodyPayload,
                 });
 
                 const responseText = await response.text();
@@ -477,6 +524,29 @@ export class WorkflowEngineService {
                 data: { status: 'COMPLETED' as any, result },
             });
 
+            // ServiceTaskHistoryに履歴を保存
+            await this.prisma.serviceTaskHistory.create({
+                data: {
+                    serviceTaskId: task.id,
+                    applicationId,
+                    stepId: node.id,
+                    type: node.type,
+                    status: 'COMPLETED',
+                    result,
+                },
+            });
+
+            // サービスタスク完了を履歴に記録
+            await this.prisma.approvalHistory.create({
+                data: {
+                    applicationId,
+                    actorId: 'SYSTEM',
+                    action: 'SERVICE_TASK_COMPLETE',
+                    stepId: node.id,
+                    comment: `${node.type} 実行完了`,
+                },
+            });
+
             // 次のノードへ
             await this.advanceToNextNode(applicationId);
 
@@ -489,6 +559,19 @@ export class WorkflowEngineService {
                     error: error.message || 'Unknown error',
                 },
             });
+
+            // ServiceTaskHistoryに失敗履歴を保存
+            await this.prisma.serviceTaskHistory.create({
+                data: {
+                    serviceTaskId: task.id,
+                    applicationId,
+                    stepId: node.id,
+                    type: node.type,
+                    status: 'FAILED',
+                    error: error.message || 'Unknown error',
+                },
+            });
+
             // 失敗時はフロー停止（ここで終了）
         }
     }

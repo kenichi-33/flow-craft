@@ -350,7 +350,9 @@ export default function WorkflowDetailPage() {
                                         case 'REJECT': return '却下';
                                         case 'REMAND': return '差戻し';
                                         case 'BRANCH': return '条件分岐';
-                                        case 'SERVICE_TASK': return 'システム処理';
+                                        case 'SERVICE_TASK': return 'システム処理開始';
+                                        case 'SERVICE_TASK_COMPLETE': return 'システム処理完了';
+                                        case 'APPLICATION_COMPLETE': return '申請完了';
                                         default: return action;
                                     }
                                 };
@@ -361,6 +363,8 @@ export default function WorkflowDetailPage() {
                                         case 'REMAND': return 'warning';
                                         case 'BRANCH': return 'info';
                                         case 'SERVICE_TASK': return 'secondary';
+                                        case 'SERVICE_TASK_COMPLETE': return 'success';
+                                        case 'APPLICATION_COMPLETE': return 'success';
                                         default: return 'default';
                                     }
                                 };

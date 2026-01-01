@@ -42,7 +42,16 @@ export class ApplicationsService {
                 flowDefinition: true,
                 applicationDefinition: true,
                 tasks: true,
-                history: true,
+                history: {
+                    orderBy: { actedAt: 'asc' },
+                },
+                serviceTasks: {
+                    include: {
+                        history: {
+                            orderBy: { executedAt: 'asc' },
+                        },
+                    },
+                },
             },
         });
         if (!application) throw new NotFoundException(`Application with ID ${id} not found`);

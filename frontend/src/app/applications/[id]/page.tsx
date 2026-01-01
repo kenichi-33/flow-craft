@@ -69,6 +69,12 @@ interface ApplicationDetail {
         result?: any;
         error?: string;
         createdAt: string;
+        history?: Array<{
+            id: string;
+            status: string;
+            error?: string;
+            executedAt: string;
+        }>;
     }>;
 }
 
@@ -315,6 +321,8 @@ export default function ApplicationDetailPage() {
                                         case 'REMAND': return <PendingIcon color="warning" />;
                                         case 'BRANCH': return <AccountTreeIcon color="info" />;
                                         case 'SERVICE_TASK': return <InfoIcon color="secondary" />;
+                                        case 'SERVICE_TASK_COMPLETE': return <CheckCircleIcon color="success" />;
+                                        case 'APPLICATION_COMPLETE': return <CheckCircleIcon color="success" />;
                                         default: return <InfoIcon />;
                                     }
                                 };
@@ -324,7 +332,9 @@ export default function ApplicationDetailPage() {
                                         case 'REJECT': return '却下';
                                         case 'REMAND': return '差戻し';
                                         case 'BRANCH': return '条件分岐';
-                                        case 'SERVICE_TASK': return 'システム処理';
+                                        case 'SERVICE_TASK': return 'システム処理開始';
+                                        case 'SERVICE_TASK_COMPLETE': return 'システム処理完了';
+                                        case 'APPLICATION_COMPLETE': return '申請完了';
                                         default: return h.action;
                                     }
                                 };
@@ -394,6 +404,33 @@ export default function ApplicationDetailPage() {
                                             }}>
                                                 {JSON.stringify(task.result, null, 2)}
                                             </Typography>
+                                        </Box>
+                                    )}
+
+                                    {/* 実行履歴（再実行含む） */}
+                                    {task.history && task.history.length > 0 && (
+                                        <Box sx={{ mt: 1, pl: 2, borderLeft: '2px solid #ddd' }}>
+                                            <Typography variant="caption" fontWeight="bold" display="block" sx={{ mb: 0.5 }}>
+                                                実行履歴 ({task.history.length}件):
+                                            </Typography>
+                                            {task.history.map((h: any, idx: number) => (
+                                                <Box key={h.id} sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
+                                                    <Chip
+                                                        label={h.status}
+                                                        size="small"
+                                                        color={h.status === 'COMPLETED' ? 'success' : h.status === 'FAILED' ? 'error' : 'default'}
+                                                        sx={{ fontSize: '0.6rem', height: 18 }}
+                                                    />
+                                                    <Typography variant="caption" color="text.secondary" suppressHydrationWarning>
+                                                        {new Date(h.executedAt).toLocaleString('ja-JP')}
+                                                    </Typography>
+                                                    {h.error && (
+                                                        <Typography variant="caption" color="error">
+                                                            - {h.error.substring(0, 50)}...
+                                                        </Typography>
+                                                    )}
+                                                </Box>
+                                            ))}
                                         </Box>
                                     )}
 
