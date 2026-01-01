@@ -31,8 +31,7 @@ import CheckIcon from '@mui/icons-material/Check';
 import CloseIcon from '@mui/icons-material/Close';
 import UndoIcon from '@mui/icons-material/Undo';
 import Link from 'next/link';
-import ReactFlow, { Background, MarkerType } from 'reactflow';
-import 'reactflow/dist/style.css';
+import FlowVisualization from '@/components/flow-designer/FlowVisualization';
 
 interface TaskDetail {
     id: string;
@@ -103,56 +102,10 @@ export default function TaskDetailPage() {
         completeMutation.mutate(action);
     };
 
-    // Prepare flow visualization nodes
-    const { flowNodes, flowEdges } = useMemo(() => {
-        const rawNodes = task?.application?.flowDefinition?.nodes || [];
-        const rawEdges = task?.application?.flowDefinition?.edges || [];
-        // Use application's currentNodeId (more accurate) with fallback to task's stepId
-        const currentStepId = task?.application?.currentNodeId || task?.stepId;
-
-        const flowNodes = rawNodes.map((node: any) => {
-            const isCurrent = node.id === currentStepId;
-
-            let bgColor = '#f5f5f5';
-            let borderColor = '#ccc';
-
-            if (isCurrent) {
-                bgColor = '#bbdefb';
-                borderColor = '#2196f3';
-            }
-
-            return {
-                ...node,
-                style: {
-                    background: bgColor,
-                    border: `2px solid ${borderColor}`,
-                    borderRadius: 8,
-                    padding: 10,
-                },
-                data: {
-                    ...node.data,
-                    label: (
-                        <Box sx={{ textAlign: 'center' }}>
-                            <Typography variant="body2" fontWeight={isCurrent ? 'bold' : 'normal'}>
-                                {node.data?.label || node.type}
-                            </Typography>
-                            {isCurrent && (
-                                <Chip label="現在" size="small" color="primary" sx={{ mt: 0.5, height: 18 }} />
-                            )}
-                        </Box>
-                    ),
-                },
-            };
-        });
-
-        const flowEdges = rawEdges.map((edge: any) => ({
-            ...edge,
-            markerEnd: { type: MarkerType.ArrowClosed },
-            style: { strokeWidth: 2 },
-        }));
-
-        return { flowNodes, flowEdges };
-    }, [task]);
+    // フロー表示用のデータを取得
+    const flowNodes = task?.application?.flowDefinition?.nodes || [];
+    const flowEdges = task?.application?.flowDefinition?.edges || [];
+    const currentStepId = task?.application?.currentNodeId || task?.stepId;
 
     // Get schema data for form display
     const schema = task?.application?.formDefinition?.schema || {};
@@ -273,26 +226,12 @@ export default function TaskDetailPage() {
             {/* 1. フロー進捗 - Full Width */}
             <Paper sx={{ p: 2, mb: 3 }}>
                 <Typography variant="h6" gutterBottom>フロー進捗</Typography>
-                <Box sx={{ height: 280, bgcolor: '#fafafa', borderRadius: 1 }}>
-                    {flowNodes.length > 0 ? (
-                        <ReactFlow
-                            nodes={flowNodes}
-                            edges={flowEdges}
-                            fitView
-                            nodesDraggable={false}
-                            nodesConnectable={false}
-                            elementsSelectable={false}
-                            panOnDrag={false}
-                            zoomOnScroll={false}
-                        >
-                            <Background />
-                        </ReactFlow>
-                    ) : (
-                        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
-                            <Typography color="text.secondary">フロー情報なし</Typography>
-                        </Box>
-                    )}
-                </Box>
+                <FlowVisualization
+                    nodes={flowNodes}
+                    edges={flowEdges}
+                    currentNodeId={currentStepId}
+                    showBackground
+                />
             </Paper>
 
             {/* 2. 申請内容 - Full Width, Form-style Layout */}

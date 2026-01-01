@@ -1,23 +1,13 @@
 'use client';
 
-import React from 'react';
-import { useQuery } from '@tanstack/react-query';
+import React, { useCallback } from 'react';
 import { api } from '@/lib/api';
-import {
-    Box,
-    Button,
-    Paper,
-    Table,
-    TableBody,
-    TableCell,
-    TableContainer,
-    TableHead,
-    TableRow,
-    Typography,
-    Chip,
-} from '@mui/material';
+import { Box, Chip, Button, IconButton, Tooltip, Typography } from '@mui/material';
 import Link from 'next/link';
 import AddIcon from '@mui/icons-material/Add';
+import EditIcon from '@mui/icons-material/Edit';
+import HistoryIcon from '@mui/icons-material/History';
+import DataTable, { Column, FetchParams, PaginatedResponse } from '@/components/DataTable';
 
 interface ApplicationDefinition {
     id: string;
@@ -32,131 +22,192 @@ interface ApplicationDefinition {
     updatedAt: string;
 }
 
+const getStatusColor = (status: string) => {
+    switch (status) {
+        case 'ACTIVE': return 'success';
+        case 'DRAFT': return 'warning';
+        case 'ARCHIVED': return 'default';
+        default: return 'default';
+    }
+};
+
+const getStatusLabel = (status: string) => {
+    switch (status) {
+        case 'ACTIVE': return '公開中';
+        case 'DRAFT': return '下書き';
+        case 'ARCHIVED': return 'アーカイブ';
+        default: return status;
+    }
+};
+
 export default function AppsListPage() {
-    const { data: apps, isLoading } = useQuery<ApplicationDefinition[]>({
-        queryKey: ['apps'],
-        queryFn: () => api.get('/application-definitions'),
-    });
+    const fetchApps = useCallback(async (params: FetchParams): Promise<PaginatedResponse<ApplicationDefinition>> => {
+        const queryParams = new URLSearchParams();
+        queryParams.set('page', String(params.page));
+        queryParams.set('limit', String(params.limit));
+        if (params.search) queryParams.set('search', params.search);
+        if (params.sortBy) queryParams.set('sortBy', params.sortBy);
+        if (params.sortOrder) queryParams.set('sortOrder', params.sortOrder);
 
-    const getStatusColor = (status: string) => {
-        switch (status) {
-            case 'ACTIVE': return 'success';
-            case 'DRAFT': return 'warning';
-            case 'ARCHIVED': return 'default';
-            default: return 'default';
-        }
-    };
+        return api.get(`/application-definitions?${queryParams.toString()}`);
+    }, []);
 
-    const getStatusLabel = (status: string) => {
-        switch (status) {
-            case 'ACTIVE': return '公開中';
-            case 'DRAFT': return '下書き';
-            case 'ARCHIVED': return 'アーカイブ';
-            default: return status;
-        }
-    };
+    const columns: Column<ApplicationDefinition>[] = [
+        {
+            id: 'name',
+            label: 'アプリ名',
+            minWidth: 200,
+            format: (value, row) => (
+                <Box>
+                    <Link href={`/designer/apps/${row.id}`} style={{ textDecoration: 'none', color: '#667eea', fontWeight: 700 }}>
+                        {value}
+                    </Link>
+                    {row.description && (
+                        <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.5 }}>
+                            {row.description.length > 40 ? row.description.substring(0, 40) + '...' : row.description}
+                        </Typography>
+                    )}
+                </Box>
+            ),
+        },
+        {
+            id: 'version',
+            label: 'バージョン',
+            minWidth: 100,
+            format: (value, row) => (
+                <Box>
+                    <Chip
+                        label={`v${value}`}
+                        size="small"
+                        variant="outlined"
+                        sx={{ fontWeight: 600, color: '#667eea', borderColor: '#667eea' }}
+                    />
+                    {row.publishedAt && (
+                        <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.5 }} suppressHydrationWarning>
+                            {new Date(row.publishedAt).toLocaleDateString('ja-JP')}
+                        </Typography>
+                    )}
+                </Box>
+            ),
+        },
+        {
+            id: 'status',
+            label: 'ステータス',
+            minWidth: 100,
+            format: (value) => (
+                <Chip
+                    label={getStatusLabel(value)}
+                    color={getStatusColor(value) as any}
+                    size="small"
+                    sx={{ fontWeight: 600 }}
+                />
+            ),
+        },
+        {
+            id: 'formDefinition',
+            label: 'フォーム',
+            minWidth: 120,
+            searchable: false,
+            format: (value) => value ? (
+                <Chip label={value.name} size="small" variant="outlined" />
+            ) : (
+                <Chip label="未設定" size="small" color="error" variant="outlined" />
+            ),
+        },
+        {
+            id: 'flowDefinition',
+            label: 'フロー',
+            minWidth: 120,
+            searchable: false,
+            format: (value) => value ? (
+                <Chip label={value.name} size="small" variant="outlined" />
+            ) : (
+                <Chip label="未設定" size="small" color="error" variant="outlined" />
+            ),
+        },
+        {
+            id: 'createdAt',
+            label: '作成日時',
+            minWidth: 160,
+            format: (value) => (
+                <span suppressHydrationWarning>
+                    {new Date(value).toLocaleString('ja-JP')}
+                </span>
+            ),
+        },
+        {
+            id: 'updatedAt',
+            label: '更新日時',
+            minWidth: 160,
+            format: (value) => (
+                <span suppressHydrationWarning>
+                    {new Date(value).toLocaleString('ja-JP')}
+                </span>
+            ),
+        },
+        {
+            id: 'actions',
+            label: '操作',
+            minWidth: 120,
+            sortable: false,
+            searchable: false,
+            format: (_, row) => (
+                <Box sx={{ display: 'flex', gap: 0.5 }}>
+                    <Tooltip title="編集">
+                        <IconButton
+                            size="small"
+                            component={Link}
+                            href={`/designer/apps/${row.id}`}
+                            sx={{ color: '#667eea' }}
+                        >
+                            <EditIcon fontSize="small" />
+                        </IconButton>
+                    </Tooltip>
+                    <Tooltip title="バージョン履歴">
+                        <IconButton
+                            size="small"
+                            component={Link}
+                            href={`/designer/apps/${row.id}/versions`}
+                            sx={{ color: '#764ba2' }}
+                        >
+                            <HistoryIcon fontSize="small" />
+                        </IconButton>
+                    </Tooltip>
+                </Box>
+            ),
+        },
+    ];
 
     return (
-        <Box sx={{ p: 3 }}>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-                <Typography variant="h4">アプリ管理</Typography>
-                <Button
-                    variant="contained"
-                    startIcon={<AddIcon />}
-                    component={Link}
-                    href="/designer/apps/new"
-                >
-                    新規アプリ作成
-                </Button>
-            </Box>
-
-            <TableContainer component={Paper}>
-                <Table>
-                    <TableHead>
-                        <TableRow>
-                            <TableCell>アプリ名</TableCell>
-                            <TableCell>バージョン</TableCell>
-                            <TableCell>ステータス</TableCell>
-                            <TableCell>フォーム</TableCell>
-                            <TableCell>フロー</TableCell>
-                            <TableCell>更新日</TableCell>
-                            <TableCell>操作</TableCell>
-                        </TableRow>
-                    </TableHead>
-                    <TableBody>
-                        {isLoading ? (
-                            <TableRow>
-                                <TableCell colSpan={7}>読み込み中...</TableCell>
-                            </TableRow>
-                        ) : apps?.length === 0 ? (
-                            <TableRow>
-                                <TableCell colSpan={7}>アプリがありません。「新規アプリ作成」から作成してください。</TableCell>
-                            </TableRow>
-                        ) : (
-                            apps?.map((app) => (
-                                <TableRow key={app.id} hover>
-                                    <TableCell>
-                                        <Link href={`/designer/apps/${app.id}`} style={{ textDecoration: 'none', color: 'inherit', fontWeight: 'bold' }}>
-                                            {app.name}
-                                        </Link>
-                                        {app.description && (
-                                            <Typography variant="caption" color="text.secondary" display="block">
-                                                {app.description}
-                                            </Typography>
-                                        )}
-                                    </TableCell>
-                                    <TableCell>
-                                        <Link href={`/designer/apps/${app.id}/versions`} style={{ textDecoration: 'none' }}>
-                                            <Chip
-                                                label={`v${app.version}`}
-                                                size="small"
-                                                variant="outlined"
-                                                clickable
-                                            />
-                                        </Link>
-                                        {app.publishedAt && (
-                                            <Typography variant="caption" color="text.secondary" display="block">
-                                                {new Date(app.publishedAt).toLocaleDateString('ja-JP')}
-                                            </Typography>
-                                        )}
-                                    </TableCell>
-                                    <TableCell>
-                                        <Chip
-                                            label={getStatusLabel(app.status)}
-                                            color={getStatusColor(app.status) as any}
-                                            size="small"
-                                        />
-                                    </TableCell>
-                                    <TableCell>
-                                        {app.formDefinition ? (
-                                            <Chip label={app.formDefinition.name} size="small" variant="outlined" />
-                                        ) : (
-                                            <Chip label="未設定" size="small" color="error" variant="outlined" />
-                                        )}
-                                    </TableCell>
-                                    <TableCell>
-                                        {app.flowDefinition ? (
-                                            <Chip label={app.flowDefinition.name} size="small" variant="outlined" />
-                                        ) : (
-                                            <Chip label="未設定" size="small" color="error" variant="outlined" />
-                                        )}
-                                    </TableCell>
-                                    <TableCell>{new Date(app.updatedAt).toLocaleString('ja-JP')}</TableCell>
-                                    <TableCell>
-                                        <Button
-                                            size="small"
-                                            component={Link}
-                                            href={`/designer/apps/${app.id}`}
-                                        >
-                                            編集
-                                        </Button>
-                                    </TableCell>
-                                </TableRow>
-                            ))
-                        )}
-                    </TableBody>
-                </Table>
-            </TableContainer>
+        <Box sx={{ p: 3, maxWidth: 1600, mx: 'auto' }}>
+            <DataTable
+                title="アプリ管理"
+                subtitle="ワークフローアプリの作成・管理ができます"
+                columns={columns}
+                serverSide
+                onFetch={fetchApps}
+                emptyMessage="アプリがありません。「新規アプリ作成」から作成してください。"
+                rowKey="id"
+                actions={
+                    <Button
+                        variant="contained"
+                        startIcon={<AddIcon />}
+                        component={Link}
+                        href="/designer/apps/new"
+                        sx={{
+                            background: 'linear-gradient(135deg, #fff 0%, #f0f0f0 100%)',
+                            color: '#667eea',
+                            fontWeight: 700,
+                            textTransform: 'none',
+                            '&:hover': {
+                                background: '#fff',
+                            },
+                        }}
+                    >
+                        新規アプリ作成
+                    </Button>
+                }
+            />
         </Box>
     );
 }

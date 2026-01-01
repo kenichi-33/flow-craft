@@ -1,4 +1,4 @@
-import { Controller, Get, Param } from '@nestjs/common';
+import { Controller, Get, Param, Query } from '@nestjs/common';
 import { TasksService } from './tasks.service';
 
 @Controller('tasks')
@@ -6,8 +6,22 @@ export class TasksController {
     constructor(private readonly tasksService: TasksService) { }
 
     @Get()
-    findAll() {
-        return this.tasksService.findAll();
+    findAll(
+        @Query('page') page?: string,
+        @Query('limit') limit?: string,
+        @Query('search') search?: string,
+        @Query('sortBy') sortBy?: string,
+        @Query('sortOrder') sortOrder?: 'asc' | 'desc',
+        @Query('status') status?: string,
+    ) {
+        return this.tasksService.findAll({
+            page: page ? parseInt(page, 10) : undefined,
+            limit: limit ? parseInt(limit, 10) : undefined,
+            search,
+            sortBy,
+            sortOrder,
+            status,
+        });
     }
 
     @Get(':id')

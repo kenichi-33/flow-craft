@@ -1,23 +1,13 @@
 'use client';
 
-import React from 'react';
-import { useQuery } from '@tanstack/react-query';
+import React, { useCallback } from 'react';
 import { api } from '@/lib/api';
-import {
-    Box,
-    Paper,
-    Table,
-    TableBody,
-    TableCell,
-    TableContainer,
-    TableHead,
-    TableRow,
-    Typography,
-    Chip,
-    Button,
-} from '@mui/material';
+import { Box, Chip, Button, IconButton, Tooltip } from '@mui/material';
 import Link from 'next/link';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
+import VisibilityIcon from '@mui/icons-material/Visibility';
+import TimelineIcon from '@mui/icons-material/Timeline';
+import DataTable, { Column, FetchParams, PaginatedResponse } from '@/components/DataTable';
 
 interface Application {
     id: string;
@@ -42,111 +32,152 @@ function getStepLabel(nodeId: string | null, nodes?: any[]): string {
     return node?.data?.label || nodeId;
 }
 
+const getStatusColor = (status: string) => {
+    switch (status) {
+        case 'APPROVED': return 'success';
+        case 'IN_PROGRESS': return 'info';
+        case 'REJECTED': return 'error';
+        case 'REMANDED': return 'warning';
+        default: return 'default';
+    }
+};
+
+const getStatusLabel = (status: string) => {
+    switch (status) {
+        case 'APPROVED': return '完了';
+        case 'IN_PROGRESS': return '処理中';
+        case 'REJECTED': return '却下';
+        case 'REMANDED': return '差戻し';
+        case 'DRAFT': return '下書き';
+        default: return status;
+    }
+};
+
 export default function WorkflowsListPage() {
-    const { data: applications, isLoading } = useQuery<Application[]>({
-        queryKey: ['admin-workflows'],
-        queryFn: () => api.get('/applications'),
-    });
+    const fetchWorkflows = useCallback(async (params: FetchParams): Promise<PaginatedResponse<Application>> => {
+        const queryParams = new URLSearchParams();
+        queryParams.set('page', String(params.page));
+        queryParams.set('limit', String(params.limit));
+        if (params.search) queryParams.set('search', params.search);
+        if (params.sortBy) queryParams.set('sortBy', params.sortBy);
+        if (params.sortOrder) queryParams.set('sortOrder', params.sortOrder);
 
-    const getStatusColor = (status: string) => {
-        switch (status) {
-            case 'APPROVED': return 'success';
-            case 'IN_PROGRESS': return 'info';
-            case 'REJECTED': return 'error';
-            case 'REMANDED': return 'warning';
-            default: return 'default';
-        }
-    };
+        return api.get(`/applications?${queryParams.toString()}`);
+    }, []);
 
-    const getStatusLabel = (status: string) => {
-        switch (status) {
-            case 'APPROVED': return '完了';
-            case 'IN_PROGRESS': return '処理中';
-            case 'REJECTED': return '却下';
-            case 'REMANDED': return '差戻し';
-            case 'DRAFT': return '下書き';
-            default: return status;
-        }
-    };
+    const columns: Column<Application>[] = [
+        {
+            id: 'applicationNumber',
+            label: '申請ID',
+            minWidth: 100,
+            format: (value) => <strong>#{value}</strong>,
+        },
+        {
+            id: 'appName',
+            label: 'アプリ名',
+            minWidth: 150,
+            format: (_, row) => row.applicationDefinition?.name || '不明',
+        },
+        {
+            id: 'applicantId',
+            label: '申請者',
+            minWidth: 120,
+        },
+        {
+            id: 'status',
+            label: 'ステータス',
+            minWidth: 100,
+            format: (value) => (
+                <Chip
+                    label={getStatusLabel(value)}
+                    color={getStatusColor(value) as any}
+                    size="small"
+                    sx={{ fontWeight: 600 }}
+                />
+            ),
+        },
+        {
+            id: 'currentStep',
+            label: '現在のステップ',
+            minWidth: 140,
+            format: (_, row) => getStepLabel(row.currentNodeId, row.flowDefinition?.nodes),
+            searchable: false,
+        },
+        {
+            id: 'createdAt',
+            label: '申請日時',
+            minWidth: 160,
+            format: (value) => (
+                <span suppressHydrationWarning>
+                    {new Date(value).toLocaleString('ja-JP')}
+                </span>
+            ),
+        },
+        {
+            id: 'updatedAt',
+            label: '更新日時',
+            minWidth: 160,
+            format: (value) => (
+                <span suppressHydrationWarning>
+                    {new Date(value).toLocaleString('ja-JP')}
+                </span>
+            ),
+        },
+        {
+            id: 'actions',
+            label: '操作',
+            minWidth: 120,
+            sortable: false,
+            searchable: false,
+            format: (_, row) => (
+                <Box sx={{ display: 'flex', gap: 0.5 }}>
+                    <Tooltip title="進捗を見る">
+                        <IconButton
+                            size="small"
+                            component={Link}
+                            href={`/admin/workflows/${row.id}`}
+                            sx={{ color: '#667eea' }}
+                        >
+                            <TimelineIcon fontSize="small" />
+                        </IconButton>
+                    </Tooltip>
+                    <Tooltip title="詳細を見る">
+                        <IconButton
+                            size="small"
+                            component={Link}
+                            href={`/applications/${row.id}`}
+                            sx={{ color: '#764ba2' }}
+                        >
+                            <VisibilityIcon fontSize="small" />
+                        </IconButton>
+                    </Tooltip>
+                </Box>
+            ),
+        },
+    ];
 
     return (
-        <Box sx={{ p: 3 }}>
+        <Box sx={{ p: 3, maxWidth: 1400, mx: 'auto' }}>
             <Box sx={{ mb: 3 }}>
-                <Button startIcon={<ArrowBackIcon />} component={Link} href="/admin">
+                <Button
+                    startIcon={<ArrowBackIcon />}
+                    component={Link}
+                    href="/admin"
+                    sx={{ color: '#667eea' }}
+                >
                     ダッシュボードに戻る
                 </Button>
             </Box>
 
-            <Typography variant="h4" gutterBottom>ワークフロー進捗一覧</Typography>
-            <Typography color="text.secondary" paragraph>
-                全ての申請の進捗状況を確認できます。
-            </Typography>
-
-            <TableContainer component={Paper}>
-                <Table>
-                    <TableHead>
-                        <TableRow>
-                            <TableCell>申請ID</TableCell>
-                            <TableCell>アプリ名</TableCell>
-                            <TableCell>申請者</TableCell>
-                            <TableCell>ステータス</TableCell>
-                            <TableCell>ステップ</TableCell>
-                            <TableCell>申請日</TableCell>
-                            <TableCell>更新日</TableCell>
-                            <TableCell>操作</TableCell>
-                        </TableRow>
-                    </TableHead>
-                    <TableBody>
-                        {isLoading ? (
-                            <TableRow>
-                                <TableCell colSpan={8}>読み込み中...</TableCell>
-                            </TableRow>
-                        ) : applications?.length === 0 ? (
-                            <TableRow>
-                                <TableCell colSpan={8}>ワークフローがありません</TableCell>
-                            </TableRow>
-                        ) : (
-                            applications?.map((app) => (
-                                <TableRow key={app.id} hover>
-                                    <TableCell>
-                                        <strong>#{app.applicationNumber}</strong>
-                                    </TableCell>
-                                    <TableCell>
-                                        {app.applicationDefinition?.name || '不明'}
-                                    </TableCell>
-                                    <TableCell>{app.applicantId}</TableCell>
-                                    <TableCell>
-                                        <Chip
-                                            label={getStatusLabel(app.status)}
-                                            color={getStatusColor(app.status) as any}
-                                            size="small"
-                                        />
-                                    </TableCell>
-                                    <TableCell>{getStepLabel(app.currentNodeId, app.flowDefinition?.nodes)}</TableCell>
-                                    <TableCell suppressHydrationWarning>{new Date(app.createdAt).toLocaleString('ja-JP')}</TableCell>
-                                    <TableCell suppressHydrationWarning>{new Date(app.updatedAt).toLocaleString('ja-JP')}</TableCell>
-                                    <TableCell>
-                                        <Button
-                                            size="small"
-                                            component={Link}
-                                            href={`/admin/workflows/${app.id}`}
-                                        >
-                                            進捗
-                                        </Button>
-                                        <Button
-                                            size="small"
-                                            component={Link}
-                                            href={`/applications/${app.id}`}
-                                        >
-                                            詳細
-                                        </Button>
-                                    </TableCell>
-                                </TableRow>
-                            ))
-                        )}
-                    </TableBody>
-                </Table>
-            </TableContainer>
+            <DataTable
+                title="ワークフロー進捗一覧"
+                subtitle="全ての申請の進捗状況を確認できます"
+                columns={columns}
+                serverSide
+                onFetch={fetchWorkflows}
+                emptyMessage="ワークフローがありません"
+                rowKey="id"
+            />
         </Box>
     );
 }

@@ -9,12 +9,10 @@ import {
     Typography,
     Chip,
     Divider,
-    Table,
-    TableBody,
-    TableCell,
-    TableRow,
     Button,
     Grid,
+    TextField,
+    alpha,
 } from '@mui/material';
 import { useParams } from 'next/navigation';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
@@ -23,6 +21,7 @@ import PendingIcon from '@mui/icons-material/Pending';
 import CancelIcon from '@mui/icons-material/Cancel';
 import InfoIcon from '@mui/icons-material/Info';
 import AccountTreeIcon from '@mui/icons-material/AccountTree';
+import ReplayIcon from '@mui/icons-material/Replay';
 import Link from 'next/link';
 import ReactFlow, { MarkerType } from 'reactflow';
 import 'reactflow/dist/style.css';
@@ -78,6 +77,35 @@ interface ApplicationDetail {
     }>;
 }
 
+const SectionPaper = ({ title, children }: { title: string; children: React.ReactNode }) => (
+    <Paper
+        elevation={0}
+        sx={{
+            p: 3,
+            mb: 3,
+            borderRadius: 3,
+            border: '1px solid',
+            borderColor: 'divider',
+            background: 'linear-gradient(135deg, rgba(255,255,255,0.98) 0%, rgba(248,250,252,0.98) 100%)',
+        }}
+    >
+        <Typography
+            variant="h6"
+            sx={{
+                fontWeight: 700,
+                mb: 2,
+                pb: 1.5,
+                borderBottom: '2px solid',
+                borderColor: alpha('#667eea', 0.3),
+                color: '#333',
+            }}
+        >
+            {title}
+        </Typography>
+        {children}
+    </Paper>
+);
+
 export default function ApplicationDetailPage() {
     const params = useParams();
     const id = params.id as string;
@@ -121,18 +149,62 @@ export default function ApplicationDetailPage() {
         }
     };
 
-    // Prepare flow visualization
-    const { displayNodes, displayEdges, completedSteps } = useMemo(() => {
+    // Prepare flow visualization (include swimlane nodes with background styling)
+    const { displayNodes, displayEdges } = useMemo(() => {
         const rawNodes = application?.flowDefinition?.nodes || [];
         const rawEdges = application?.flowDefinition?.edges || [];
         const currentNodeId = application?.currentNodeId;
 
-        // Get completed step IDs from history
         const completedStepIds = new Set(
             (application?.history || []).map(h => h.stepId)
         );
 
         const displayNodes = rawNodes.map((node: any) => {
+            // スイムレーンは背景として表示
+            if (node.type === 'swimlane') {
+                return {
+                    ...node,
+                    zIndex: -10,
+                    style: {
+                        background: node.data?.color || '#e3f2fd',
+                        border: '2px solid #90caf9',
+                        borderRadius: 4,
+                        width: node.style?.width || node.data?.width || 800,
+                        height: node.style?.height || node.data?.height || 200,
+                    },
+                    data: {
+                        ...node.data,
+                        label: (
+                            <Box sx={{
+                                position: 'absolute',
+                                left: 0,
+                                top: 0,
+                                bottom: 0,
+                                width: 36,
+                                bgcolor: 'rgba(0,0,0,0.05)',
+                                borderRight: '1px solid #90caf9',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                writingMode: 'vertical-rl',
+                            }}>
+                                <Typography
+                                    variant="body2"
+                                    sx={{
+                                        fontWeight: 'bold',
+                                        transform: 'rotate(180deg)',
+                                        fontSize: '0.75rem',
+                                    }}
+                                >
+                                    {node.data?.label || 'レーン'}
+                                </Typography>
+                            </Box>
+                        ),
+                    },
+                };
+            }
+
             const isCurrent = node.id === currentNodeId;
             const isCompleted = completedStepIds.has(node.id);
             const isStart = node.type === 'start';
@@ -157,6 +229,7 @@ export default function ApplicationDetailPage() {
 
             return {
                 ...node,
+                zIndex: 1,
                 style: {
                     background: bgColor,
                     border: `2px solid ${borderColor}`,
@@ -184,12 +257,9 @@ export default function ApplicationDetailPage() {
         });
 
         const displayEdges = rawEdges.map((edge: any) => {
-            // Check if this edge connects completed nodes or leads to current
             const sourceCompleted = completedStepIds.has(edge.source) || edge.source === 'start';
             const targetCompleted = completedStepIds.has(edge.target);
             const targetIsCurrent = edge.target === currentNodeId;
-
-            // Edge is traversed if source is completed/start and target is completed or current
             const isTraversed = sourceCompleted && (targetCompleted || targetIsCurrent);
             const leadsToTarget = sourceCompleted && targetIsCurrent;
 
@@ -204,18 +274,17 @@ export default function ApplicationDetailPage() {
             };
         });
 
-        return { displayNodes, displayEdges, completedSteps: completedStepIds };
+        return { displayNodes, displayEdges };
     }, [application]);
 
     if (isLoading) {
-        return <Box sx={{ p: 3 }}>読み込み中...</Box>;
+        return <Box sx={{ p: 3, textAlign: 'center' }}><Typography>読み込み中...</Typography></Box>;
     }
 
     if (isError) {
         return (
             <Box sx={{ p: 3 }}>
                 <Typography color="error">エラーが発生しました: {(error as Error).message}</Typography>
-                <Typography variant="caption" color="text.secondary">{(error as any).response?.data?.message || JSON.stringify(error)}</Typography>
             </Box>
         );
     }
@@ -229,233 +298,280 @@ export default function ApplicationDetailPage() {
 
     return (
         <Box sx={{ p: 3, maxWidth: 1200, mx: 'auto' }}>
+            {/* Header */}
             <Box sx={{ mb: 3 }}>
-                <Button startIcon={<ArrowBackIcon />} component={Link} href="/applications">
+                <Button startIcon={<ArrowBackIcon />} component={Link} href="/applications" sx={{ color: '#667eea' }}>
                     申請一覧に戻る
                 </Button>
             </Box>
 
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 3 }}>
-                <Typography variant="h4">
-                    #{application.applicationNumber} {application.applicationDefinition?.name || '申請詳細'}
-                </Typography>
-                <Chip
-                    label={getStatusLabel(application.status)}
-                    color={getStatusColor(application.status) as any}
-                />
-            </Box>
+            <Paper
+                elevation={0}
+                sx={{
+                    p: 3,
+                    mb: 3,
+                    borderRadius: 3,
+                    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                    color: 'white',
+                }}
+            >
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <Box>
+                        <Typography variant="h4" sx={{ fontWeight: 700, mb: 1 }}>
+                            #{application.applicationNumber} {application.applicationDefinition?.name || '申請詳細'}
+                        </Typography>
+                        <Typography variant="body2" sx={{ opacity: 0.9 }} suppressHydrationWarning>
+                            申請日: {new Date(application.createdAt).toLocaleString('ja-JP')}
+                        </Typography>
+                    </Box>
+                    <Chip
+                        label={getStatusLabel(application.status)}
+                        sx={{
+                            bgcolor: 'rgba(255,255,255,0.2)',
+                            color: 'white',
+                            fontWeight: 700,
+                            fontSize: '1rem',
+                            py: 2.5,
+                            px: 1,
+                        }}
+                    />
+                </Box>
+            </Paper>
 
-            <Grid container spacing={3}>
-                {/* Flow Visualization */}
-                <Grid size={{ xs: 12 }}>
-                    <Paper sx={{ p: 2, mb: 3 }}>
-                        <Typography variant="h6" gutterBottom>フロー進捗</Typography>
-                        <Box sx={{ height: 300, bgcolor: '#fafafa', borderRadius: 1 }}>
-                            {displayNodes.length > 0 ? (
-                                <ReactFlow
-                                    nodes={displayNodes}
-                                    edges={displayEdges}
-                                    fitView
-                                    nodesDraggable={false}
-                                    nodesConnectable={false}
-                                    elementsSelectable={false}
-                                    panOnDrag={false}
-                                    zoomOnScroll={false}
-                                />
-                            ) : (
-                                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
-                                    <Typography color="text.secondary">フロー情報がありません</Typography>
-                                </Box>
-                            )}
+            {/* 1. フロー進捗 */}
+            <SectionPaper title="フロー進捗">
+                <Box sx={{ height: 280, bgcolor: '#fafafa', borderRadius: 2 }}>
+                    {displayNodes.length > 0 ? (
+                        <ReactFlow
+                            nodes={displayNodes}
+                            edges={displayEdges}
+                            fitView
+                            nodesDraggable={false}
+                            nodesConnectable={false}
+                            elementsSelectable={false}
+                            panOnDrag={false}
+                            zoomOnScroll={false}
+                        />
+                    ) : (
+                        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
+                            <Typography color="text.secondary">フロー情報がありません</Typography>
                         </Box>
-                    </Paper>
-                </Grid>
-
-                {/* Application Data */}
-                <Grid size={{ xs: 12, md: 6 }}>
-                    <Paper sx={{ p: 3, height: '100%' }}>
-                        <Typography variant="h6" gutterBottom>申請内容</Typography>
-                        <Divider sx={{ mb: 2 }} />
-                        <Table size="small">
-                            <TableBody>
-                                {Object.entries(application.inputData || {}).map(([key, value]) => (
-                                    <TableRow key={key}>
-                                        <TableCell sx={{ fontWeight: 'bold', width: 150 }}>
-                                            {properties[key]?.title || key}
-                                        </TableCell>
-                                        <TableCell>{String(value)}</TableCell>
-                                    </TableRow>
-                                ))}
-                                <TableRow>
-                                    <TableCell sx={{ fontWeight: 'bold' }}>申請日</TableCell>
-                                    <TableCell suppressHydrationWarning>{new Date(application.createdAt).toLocaleString('ja-JP')}</TableCell>
-                                </TableRow>
-                            </TableBody>
-                        </Table>
-                    </Paper>
-                </Grid>
-
-                {/* Current Status & History */}
-                <Grid size={{ xs: 12, md: 6 }}>
-                    {application.currentNode && (
-                        <Paper sx={{ p: 3, mb: 2 }}>
-                            <Typography variant="h6" gutterBottom>現在のステップ</Typography>
-                            <Divider sx={{ mb: 2 }} />
-                            <Chip
-                                icon={<PendingIcon />}
-                                label={application.currentNode.data?.label || application.currentNode.id}
-                                color="info"
-                            />
-                        </Paper>
                     )}
+                </Box>
+            </SectionPaper>
 
-                    <Paper sx={{ p: 3 }}>
-                        <Typography variant="h6" gutterBottom>承認履歴</Typography>
-                        <Divider sx={{ mb: 2 }} />
-                        {application.history && application.history.length > 0 ? (
-                            application.history.map((h) => {
-                                const getIcon = () => {
-                                    switch (h.action) {
-                                        case 'APPROVE': return <CheckCircleIcon color="success" />;
-                                        case 'REJECT': return <CancelIcon color="error" />;
-                                        case 'REMAND': return <PendingIcon color="warning" />;
-                                        case 'BRANCH': return <AccountTreeIcon color="info" />;
-                                        case 'SERVICE_TASK': return <InfoIcon color="secondary" />;
-                                        case 'SERVICE_TASK_COMPLETE': return <CheckCircleIcon color="success" />;
-                                        case 'APPLICATION_COMPLETE': return <CheckCircleIcon color="success" />;
-                                        default: return <InfoIcon />;
-                                    }
-                                };
-                                const getLabel = () => {
-                                    switch (h.action) {
-                                        case 'APPROVE': return '承認';
-                                        case 'REJECT': return '却下';
-                                        case 'REMAND': return '差戻し';
-                                        case 'BRANCH': return '条件分岐';
-                                        case 'SERVICE_TASK': return 'システム処理開始';
-                                        case 'SERVICE_TASK_COMPLETE': return 'システム処理完了';
-                                        case 'APPLICATION_COMPLETE': return '申請完了';
-                                        default: return h.action;
-                                    }
-                                };
-                                return (
-                                    <Box key={h.id} sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 1.5 }}>
-                                        {getIcon()}
-                                        <Box>
-                                            <Typography variant="body2">
-                                                {getLabel()}
-                                                {h.comment && ` - ${h.comment}`}
-                                            </Typography>
-                                            <Typography variant="caption" color="text.secondary" suppressHydrationWarning>
-                                                {h.actorId === 'SYSTEM' ? 'システム' : h.actorId} - {new Date(h.actedAt).toLocaleString('ja-JP')}
-                                            </Typography>
-                                        </Box>
-                                    </Box>
-                                );
-                            })
-                        ) : (
-                            <Typography color="text.secondary" variant="body2">
-                                まだ履歴がありません
-                            </Typography>
-                        )}
-                    </Paper>
+            {/* 2. 申請内容 (フォームスタイル) */}
+            <SectionPaper title="申請内容">
+                <Grid container spacing={2}>
+                    {Object.entries(application.inputData || {}).map(([key, value]) => (
+                        <Grid size={{ xs: 12, sm: 6 }} key={key}>
+                            <TextField
+                                label={properties[key]?.title || key}
+                                value={String(value)}
+                                fullWidth
+                                InputProps={{ readOnly: true }}
+                                variant="outlined"
+                                size="small"
+                                sx={{
+                                    '& .MuiOutlinedInput-root': {
+                                        bgcolor: '#f8fafc',
+                                    },
+                                }}
+                            />
+                        </Grid>
+                    ))}
+                </Grid>
+            </SectionPaper>
 
-                    <Paper sx={{ p: 3, mt: 2 }}>
-                        <Typography variant="h6" gutterBottom>システム処理履歴</Typography>
-                        <Divider sx={{ mb: 2 }} />
-                        {application.serviceTasks && application.serviceTasks.length > 0 ? (
-                            application.serviceTasks.map((task) => (
-                                <Box key={task.id} sx={{ mb: 2, p: 2, bgcolor: '#f9f9f9', borderRadius: 1 }}>
-                                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
-                                        <Typography variant="subtitle2" sx={{ fontWeight: 'bold' }}>
-                                            {task.type === 'apiCall' ? 'API実行' : task.type === 'llmCall' ? 'AI処理' : task.type}
+            {/* 3. 現在のステップ */}
+            {application.currentNode && (
+                <SectionPaper title="現在のステップ">
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                        <Chip
+                            icon={<PendingIcon />}
+                            label={application.currentNode.data?.label || application.currentNode.id}
+                            color="info"
+                            sx={{ fontWeight: 600, py: 2.5 }}
+                        />
+                        <Typography variant="body2" color="text.secondary">
+                            承認待ち
+                        </Typography>
+                    </Box>
+                </SectionPaper>
+            )}
+
+            {/* 4. 承認履歴 */}
+            <SectionPaper title="承認履歴">
+                {application.history && application.history.length > 0 ? (
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+                        {application.history.map((h) => {
+                            const getIcon = () => {
+                                switch (h.action) {
+                                    case 'APPROVE': return <CheckCircleIcon sx={{ color: '#4caf50' }} />;
+                                    case 'REJECT': return <CancelIcon sx={{ color: '#f44336' }} />;
+                                    case 'REMAND': return <PendingIcon sx={{ color: '#ff9800' }} />;
+                                    case 'BRANCH': return <AccountTreeIcon sx={{ color: '#2196f3' }} />;
+                                    case 'SERVICE_TASK_COMPLETE': return <CheckCircleIcon sx={{ color: '#4caf50' }} />;
+                                    case 'APPLICATION_COMPLETE': return <CheckCircleIcon sx={{ color: '#4caf50' }} />;
+                                    default: return <InfoIcon sx={{ color: '#9e9e9e' }} />;
+                                }
+                            };
+                            const getLabel = () => {
+                                switch (h.action) {
+                                    case 'APPROVE': return '承認';
+                                    case 'REJECT': return '却下';
+                                    case 'REMAND': return '差戻し';
+                                    case 'BRANCH': return '条件分岐';
+                                    case 'SERVICE_TASK': return 'システム処理開始';
+                                    case 'SERVICE_TASK_COMPLETE': return 'システム処理完了';
+                                    case 'APPLICATION_COMPLETE': return '申請完了';
+                                    default: return h.action;
+                                }
+                            };
+                            return (
+                                <Box
+                                    key={h.id}
+                                    sx={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: 2,
+                                        p: 1.5,
+                                        borderRadius: 2,
+                                        bgcolor: alpha('#667eea', 0.03),
+                                        border: '1px solid',
+                                        borderColor: 'divider',
+                                    }}
+                                >
+                                    {getIcon()}
+                                    <Box sx={{ flex: 1 }}>
+                                        <Typography variant="body2" fontWeight={600}>
+                                            {getLabel()}
+                                            {h.comment && <span style={{ fontWeight: 400 }}> - {h.comment}</span>}
                                         </Typography>
-                                        <Chip
-                                            label={task.status}
-                                            color={task.status === 'COMPLETED' ? 'success' : task.status === 'FAILED' ? 'error' : 'default'}
-                                            size="small"
-                                        />
+                                        <Typography variant="caption" color="text.secondary" suppressHydrationWarning>
+                                            {h.actorId === 'SYSTEM' ? 'システム' : h.actorId} • {new Date(h.actedAt).toLocaleString('ja-JP')}
+                                        </Typography>
                                     </Box>
-                                    <Typography variant="caption" display="block" color="text.secondary" sx={{ mb: 1 }} suppressHydrationWarning>
-                                        {new Date(task.createdAt).toLocaleString('ja-JP')}
+                                </Box>
+                            );
+                        })}
+                    </Box>
+                ) : (
+                    <Typography color="text.secondary" variant="body2">
+                        まだ履歴がありません
+                    </Typography>
+                )}
+            </SectionPaper>
+
+            {/* 5. システム処理履歴 */}
+            <SectionPaper title="システム処理履歴">
+                {application.serviceTasks && application.serviceTasks.length > 0 ? (
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                        {application.serviceTasks.map((task) => (
+                            <Box
+                                key={task.id}
+                                sx={{
+                                    p: 2,
+                                    borderRadius: 2,
+                                    bgcolor: task.status === 'FAILED' ? alpha('#f44336', 0.05) : alpha('#4caf50', 0.05),
+                                    border: '1px solid',
+                                    borderColor: task.status === 'FAILED' ? alpha('#f44336', 0.2) : alpha('#4caf50', 0.2),
+                                }}
+                            >
+                                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+                                    <Typography variant="subtitle2" fontWeight={700}>
+                                        {task.type === 'apiCall' ? 'API実行' : task.type === 'llmCall' ? 'AI処理' : task.type}
                                     </Typography>
+                                    <Chip
+                                        label={task.status === 'COMPLETED' ? '成功' : task.status === 'FAILED' ? '失敗' : task.status}
+                                        color={task.status === 'COMPLETED' ? 'success' : task.status === 'FAILED' ? 'error' : 'default'}
+                                        size="small"
+                                        sx={{ fontWeight: 600 }}
+                                    />
+                                </Box>
+                                <Typography variant="caption" color="text.secondary" suppressHydrationWarning>
+                                    {new Date(task.createdAt).toLocaleString('ja-JP')}
+                                </Typography>
 
-                                    {task.error && (
-                                        <Box sx={{ bgcolor: '#ffebee', p: 1, borderRadius: 1, mb: 1 }}>
-                                            <Typography variant="body2" color="error" sx={{ wordBreak: 'break-word' }}>
-                                                {task.error}
-                                            </Typography>
-                                        </Box>
-                                    )}
+                                {task.error && (
+                                    <Box sx={{ mt: 1, p: 1.5, bgcolor: alpha('#f44336', 0.1), borderRadius: 1 }}>
+                                        <Typography variant="body2" color="error" sx={{ wordBreak: 'break-word' }}>
+                                            {task.error}
+                                        </Typography>
+                                    </Box>
+                                )}
 
-                                    {task.result && (
-                                        <Box sx={{ bgcolor: '#e3f2fd', p: 1, borderRadius: 1, mb: 1 }}>
-                                            <Typography variant="caption" fontWeight="bold" display="block" sx={{ mb: 0.5 }}>
-                                                レスポンス:
-                                            </Typography>
-                                            <Typography variant="caption" component="pre" sx={{
+                                {task.result && (
+                                    <Box sx={{ mt: 1, p: 1.5, bgcolor: alpha('#2196f3', 0.08), borderRadius: 1 }}>
+                                        <Typography variant="caption" fontWeight={700} display="block" sx={{ mb: 0.5 }}>
+                                            レスポンス:
+                                        </Typography>
+                                        <Typography
+                                            variant="caption"
+                                            component="pre"
+                                            sx={{
                                                 wordBreak: 'break-word',
                                                 whiteSpace: 'pre-wrap',
                                                 fontFamily: 'monospace',
                                                 fontSize: '0.7rem',
                                                 m: 0,
-                                                maxHeight: 200,
-                                                overflow: 'auto'
-                                            }}>
-                                                {JSON.stringify(task.result, null, 2)}
-                                            </Typography>
-                                        </Box>
-                                    )}
-
-                                    {/* 実行履歴（再実行含む） */}
-                                    {task.history && task.history.length > 0 && (
-                                        <Box sx={{ mt: 1, pl: 2, borderLeft: '2px solid #ddd' }}>
-                                            <Typography variant="caption" fontWeight="bold" display="block" sx={{ mb: 0.5 }}>
-                                                実行履歴 ({task.history.length}件):
-                                            </Typography>
-                                            {task.history.map((h: any, idx: number) => (
-                                                <Box key={h.id} sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
-                                                    <Chip
-                                                        label={h.status}
-                                                        size="small"
-                                                        color={h.status === 'COMPLETED' ? 'success' : h.status === 'FAILED' ? 'error' : 'default'}
-                                                        sx={{ fontSize: '0.6rem', height: 18 }}
-                                                    />
-                                                    <Typography variant="caption" color="text.secondary" suppressHydrationWarning>
-                                                        {new Date(h.executedAt).toLocaleString('ja-JP')}
-                                                    </Typography>
-                                                    {h.error && (
-                                                        <Typography variant="caption" color="error">
-                                                            - {h.error.substring(0, 50)}...
-                                                        </Typography>
-                                                    )}
-                                                </Box>
-                                            ))}
-                                        </Box>
-                                    )}
-
-                                    {task.status === 'FAILED' && (
-                                        <Button
-                                            variant="outlined"
-                                            color="error"
-                                            size="small"
-                                            onClick={() => handleRetry(task.id)}
-                                            startIcon={<PendingIcon />}
+                                                maxHeight: 150,
+                                                overflow: 'auto',
+                                            }}
                                         >
-                                            再実行
-                                        </Button>
-                                    )}
-                                </Box>
-                            ))
-                        ) : (
-                            <Typography color="text.secondary" variant="body2">
-                                システム処理履歴はありません
-                            </Typography>
-                        )}
-                    </Paper>
+                                            {JSON.stringify(task.result, null, 2)}
+                                        </Typography>
+                                    </Box>
+                                )}
 
-                </Grid>
-            </Grid>
-        </Box >
+                                {/* 実行履歴（再実行含む） */}
+                                {task.history && task.history.length > 0 && (
+                                    <Box sx={{ mt: 1.5, pt: 1.5, borderTop: '1px dashed', borderColor: 'divider' }}>
+                                        <Typography variant="caption" fontWeight={700} display="block" sx={{ mb: 1 }}>
+                                            実行履歴 ({task.history.length}件)
+                                        </Typography>
+                                        {task.history.map((h) => (
+                                            <Box key={h.id} sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
+                                                <Chip
+                                                    label={h.status === 'COMPLETED' ? '成功' : '失敗'}
+                                                    size="small"
+                                                    color={h.status === 'COMPLETED' ? 'success' : 'error'}
+                                                    sx={{ fontSize: '0.65rem', height: 20 }}
+                                                />
+                                                <Typography variant="caption" color="text.secondary" suppressHydrationWarning>
+                                                    {new Date(h.executedAt).toLocaleString('ja-JP')}
+                                                </Typography>
+                                                {h.error && (
+                                                    <Typography variant="caption" color="error" sx={{ ml: 1 }}>
+                                                        {h.error.length > 40 ? h.error.substring(0, 40) + '...' : h.error}
+                                                    </Typography>
+                                                )}
+                                            </Box>
+                                        ))}
+                                    </Box>
+                                )}
+
+                                {task.status === 'FAILED' && (
+                                    <Button
+                                        variant="outlined"
+                                        color="error"
+                                        size="small"
+                                        onClick={() => handleRetry(task.id)}
+                                        startIcon={<ReplayIcon />}
+                                        sx={{ mt: 1.5 }}
+                                    >
+                                        再実行
+                                    </Button>
+                                )}
+                            </Box>
+                        ))}
+                    </Box>
+                ) : (
+                    <Typography color="text.secondary" variant="body2">
+                        システム処理履歴はありません
+                    </Typography>
+                )}
+            </SectionPaper>
+        </Box>
     );
 }

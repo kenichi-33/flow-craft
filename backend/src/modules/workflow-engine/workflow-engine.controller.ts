@@ -47,6 +47,11 @@ export class WorkflowEngineController {
         return this.workflowService.retryServiceTask(taskId);
     }
 
+    @Post('applications/:id/resubmit')
+    resubmitApplication(@Param('id') applicationId: string, @Body() dto: { inputData: any }) {
+        return this.workflowService.resubmitApplication(applicationId, dto.inputData);
+    }
+
     @Get('applications/:id/status')
     getWorkflowStatus(@Param('id') applicationId: string) {
         return this.workflowService.getWorkflowStatus(applicationId);

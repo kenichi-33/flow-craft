@@ -2,6 +2,15 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateApplicationDefinitionDto } from './dto/create-application-definition.dto';
 import { UpdateApplicationDefinitionDto } from './dto/update-application-definition.dto';
+import { Prisma } from '@prisma/client';
+
+export interface FindAllOptions {
+    page?: number;
+    limit?: number;
+    search?: string;
+    sortBy?: string;
+    sortOrder?: 'asc' | 'desc';
+}
 
 @Injectable()
 export class ApplicationDefinitionsService {
@@ -22,14 +31,67 @@ export class ApplicationDefinitionsService {
         });
     }
 
-    async findAll() {
-        return this.prisma.applicationDefinition.findMany({
-            orderBy: { createdAt: 'desc' },
-            include: {
-                formDefinition: true,
-                flowDefinition: true,
+    async findAll(options: FindAllOptions = {}) {
+        const { page, limit, search, sortBy = 'createdAt', sortOrder = 'desc' } = options;
+
+        // 検索条件
+        const where: Prisma.ApplicationDefinitionWhereInput = search
+            ? {
+                OR: [
+                    { name: { contains: search, mode: 'insensitive' } },
+                    { description: { contains: search, mode: 'insensitive' } },
+                ],
+            }
+            : {};
+
+        // ソート条件
+        const orderBy: Prisma.ApplicationDefinitionOrderByWithRelationInput = {};
+        if (sortBy === 'name' || sortBy === 'status' || sortBy === 'version' || sortBy === 'createdAt' || sortBy === 'updatedAt') {
+            orderBy[sortBy] = sortOrder;
+        } else {
+            orderBy.createdAt = sortOrder;
+        }
+
+        // ページネーションなしの場合は単純な配列を返す（後方互換性）
+        if (!page && !limit) {
+            return this.prisma.applicationDefinition.findMany({
+                where,
+                orderBy,
+                include: {
+                    formDefinition: true,
+                    flowDefinition: true,
+                },
+            });
+        }
+
+        // ページネーションありの場合
+        const pageNum = page || 1;
+        const limitNum = limit || 50;
+        const skip = (pageNum - 1) * limitNum;
+
+        const [data, total] = await Promise.all([
+            this.prisma.applicationDefinition.findMany({
+                where,
+                orderBy,
+                skip,
+                take: limitNum,
+                include: {
+                    formDefinition: true,
+                    flowDefinition: true,
+                },
+            }),
+            this.prisma.applicationDefinition.count({ where }),
+        ]);
+
+        return {
+            data,
+            pagination: {
+                page: pageNum,
+                limit: limitNum,
+                total,
+                totalPages: Math.ceil(total / limitNum),
             },
-        });
+        };
     }
 
     async findOne(id: string) {

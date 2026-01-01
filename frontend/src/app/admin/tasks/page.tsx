@@ -1,23 +1,12 @@
 'use client';
 
-import React from 'react';
-import { useQuery } from '@tanstack/react-query';
+import React, { useCallback } from 'react';
 import { api } from '@/lib/api';
-import {
-    Box,
-    Paper,
-    Table,
-    TableBody,
-    TableCell,
-    TableContainer,
-    TableHead,
-    TableRow,
-    Typography,
-    Chip,
-    Button,
-} from '@mui/material';
+import { Box, Chip, Button, IconButton, Tooltip } from '@mui/material';
 import Link from 'next/link';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
+import EditIcon from '@mui/icons-material/Edit';
+import DataTable, { Column, FetchParams, PaginatedResponse } from '@/components/DataTable';
 
 interface Task {
     id: string;
@@ -30,7 +19,6 @@ interface Task {
         applicationNumber: number;
         applicantId: string;
         applicationDefinition?: {
-            id: string;
             name: string;
         };
         flowDefinition?: {
@@ -39,91 +27,140 @@ interface Task {
     };
 }
 
-// Helper to get step name from flow nodes
-function getStepName(stepId: string, nodes?: any[]): string {
+const getStatusColor = (status: string) => {
+    switch (status) {
+        case 'PENDING': return 'warning';
+        case 'APPROVED': return 'success';
+        case 'REJECTED': return 'error';
+        default: return 'default';
+    }
+};
+
+const getStatusLabel = (status: string) => {
+    switch (status) {
+        case 'PENDING': return '保留中';
+        case 'APPROVED': return '承認済';
+        case 'REJECTED': return '却下';
+        default: return status;
+    }
+};
+
+function getStepLabel(stepId: string, nodes?: any[]): string {
     if (!nodes) return stepId;
     const node = nodes.find(n => n.id === stepId);
     return node?.data?.label || stepId;
 }
 
 export default function AdminTasksPage() {
-    const { data: tasks, isLoading } = useQuery<Task[]>({
-        queryKey: ['admin-all-tasks'],
-        queryFn: () => api.get('/tasks'),
-    });
+    const fetchTasks = useCallback(async (params: FetchParams): Promise<PaginatedResponse<Task>> => {
+        const queryParams = new URLSearchParams();
+        queryParams.set('page', String(params.page));
+        queryParams.set('limit', String(params.limit));
+        queryParams.set('status', 'PENDING'); // PENDINGのタスクのみ取得
+        if (params.search) queryParams.set('search', params.search);
+        if (params.sortBy) queryParams.set('sortBy', params.sortBy);
+        if (params.sortOrder) queryParams.set('sortOrder', params.sortOrder);
+
+        return api.get(`/tasks?${queryParams.toString()}`);
+    }, []);
+
+    const columns: Column<Task>[] = [
+        {
+            id: 'applicationNumber',
+            label: '申請ID',
+            minWidth: 100,
+            format: (_, row) => <strong>#{row.application?.applicationNumber}</strong>,
+        },
+        {
+            id: 'appName',
+            label: 'アプリ名',
+            minWidth: 150,
+            format: (_, row) => row.application?.applicationDefinition?.name || '不明',
+        },
+        {
+            id: 'applicantId',
+            label: '申請者',
+            minWidth: 120,
+            format: (_, row) => row.application?.applicantId,
+        },
+        {
+            id: 'assignedTo',
+            label: '担当者',
+            minWidth: 120,
+            format: (value) => value || '-',
+        },
+        {
+            id: 'stepId',
+            label: 'ステップ',
+            minWidth: 140,
+            format: (value, row) => getStepLabel(value, row.application?.flowDefinition?.nodes),
+        },
+        {
+            id: 'status',
+            label: 'ステータス',
+            minWidth: 100,
+            format: (value) => (
+                <Chip
+                    label={getStatusLabel(value)}
+                    color={getStatusColor(value) as any}
+                    size="small"
+                    sx={{ fontWeight: 600 }}
+                />
+            ),
+        },
+        {
+            id: 'createdAt',
+            label: '作成日時',
+            minWidth: 160,
+            format: (value) => (
+                <span suppressHydrationWarning>
+                    {new Date(value).toLocaleString('ja-JP')}
+                </span>
+            ),
+        },
+        {
+            id: 'actions',
+            label: '操作',
+            minWidth: 100,
+            sortable: false,
+            searchable: false,
+            format: (_, row) => (
+                <Tooltip title="詳細を見る">
+                    <IconButton
+                        size="small"
+                        component={Link}
+                        href={`/tasks/${row.id}`}
+                        sx={{ color: '#667eea' }}
+                    >
+                        <EditIcon fontSize="small" />
+                    </IconButton>
+                </Tooltip>
+            ),
+        },
+    ];
 
     return (
-        <Box sx={{ p: 3 }}>
+        <Box sx={{ p: 3, maxWidth: 1400, mx: 'auto' }}>
             <Box sx={{ mb: 3 }}>
-                <Button startIcon={<ArrowBackIcon />} component={Link} href="/admin">
+                <Button
+                    startIcon={<ArrowBackIcon />}
+                    component={Link}
+                    href="/admin"
+                    sx={{ color: '#667eea' }}
+                >
                     ダッシュボードに戻る
                 </Button>
             </Box>
 
-            <Typography variant="h4" gutterBottom>全タスク管理</Typography>
-            <Typography color="text.secondary" paragraph>
-                システム内の全承認タスクを管理できます。
-            </Typography>
-
-            <TableContainer component={Paper}>
-                <Table>
-                    <TableHead>
-                        <TableRow>
-                            <TableCell>申請ID</TableCell>
-                            <TableCell>アプリ名</TableCell>
-                            <TableCell>ステップ</TableCell>
-                            <TableCell>担当者</TableCell>
-                            <TableCell>ステータス</TableCell>
-                            <TableCell>作成日</TableCell>
-                            <TableCell>操作</TableCell>
-                        </TableRow>
-                    </TableHead>
-                    <TableBody>
-                        {isLoading ? (
-                            <TableRow>
-                                <TableCell colSpan={7}>読み込み中...</TableCell>
-                            </TableRow>
-                        ) : tasks?.length === 0 ? (
-                            <TableRow>
-                                <TableCell colSpan={7}>タスクがありません</TableCell>
-                            </TableRow>
-                        ) : (
-                            tasks?.map((task) => (
-                                <TableRow key={task.id} hover>
-                                    <TableCell>
-                                        <strong>#{task.application?.applicationNumber}</strong>
-                                    </TableCell>
-                                    <TableCell>
-                                        {task.application?.applicationDefinition?.name || '不明'}
-                                    </TableCell>
-                                    <TableCell>{getStepName(task.stepId, task.application?.flowDefinition?.nodes)}</TableCell>
-                                    <TableCell>{task.assignedTo || '未割当'}</TableCell>
-                                    <TableCell>
-                                        <Chip
-                                            label={task.status === 'PENDING' ? '承認待ち' : '完了'}
-                                            color={task.status === 'PENDING' ? 'warning' : 'success'}
-                                            size="small"
-                                        />
-                                    </TableCell>
-                                    <TableCell>{new Date(task.createdAt).toLocaleString('ja-JP')}</TableCell>
-                                    <TableCell>
-                                        {task.status === 'PENDING' && (
-                                            <Button
-                                                size="small"
-                                                variant="contained"
-                                                component={Link}
-                                                href={`/tasks/${task.id}`}
-                                            >
-                                                承認画面へ
-                                            </Button>
-                                        )}
-                                    </TableCell>
-                                </TableRow>
-                            ))
-                        )}
-                    </TableBody>
-                </Table>
-            </TableContainer>
+            <DataTable
+                title="全タスク管理"
+                subtitle="全てのタスクを管理できます"
+                columns={columns}
+                serverSide
+                onFetch={fetchTasks}
+                emptyMessage="タスクがありません"
+                rowKey="id"
+            />
         </Box>
     );
 }

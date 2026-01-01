@@ -8,9 +8,10 @@ interface ToolboxItemProps {
     type: string;
     label: string;
     icon?: React.ReactNode;
+    id?: string;  // オプショナルなid属性
 }
 
-export default function ToolboxItem({ type, label, icon }: ToolboxItemProps) {
+export default function ToolboxItem({ type, label, icon, id }: ToolboxItemProps) {
     const handleDragStart = (e: React.DragEvent) => {
         // Set JSON data as text/plain for ReactGridLayout onDrop
         e.dataTransfer.setData("text/plain", JSON.stringify({ type, label }));

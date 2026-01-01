@@ -3,6 +3,15 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { CreateApplicationDto } from './dto/create-application.dto';
 import { Prisma } from '@prisma/client';
 
+export interface FindAllOptions {
+    page?: number;
+    limit?: number;
+    search?: string;
+    sortBy?: string;
+    sortOrder?: 'asc' | 'desc';
+    status?: string;
+}
+
 @Injectable()
 export class ApplicationsService {
     constructor(private prisma: PrismaService) { }
@@ -23,15 +32,75 @@ export class ApplicationsService {
         });
     }
 
-    findAll() {
-        return this.prisma.application.findMany({
-            orderBy: { createdAt: 'desc' },
-            include: {
-                formDefinition: true,
-                flowDefinition: true,
-                applicationDefinition: true,
+    async findAll(options: FindAllOptions = {}) {
+        const { page, limit, search, sortBy = 'createdAt', sortOrder = 'desc', status } = options;
+
+        // 基本検索条件
+        const where: Prisma.ApplicationWhereInput = {};
+
+        // ステータスフィルタ
+        if (status) {
+            where.status = status as any;
+        }
+
+        // 検索条件を追加
+        if (search) {
+            where.OR = [
+                { applicantId: { contains: search, mode: 'insensitive' } },
+                { applicationDefinition: { name: { contains: search, mode: 'insensitive' } } },
+            ];
+        }
+
+        // ソート条件
+        const orderBy: Prisma.ApplicationOrderByWithRelationInput = {};
+        if (sortBy === 'applicationNumber' || sortBy === 'status' || sortBy === 'createdAt' || sortBy === 'updatedAt' || sortBy === 'applicantId') {
+            orderBy[sortBy] = sortOrder;
+        } else {
+            orderBy.createdAt = sortOrder;
+        }
+
+        // ページネーションなしの場合は単純な配列を返す（後方互換性）
+        if (!page && !limit) {
+            return this.prisma.application.findMany({
+                where,
+                orderBy,
+                include: {
+                    formDefinition: true,
+                    flowDefinition: true,
+                    applicationDefinition: true,
+                },
+            });
+        }
+
+        // ページネーションありの場合
+        const pageNum = page || 1;
+        const limitNum = limit || 50;
+        const skip = (pageNum - 1) * limitNum;
+
+        const [data, total] = await Promise.all([
+            this.prisma.application.findMany({
+                where,
+                orderBy,
+                skip,
+                take: limitNum,
+                include: {
+                    formDefinition: true,
+                    flowDefinition: true,
+                    applicationDefinition: true,
+                },
+            }),
+            this.prisma.application.count({ where }),
+        ]);
+
+        return {
+            data,
+            pagination: {
+                page: pageNum,
+                limit: limitNum,
+                total,
+                totalPages: Math.ceil(total / limitNum),
             },
-        });
+        };
     }
 
     async findOne(id: string) {

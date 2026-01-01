@@ -332,7 +332,7 @@ export class WorkflowEngineService {
             throw new BadRequestException('Task is already completed');
         }
 
-        // タスクを完了
+        // タスクを完了としてマーク（アクションはApprovalHistoryに記録済み）
         await this.prisma.approvalTask.update({
             where: { id: input.taskId },
             data: { status: 'COMPLETED' },
@@ -354,16 +354,38 @@ export class WorkflowEngineService {
             // 次のノードへ
             await this.advanceToNextNode(task.applicationId);
         } else if (input.action === 'REJECT') {
-            // 却下
+            // 却下: ステータスをREJECTEDにし、終了ノードへ移動
+            const application = await this.prisma.application.findUnique({
+                where: { id: task.applicationId },
+                include: { flowDefinition: true },
+            });
+            const nodes = (application?.flowNodes || application?.flowDefinition?.nodes || []) as any[];
+            const endNode = nodes.find((n: any) => n.type === 'end');
+
             await this.prisma.application.update({
                 where: { id: task.applicationId },
-                data: { status: 'REJECTED' },
+                data: {
+                    status: 'REJECTED',
+                    currentNodeId: endNode?.id || null,
+                },
             });
         } else if (input.action === 'REMAND') {
-            // 差戻し
+            // 差戻し: 開始ノードへ戻す（申請者が再編集できるようにする）
+            const application = await this.prisma.application.findUnique({
+                where: { id: task.applicationId },
+                include: { flowDefinition: true },
+            });
+            const nodes = (application?.flowNodes || application?.flowDefinition?.nodes || []) as any[];
+
+            // 開始ノードを見つける
+            const startNode = nodes.find((n: any) => n.type === 'start');
+            // ステータスをREMANDEDにし、開始ノードへ戻す（申請者が再編集・再申請できる）
             await this.prisma.application.update({
                 where: { id: task.applicationId },
-                data: { status: 'REMANDED' },
+                data: {
+                    status: 'REMANDED',
+                    currentNodeId: startNode?.id || null,
+                },
             });
         }
 
@@ -392,6 +414,11 @@ export class WorkflowEngineService {
                 },
                 serviceTasks: {
                     orderBy: { createdAt: 'desc' },
+                    include: {
+                        history: {
+                            orderBy: { executedAt: 'desc' },
+                        },
+                    },
                 },
                 history: {
                     orderBy: { actedAt: 'desc' },
@@ -611,5 +638,74 @@ export class WorkflowEngineService {
         await this.executeServiceTask(task.applicationId, node, task.application.inputData, taskId);
 
         return { success: true };
+    }
+
+    /**
+     * 差し戻し申請を再送信する
+     * REMANDEDステータスの申請のinputDataを更新し、ワークフローを再開
+     */
+    async resubmitApplication(applicationId: string, inputData: any) {
+        const application = await this.prisma.application.findUnique({
+            where: { id: applicationId },
+            include: {
+                flowDefinition: true,
+            },
+        });
+
+        if (!application) {
+            throw new NotFoundException('Application not found');
+        }
+
+        // REMANDEDまたはIN_PROGRESSステータスの申請のみ再送信可能
+        if (!['REMANDED', 'IN_PROGRESS'].includes(application.status)) {
+            throw new BadRequestException('Application is not in REMANDED or IN_PROGRESS status');
+        }
+
+        // スナップショットから情報を取得
+        const nodes = (application.flowNodes || application.flowDefinition.nodes || []) as any[];
+        const edges = (application.flowEdges || application.flowDefinition.edges || []) as any[];
+
+        // 開始ノードを見つける
+        const startNode = nodes.find((n: any) => n.type === 'start');
+        if (!startNode) {
+            throw new BadRequestException('Flow has no start node');
+        }
+
+        // 開始ノードの次のエッジを見つける
+        const startEdge = edges.find((e: any) => e.source === startNode.id);
+        const firstStepId = startEdge?.target || startNode.id;
+
+        // 申請を更新（inputDataを更新し、ステータスをIN_PROGRESSに戻す）
+        await this.prisma.application.update({
+            where: { id: applicationId },
+            data: {
+                inputData,
+                status: 'IN_PROGRESS',
+                currentNodeId: startNode.id,
+            },
+        });
+
+        // 再送信履歴を記録
+        await this.prisma.approvalHistory.create({
+            data: {
+                applicationId,
+                actorId: application.applicantId,
+                action: 'RESUBMIT',
+                stepId: startNode.id,
+                comment: '申請内容を修正して再送信',
+            },
+        });
+
+        // 次のノードへ進む
+        await this.advanceToNextNode(applicationId);
+
+        return this.prisma.application.findUnique({
+            where: { id: applicationId },
+            include: {
+                applicationDefinition: true,
+                tasks: true,
+                history: true,
+            },
+        });
     }
 }
