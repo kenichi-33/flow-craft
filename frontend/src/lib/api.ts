@@ -1,3 +1,5 @@
+import { getKeycloak } from './keycloak';
+
 export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8080';
 
 export class ApiError extends Error {
@@ -6,20 +8,29 @@ export class ApiError extends Error {
     }
 }
 
+// 現在のアクセストークンを取得
+function getAccessToken(): string | null {
+    try {
+        const keycloak = getKeycloak();
+        return keycloak.token || null;
+    } catch {
+        return null;
+    }
+}
+
 async function request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
     const url = `${API_BASE_URL}${endpoint}`;
-    console.log(`[API] Requesting: ${url}`);
+    const token = getAccessToken();
 
     try {
         const response = await fetch(url, {
             ...options,
             headers: {
                 'Content-Type': 'application/json',
+                ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
                 ...options.headers,
             },
         });
-
-        console.log(`[API] Response status: ${response.status}`);
 
         if (!response.ok) {
             let errorMessage = 'An error occurred';
@@ -34,7 +45,6 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
         }
 
         const text = await response.text();
-        // console.log(`[API] Response body:`, text); 
         return text ? JSON.parse(text) : {} as any;
 
     } catch (e) {

@@ -12,6 +12,38 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
 
+  keycloak-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: keycloak
+      POSTGRES_USER: keycloak
+      POSTGRES_PASSWORD: keycloak
+    volumes:
+      - keycloak_db_data:/var/lib/postgresql/data
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:24.0
+    environment:
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://keycloak-db:5432/keycloak
+      KC_DB_USERNAME: keycloak
+      KC_DB_PASSWORD: keycloak
+      KC_HOSTNAME: localhost
+      KC_HOSTNAME_PORT: 8081
+      KC_HTTP_ENABLED: "true"
+      KC_HOSTNAME_STRICT_HTTPS: "false"
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: admin
+    command:
+      - start-dev
+      - --import-realm
+    ports:
+      - "8081:8080"
+    depends_on:
+      - keycloak-db
+    volumes:
+      - ./keycloak:/opt/keycloak/data/import
+
   backend:
     build:
       context: ./backend
@@ -19,10 +51,15 @@ services:
     environment:
       DATABASE_URL: postgres://workflow:workflow@postgres:5432/workflow
       PORT: 8080
+      KEYCLOAK_URL: http://keycloak:8080
+      KEYCLOAK_REALM: workflow
+      KEYCLOAK_CLIENT_ID: workflow-api
+      KEYCLOAK_CLIENT_SECRET: workflow-api-secret
     ports:
       - "8080:8080"
     depends_on:
       - postgres
+      - keycloak
     volumes:
       - ./backend:/usr/src/app
       - /usr/src/app/node_modules
@@ -33,6 +70,9 @@ services:
       target: development
     environment:
       NEXT_PUBLIC_API_URL: http://localhost:8080
+      NEXT_PUBLIC_KEYCLOAK_URL: http://localhost:8081
+      NEXT_PUBLIC_KEYCLOAK_REALM: workflow
+      NEXT_PUBLIC_KEYCLOAK_CLIENT_ID: workflow-app
     ports:
       - "3000:3000"
     volumes:
@@ -43,3 +83,4 @@ services:
 
 volumes:
   postgres_data:
+  keycloak_db_data:

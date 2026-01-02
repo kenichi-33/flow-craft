@@ -89,7 +89,6 @@ export default function SubmitApplicationPage() {
     const submitMutation = useMutation({
         mutationFn: (data: any) => api.post('/workflow/start', {
             applicationDefinitionId: appDefId,
-            applicantId: 'current-user',
             inputData: data,
         }),
         onSuccess: (result: any) => {
@@ -105,7 +104,6 @@ export default function SubmitApplicationPage() {
     const saveDraftMutation = useMutation({
         mutationFn: (data: any) => api.post('/workflow/save-draft', {
             applicationDefinitionId: appDefId,
-            applicantId: 'current-user',
             inputData: data,
         }),
         onSuccess: (result: any) => {

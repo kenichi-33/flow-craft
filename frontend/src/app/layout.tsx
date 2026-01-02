@@ -1,15 +1,12 @@
-import type { Metadata } from "next";
+'use client';
+
 import { Inter } from "next/font/google";
 import ThemeRegistryProvider from "@/lib/ThemeRegistryProvider";
 import Providers from "@/lib/QueryProvider";
 import AppLayout from "@/components/AppLayout";
+import { AuthProvider } from "@/providers/AuthProvider";
 
 const inter = Inter({ subsets: ["latin"] });
-
-export const metadata: Metadata = {
-  title: "Flow Craft",
-  description: "Workflow System",
-};
 
 export default function RootLayout({
   children,
@@ -18,14 +15,20 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
+      <head>
+        <title>Flow Craft</title>
+        <meta name="description" content="Workflow System" />
+      </head>
       <body className={inter.className}>
-        <Providers>
-          <ThemeRegistryProvider>
-            <AppLayout>
-              {children}
-            </AppLayout>
-          </ThemeRegistryProvider>
-        </Providers>
+        <AuthProvider>
+          <Providers>
+            <ThemeRegistryProvider>
+              <AppLayout>
+                {children}
+              </AppLayout>
+            </ThemeRegistryProvider>
+          </Providers>
+        </AuthProvider>
       </body>
     </html>
   );

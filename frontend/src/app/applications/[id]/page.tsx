@@ -26,6 +26,7 @@ import Link from 'next/link';
 import ReactFlow, { MarkerType } from 'reactflow';
 import 'reactflow/dist/style.css';
 import ApplicationFormViewer from '@/components/ApplicationFormViewer';
+import ApprovalHistory from '@/components/ApprovalHistory';
 
 interface ApplicationDetail {
     id: string;
@@ -386,65 +387,7 @@ export default function ApplicationDetailPage() {
 
             {/* 4. 承認履歴 */}
             <SectionPaper title="承認履歴">
-                {application.history && application.history.length > 0 ? (
-                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
-                        {application.history.map((h) => {
-                            const getIcon = () => {
-                                switch (h.action) {
-                                    case 'APPROVE': return <CheckCircleIcon sx={{ color: '#4caf50' }} />;
-                                    case 'REJECT': return <CancelIcon sx={{ color: '#f44336' }} />;
-                                    case 'REMAND': return <PendingIcon sx={{ color: '#ff9800' }} />;
-                                    case 'BRANCH': return <AccountTreeIcon sx={{ color: '#2196f3' }} />;
-                                    case 'SERVICE_TASK_COMPLETE': return <CheckCircleIcon sx={{ color: '#4caf50' }} />;
-                                    case 'APPLICATION_COMPLETE': return <CheckCircleIcon sx={{ color: '#4caf50' }} />;
-                                    default: return <InfoIcon sx={{ color: '#9e9e9e' }} />;
-                                }
-                            };
-                            const getLabel = () => {
-                                switch (h.action) {
-                                    case 'APPROVE': return '承認';
-                                    case 'REJECT': return '却下';
-                                    case 'REMAND': return '差戻し';
-                                    case 'BRANCH': return '条件分岐';
-                                    case 'SERVICE_TASK': return 'システム処理開始';
-                                    case 'SERVICE_TASK_COMPLETE': return 'システム処理完了';
-                                    case 'APPLICATION_COMPLETE': return '申請完了';
-                                    default: return h.action;
-                                }
-                            };
-                            return (
-                                <Box
-                                    key={h.id}
-                                    sx={{
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        gap: 2,
-                                        p: 1.5,
-                                        borderRadius: 2,
-                                        bgcolor: alpha('#667eea', 0.03),
-                                        border: '1px solid',
-                                        borderColor: 'divider',
-                                    }}
-                                >
-                                    {getIcon()}
-                                    <Box sx={{ flex: 1 }}>
-                                        <Typography variant="body2" fontWeight={600}>
-                                            {getLabel()}
-                                            {h.comment && <span style={{ fontWeight: 400 }}> - {h.comment}</span>}
-                                        </Typography>
-                                        <Typography variant="caption" color="text.secondary" suppressHydrationWarning>
-                                            {h.actorId === 'SYSTEM' ? 'システム' : h.actorId} • {new Date(h.actedAt).toLocaleString('ja-JP')}
-                                        </Typography>
-                                    </Box>
-                                </Box>
-                            );
-                        })}
-                    </Box>
-                ) : (
-                    <Typography color="text.secondary" variant="body2">
-                        まだ履歴がありません
-                    </Typography>
-                )}
+                <ApprovalHistory history={application.history} />
             </SectionPaper>
 
             {/* 5. システム処理履歴 */}

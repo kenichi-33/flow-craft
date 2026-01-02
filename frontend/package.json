@@ -21,6 +21,7 @@
     "@rjsf/utils": "^6.1.2",
     "@rjsf/validator-ajv8": "^6.1.2",
     "@tanstack/react-query": "^5.90.13",
+    "keycloak-js": "^26.2.2",
     "lodash": "^4.17.21",
     "next": "16.1.1",
     "react": "19.2.3",

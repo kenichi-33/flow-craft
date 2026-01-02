@@ -23,8 +23,13 @@ import DescriptionIcon from '@mui/icons-material/Description';
 import AccountTreeIcon from '@mui/icons-material/AccountTree';
 import EditNoteIcon from '@mui/icons-material/EditNote';
 import SettingsIcon from '@mui/icons-material/Settings';
+import GroupIcon from '@mui/icons-material/Group';
+import PeopleIcon from '@mui/icons-material/People';
+import LogoutIcon from '@mui/icons-material/Logout';
+import { Avatar, Chip, Menu, MenuItem, Tooltip, CircularProgress } from '@mui/material';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useAuth } from '@/providers/AuthProvider';
 
 const drawerWidth = 240;
 
@@ -72,7 +77,6 @@ const DrawerHeader = styled('div')(({ theme }) => ({
     display: 'flex',
     alignItems: 'center',
     padding: theme.spacing(0, 1),
-    // necessary for content to be below app bar
     ...theme.mixins.toolbar,
     justifyContent: 'flex-end',
 }));
@@ -81,6 +85,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     const theme = useTheme();
     const [open, setOpen] = React.useState(true);
     const pathname = usePathname();
+    const { user, isLoading, logout, hasRole } = useAuth();
+    const [anchorEl, setAnchorEl] = React.useState<null | HTMLElement>(null);
 
     const handleDrawerOpen = () => {
         setOpen(true);
@@ -90,6 +96,20 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         setOpen(false);
     };
 
+    const handleMenuOpen = (event: React.MouseEvent<HTMLElement>) => {
+        setAnchorEl(event.currentTarget);
+    };
+
+    const handleMenuClose = () => {
+        setAnchorEl(null);
+    };
+
+    const handleLogout = () => {
+        handleMenuClose();
+        logout();
+    };
+
+    // ロールに応じてメニューをフィルター
     const menuItems = [
         // 利用者向け
         {
@@ -99,21 +119,33 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                 { text: 'タスク', icon: <DashboardIcon />, href: '/tasks' },
             ]
         },
-        // 設計者向け
-        {
+        // 設計者向け（wf_admin or wf_manager）
+        ...(hasRole('wf_manager') ? [{
             section: '設計者', items: [
                 { text: 'アプリ管理', icon: <SettingsIcon />, href: '/designer/apps' },
             ]
-        },
-        // 管理者向け
-        {
+        }] : []),
+        // 管理者向け（wf_admin or wf_manager）
+        ...(hasRole('wf_manager') ? [{
             section: '管理者', items: [
                 { text: 'ダッシュボード', icon: <DashboardIcon />, href: '/admin' },
                 { text: '進捗一覧', icon: <AccountTreeIcon />, href: '/admin/workflows' },
                 { text: 'タスク管理', icon: <SettingsIcon />, href: '/admin/tasks' },
+                ...(hasRole('wf_admin') ? [
+                    { text: 'チーム管理', icon: <GroupIcon />, href: '/admin/teams' },
+                    { text: 'ユーザー管理', icon: <PeopleIcon />, href: '/admin/users' },
+                ] : []),
             ]
-        },
+        }] : []),
     ];
+
+    if (isLoading) {
+        return (
+            <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
+                <CircularProgress />
+            </Box>
+        );
+    }
 
     return (
         <Box sx={{ display: 'flex' }}>
@@ -129,9 +161,48 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                     >
                         <MenuIcon />
                     </IconButton>
-                    <Typography variant="h6" noWrap component="div">
+                    <Typography variant="h6" noWrap component="div" sx={{ flexGrow: 1 }}>
                         Flow Craft
                     </Typography>
+                    {user && (
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                            {user.roles.includes('wf_admin') && (
+                                <Chip label="管理者" size="small" color="error" />
+                            )}
+                            {user.roles.includes('wf_manager') && !user.roles.includes('wf_admin') && (
+                                <Chip label="管理職" size="small" color="warning" />
+                            )}
+                            {user.roles.includes('wf_approver') && !user.roles.includes('wf_manager') && (
+                                <Chip label="承認者" size="small" color="info" />
+                            )}
+                            <Tooltip title={user.email}>
+                                <IconButton onClick={handleMenuOpen} size="small">
+                                    <Avatar sx={{ width: 32, height: 32, bgcolor: '#667eea' }}>
+                                        {user.username?.[0]?.toUpperCase()}
+                                    </Avatar>
+                                </IconButton>
+                            </Tooltip>
+                            <Typography variant="body2" sx={{ display: { xs: 'none', sm: 'block' } }}>
+                                {user.username}
+                            </Typography>
+                            <Tooltip title="ログアウト">
+                                <IconButton onClick={handleLogout} size="small" color="inherit">
+                                    <LogoutIcon fontSize="small" />
+                                </IconButton>
+                            </Tooltip>
+                            <Menu
+                                anchorEl={anchorEl}
+                                open={Boolean(anchorEl)}
+                                onClose={handleMenuClose}
+                            >
+                                <MenuItem disabled>
+                                    <Typography variant="body2" color="text.secondary">
+                                        {user.email}
+                                    </Typography>
+                                </MenuItem>
+                            </Menu>
+                        </Box>
+                    )}
                 </Toolbar>
             </AppBar>
             <Drawer

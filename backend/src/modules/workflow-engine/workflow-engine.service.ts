@@ -67,6 +67,17 @@ export class WorkflowEngineService {
             },
         });
 
+        // 開始履歴を追加
+        await this.prisma.approvalHistory.create({
+            data: {
+                applicationId: application.id,
+                actorId: input.applicantId,
+                action: 'START',
+                stepId: startNode.id,
+                comment: '申請を開始しました',
+            },
+        });
+
         // 次のノードへ進む
         await this.advanceToNextNode(application.id);
 

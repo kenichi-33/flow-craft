@@ -74,7 +74,6 @@ export default function TaskDetailPage() {
         mutationFn: (action: 'APPROVE' | 'REJECT' | 'REMAND') =>
             api.post(`/workflow/tasks/${taskId}/complete`, {
                 action,
-                actorId: 'current-user',
                 comment: comment || undefined,
             }),
         onSuccess: () => {

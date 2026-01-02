@@ -1,13 +1,12 @@
 import { Controller, Post, Get, Body, Param } from '@nestjs/common';
 import { WorkflowEngineService } from './workflow-engine.service';
 import { IsString, IsOptional, IsIn } from 'class-validator';
+import { CurrentUser } from '../../auth/decorators';
+import type { AuthUser } from '../../auth/types/user.interface';
 
 class StartWorkflowDto {
     @IsString()
     applicationDefinitionId: string;
-
-    @IsString()
-    applicantId: string;
 
     @IsOptional()
     inputData: any;
@@ -16,9 +15,6 @@ class StartWorkflowDto {
 class CompleteTaskDto {
     @IsIn(['APPROVE', 'REJECT', 'REMAND'])
     action: 'APPROVE' | 'REJECT' | 'REMAND';
-
-    @IsString()
-    actorId: string;
 
     @IsOptional()
     @IsString()
@@ -30,20 +26,32 @@ export class WorkflowEngineController {
     constructor(private readonly workflowService: WorkflowEngineService) { }
 
     @Post('start')
-    startWorkflow(@Body() dto: StartWorkflowDto) {
-        return this.workflowService.startWorkflow(dto);
+    startWorkflow(@Body() dto: StartWorkflowDto, @CurrentUser() user: AuthUser) {
+        return this.workflowService.startWorkflow({
+            ...dto,
+            applicantId: user.username, // ログインユーザーを申請者に設定
+        });
     }
 
     @Post('save-draft')
-    saveDraft(@Body() dto: StartWorkflowDto) {
-        return this.workflowService.saveDraft(dto);
+    saveDraft(@Body() dto: StartWorkflowDto, @CurrentUser() user: AuthUser) {
+        return this.workflowService.saveDraft({
+            ...dto,
+            applicantId: user.username,
+        });
     }
 
     @Post('tasks/:id/complete')
-    completeTask(@Param('id') taskId: string, @Body() dto: CompleteTaskDto) {
+    completeTask(
+        @Param('id') taskId: string,
+        @Body() dto: CompleteTaskDto,
+        @CurrentUser() user: AuthUser,
+    ) {
         return this.workflowService.completeTask({
             taskId,
-            ...dto,
+            action: dto.action,
+            comment: dto.comment,
+            actorId: user.username, // ログインユーザーを承認者に設定
         });
     }
 
