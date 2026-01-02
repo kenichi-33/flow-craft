@@ -30,6 +30,7 @@ import {
 import { useRouter, useParams } from 'next/navigation';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import SendIcon from '@mui/icons-material/Send';
+import SaveIcon from '@mui/icons-material/Save';
 import EditIcon from '@mui/icons-material/Edit';
 import Link from 'next/link';
 
@@ -93,6 +94,7 @@ export default function EditApplicationPage() {
         }
     }, [application]);
 
+    // 差し戻し申請の再送信用
     const resubmitMutation = useMutation({
         mutationFn: (data: any) => api.post(`/workflow/applications/${applicationId}/resubmit`, {
             inputData: data,
@@ -103,6 +105,33 @@ export default function EditApplicationPage() {
         onError: (err: any) => {
             setError(err.message || '再送信に失敗しました');
             setIsSubmitting(false);
+        },
+    });
+
+    // 下書き申請の送信用（ワークフロー開始）
+    const submitDraftMutation = useMutation({
+        mutationFn: (data: any) => api.post(`/workflow/submit-draft/${applicationId}`, {
+            inputData: data,
+        }),
+        onSuccess: (result: any) => {
+            router.push(`/applications/${result.id || applicationId}`);
+        },
+        onError: (err: any) => {
+            setError(err.message || '申請に失敗しました');
+            setIsSubmitting(false);
+        },
+    });
+
+    // 下書き保存用
+    const updateDraftMutation = useMutation({
+        mutationFn: (data: any) => api.put(`/applications/${applicationId}`, {
+            inputData: data,
+        }),
+        onSuccess: () => {
+            router.push(`/applications/${applicationId}`);
+        },
+        onError: (err: any) => {
+            setError(err.message || '保存に失敗しました');
         },
     });
 
@@ -210,7 +239,12 @@ export default function EditApplicationPage() {
         }
 
         setIsSubmitting(true);
-        resubmitMutation.mutate(formData);
+        // ステータスに応じて適切なAPIを呼ぶ
+        if (application?.status === 'DRAFT') {
+            submitDraftMutation.mutate(formData);
+        } else {
+            resubmitMutation.mutate(formData);
+        }
     };
 
     const handleFieldChange = (fieldId: string, value: any) => {
@@ -408,8 +442,8 @@ export default function EditApplicationPage() {
         );
     }
 
-    // Check if application can be edited
-    if (!['REMANDED', 'IN_PROGRESS'].includes(application.status)) {
+    // Check if application can be edited (DRAFT, REMANDED, IN_PROGRESS)
+    if (!['DRAFT', 'REMANDED', 'IN_PROGRESS'].includes(application.status)) {
         return (
             <Box sx={{ p: 3, maxWidth: 900, mx: 'auto' }}>
                 <Alert severity="warning">
@@ -462,7 +496,10 @@ export default function EditApplicationPage() {
                             {application.applicationDefinition?.name || '申請'} #{application.applicationNumber}
                         </Typography>
                         <Alert severity="info" sx={{ mt: 2 }}>
-                            差し戻しされた申請です。内容を修正して再送信してください。
+                            {application.status === 'DRAFT'
+                                ? '下書きの申請です。内容を入力して申請してください。'
+                                : '差し戻しされた申請です。内容を修正して再送信してください。'
+                            }
                         </Alert>
                     </CardContent>
                 </Card>
@@ -510,22 +547,39 @@ export default function EditApplicationPage() {
                                     >
                                         キャンセル
                                     </Button>
-                                    <Button
-                                        type="submit"
-                                        variant="contained"
-                                        size="large"
-                                        startIcon={<SendIcon />}
-                                        disabled={isSubmitting}
-                                        sx={{
-                                            borderRadius: 2,
-                                            px: 4,
-                                            py: 1.5,
-                                            background: 'linear-gradient(45deg, #ff9800 30%, #f57c00 90%)',
-                                            boxShadow: '0 3px 5px 2px rgba(255, 152, 0, .3)',
-                                        }}
-                                    >
-                                        {isSubmitting ? '送信中...' : '再送信する'}
-                                    </Button>
+                                    <Box sx={{ display: 'flex', gap: 2 }}>
+                                        {application.status === 'DRAFT' && (
+                                            <Button
+                                                variant="outlined"
+                                                startIcon={<SaveIcon />}
+                                                onClick={() => updateDraftMutation.mutate(formData)}
+                                                disabled={updateDraftMutation.isPending}
+                                                sx={{ borderRadius: 2, px: 3 }}
+                                            >
+                                                {updateDraftMutation.isPending ? '保存中...' : '下書き保存'}
+                                            </Button>
+                                        )}
+                                        <Button
+                                            type="submit"
+                                            variant="contained"
+                                            size="large"
+                                            startIcon={<SendIcon />}
+                                            disabled={isSubmitting}
+                                            sx={{
+                                                borderRadius: 2,
+                                                px: 4,
+                                                py: 1.5,
+                                                background: application.status === 'DRAFT'
+                                                    ? 'linear-gradient(45deg, #667eea 30%, #764ba2 90%)'
+                                                    : 'linear-gradient(45deg, #ff9800 30%, #f57c00 90%)',
+                                                boxShadow: application.status === 'DRAFT'
+                                                    ? '0 3px 5px 2px rgba(102, 126, 234, .3)'
+                                                    : '0 3px 5px 2px rgba(255, 152, 0, .3)',
+                                            }}
+                                        >
+                                            {isSubmitting ? '送信中...' : (application.status === 'DRAFT' ? '申請する' : '再送信する')}
+                                        </Button>
+                                    </Box>
                                 </Box>
                             </form>
                         )}

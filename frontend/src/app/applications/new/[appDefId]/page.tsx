@@ -33,6 +33,7 @@ import {
 import { useRouter, useParams } from 'next/navigation';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import SendIcon from '@mui/icons-material/Send';
+import SaveIcon from '@mui/icons-material/Save';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import DescriptionIcon from '@mui/icons-material/Description';
 import Link from 'next/link';
@@ -99,6 +100,25 @@ export default function SubmitApplicationPage() {
             setIsSubmitting(false);
         },
     });
+
+    // 一時保存用のmutation
+    const saveDraftMutation = useMutation({
+        mutationFn: (data: any) => api.post('/workflow/save-draft', {
+            applicationDefinitionId: appDefId,
+            applicantId: 'current-user',
+            inputData: data,
+        }),
+        onSuccess: (result: any) => {
+            router.push(`/applications/${result.id}`);
+        },
+        onError: (err: any) => {
+            setError(err.message || '一時保存に失敗しました');
+        },
+    });
+
+    const handleSaveDraft = () => {
+        saveDraftMutation.mutate(formData);
+    };
 
     // Validate form data
     const validateForm = (): boolean => {
@@ -528,22 +548,33 @@ export default function SubmitApplicationPage() {
                                     >
                                         キャンセル
                                     </Button>
-                                    <Button
-                                        type="submit"
-                                        variant="contained"
-                                        size="large"
-                                        startIcon={<SendIcon />}
-                                        disabled={isSubmitting}
-                                        sx={{
-                                            borderRadius: 2,
-                                            px: 4,
-                                            py: 1.5,
-                                            background: 'linear-gradient(45deg, #667eea 30%, #764ba2 90%)',
-                                            boxShadow: '0 3px 5px 2px rgba(102, 126, 234, .3)',
-                                        }}
-                                    >
-                                        {isSubmitting ? '送信中...' : '申請する'}
-                                    </Button>
+                                    <Box sx={{ display: 'flex', gap: 2 }}>
+                                        <Button
+                                            variant="outlined"
+                                            startIcon={<SaveIcon />}
+                                            onClick={handleSaveDraft}
+                                            disabled={saveDraftMutation.isPending}
+                                            sx={{ borderRadius: 2, px: 3 }}
+                                        >
+                                            {saveDraftMutation.isPending ? '保存中...' : '下書き保存'}
+                                        </Button>
+                                        <Button
+                                            type="submit"
+                                            variant="contained"
+                                            size="large"
+                                            startIcon={<SendIcon />}
+                                            disabled={isSubmitting}
+                                            sx={{
+                                                borderRadius: 2,
+                                                px: 4,
+                                                py: 1.5,
+                                                background: 'linear-gradient(45deg, #667eea 30%, #764ba2 90%)',
+                                                boxShadow: '0 3px 5px 2px rgba(102, 126, 234, .3)',
+                                            }}
+                                        >
+                                            {isSubmitting ? '送信中...' : '申請する'}
+                                        </Button>
+                                    </Box>
                                 </Box>
                             </form>
                         )}

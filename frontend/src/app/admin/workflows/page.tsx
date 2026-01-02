@@ -1,12 +1,18 @@
 'use client';
 
-import React, { useCallback } from 'react';
+import React, { useCallback, useState } from 'react';
 import { api } from '@/lib/api';
-import { Box, Chip, Button, IconButton, Tooltip } from '@mui/material';
+import {
+    Box, Chip, Button, IconButton, Tooltip, Paper, Collapse,
+    TextField, FormControl, InputLabel, Select, MenuItem, Grid, InputAdornment
+} from '@mui/material';
 import Link from 'next/link';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import TimelineIcon from '@mui/icons-material/Timeline';
+import FilterListIcon from '@mui/icons-material/FilterList';
+import ClearIcon from '@mui/icons-material/Clear';
+import SearchIcon from '@mui/icons-material/Search';
 import DataTable, { Column, FetchParams, PaginatedResponse } from '@/components/DataTable';
 
 interface Application {
@@ -24,6 +30,14 @@ interface Application {
         nodes: any[];
     };
     applicantId: string;
+}
+
+interface Filters {
+    search?: string;
+    applicationNumber?: string;
+    status?: string;
+    dateFrom?: string;
+    dateTo?: string;
 }
 
 function getStepLabel(nodeId: string | null, nodes?: any[]): string {
@@ -53,17 +67,56 @@ const getStatusLabel = (status: string) => {
     }
 };
 
+const STATUS_OPTIONS = [
+    { value: '', label: 'すべて' },
+    { value: 'DRAFT', label: '下書き' },
+    { value: 'IN_PROGRESS', label: '処理中' },
+    { value: 'APPROVED', label: '完了' },
+    { value: 'REJECTED', label: '却下' },
+    { value: 'REMANDED', label: '差戻し' },
+];
+
 export default function WorkflowsListPage() {
+    const [filterOpen, setFilterOpen] = useState(false);
+    const [filters, setFilters] = useState<Filters>({});
+    const [appliedFilters, setAppliedFilters] = useState<Filters>({});
+    const [filterKey, setFilterKey] = useState(0);
+
     const fetchWorkflows = useCallback(async (params: FetchParams): Promise<PaginatedResponse<Application>> => {
         const queryParams = new URLSearchParams();
         queryParams.set('page', String(params.page));
         queryParams.set('limit', String(params.limit));
-        if (params.search) queryParams.set('search', params.search);
         if (params.sortBy) queryParams.set('sortBy', params.sortBy);
         if (params.sortOrder) queryParams.set('sortOrder', params.sortOrder);
 
+        // フィルターパラメータを追加
+        if (appliedFilters.search) queryParams.set('search', appliedFilters.search);
+        if (appliedFilters.applicationNumber) queryParams.set('applicationNumber', appliedFilters.applicationNumber);
+        if (appliedFilters.status) queryParams.set('status', appliedFilters.status);
+        if (appliedFilters.dateFrom) queryParams.set('dateFrom', appliedFilters.dateFrom);
+        if (appliedFilters.dateTo) queryParams.set('dateTo', appliedFilters.dateTo);
+
         return api.get(`/applications?${queryParams.toString()}`);
-    }, []);
+    }, [appliedFilters]);
+
+    const handleApplyFilters = () => {
+        setAppliedFilters({ ...filters });
+        setFilterKey(k => k + 1);
+    };
+
+    const handleClearFilters = () => {
+        setFilters({});
+        setAppliedFilters({});
+        setFilterKey(k => k + 1);
+    };
+
+    const handleKeyDown = (e: React.KeyboardEvent) => {
+        if (e.key === 'Enter') {
+            handleApplyFilters();
+        }
+    };
+
+    const hasActiveFilters = Object.values(appliedFilters).some(v => v);
 
     const columns: Column<Application>[] = [
         {
@@ -169,7 +222,124 @@ export default function WorkflowsListPage() {
                 </Button>
             </Box>
 
+            {/* フィルターパネル */}
+            <Paper sx={{ mb: 2, overflow: 'hidden' }}>
+                <Box
+                    sx={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        p: 1.5,
+                        bgcolor: 'grey.50',
+                        borderBottom: filterOpen ? '1px solid' : 'none',
+                        borderColor: 'divider',
+                        cursor: 'pointer',
+                    }}
+                    onClick={() => setFilterOpen(!filterOpen)}
+                >
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <FilterListIcon color={hasActiveFilters ? 'primary' : 'action'} />
+                        <span>検索・フィルター</span>
+                        {hasActiveFilters && (
+                            <Chip label="適用中" size="small" color="primary" sx={{ height: 20 }} />
+                        )}
+                    </Box>
+                    <Button size="small" variant="text">
+                        {filterOpen ? '閉じる' : '開く'}
+                    </Button>
+                </Box>
+                <Collapse in={filterOpen}>
+                    <Box sx={{ p: 2 }}>
+                        <Grid container spacing={2} alignItems="center">
+                            <Grid size={{ xs: 12, md: 3 }}>
+                                <TextField
+                                    fullWidth
+                                    size="small"
+                                    label="キーワード検索"
+                                    value={filters.search || ''}
+                                    onChange={(e) => setFilters({ ...filters, search: e.target.value })}
+                                    onKeyDown={handleKeyDown}
+                                    placeholder="アプリ名、申請者で検索..."
+                                    InputProps={{
+                                        startAdornment: (
+                                            <InputAdornment position="start">
+                                                <SearchIcon color="action" />
+                                            </InputAdornment>
+                                        ),
+                                    }}
+                                />
+                            </Grid>
+                            <Grid size={{ xs: 12, sm: 6, md: 2 }}>
+                                <TextField
+                                    fullWidth
+                                    size="small"
+                                    label="申請ID"
+                                    type="number"
+                                    value={filters.applicationNumber || ''}
+                                    onChange={(e) => setFilters({ ...filters, applicationNumber: e.target.value })}
+                                    onKeyDown={handleKeyDown}
+                                    placeholder="例: 1"
+                                />
+                            </Grid>
+                            <Grid size={{ xs: 12, sm: 6, md: 2 }}>
+                                <FormControl fullWidth size="small">
+                                    <InputLabel>ステータス</InputLabel>
+                                    <Select
+                                        value={filters.status || ''}
+                                        label="ステータス"
+                                        onChange={(e) => setFilters({ ...filters, status: e.target.value })}
+                                    >
+                                        {STATUS_OPTIONS.map(opt => (
+                                            <MenuItem key={opt.value} value={opt.value}>{opt.label}</MenuItem>
+                                        ))}
+                                    </Select>
+                                </FormControl>
+                            </Grid>
+                            <Grid size={{ xs: 12, sm: 6, md: 2 }}>
+                                <TextField
+                                    fullWidth
+                                    size="small"
+                                    label="申請日（開始）"
+                                    type="date"
+                                    value={filters.dateFrom || ''}
+                                    onChange={(e) => setFilters({ ...filters, dateFrom: e.target.value })}
+                                    InputLabelProps={{ shrink: true }}
+                                />
+                            </Grid>
+                            <Grid size={{ xs: 12, sm: 6, md: 2 }}>
+                                <TextField
+                                    fullWidth
+                                    size="small"
+                                    label="申請日（終了）"
+                                    type="date"
+                                    value={filters.dateTo || ''}
+                                    onChange={(e) => setFilters({ ...filters, dateTo: e.target.value })}
+                                    InputLabelProps={{ shrink: true }}
+                                />
+                            </Grid>
+                        </Grid>
+                        <Box sx={{ display: 'flex', gap: 1, mt: 2, justifyContent: 'flex-end' }}>
+                            <Button
+                                variant="outlined"
+                                onClick={handleClearFilters}
+                                startIcon={<ClearIcon />}
+                            >
+                                クリア
+                            </Button>
+                            <Button
+                                variant="contained"
+                                onClick={handleApplyFilters}
+                                sx={{ minWidth: 100 }}
+                            >
+                                検索
+                            </Button>
+                        </Box>
+                    </Box>
+                </Collapse>
+            </Paper>
+
             <DataTable
+                key={filterKey}
                 title="ワークフロー進捗一覧"
                 subtitle="全ての申請の進捗状況を確認できます"
                 columns={columns}
@@ -177,6 +347,7 @@ export default function WorkflowsListPage() {
                 onFetch={fetchWorkflows}
                 emptyMessage="ワークフローがありません"
                 rowKey="id"
+                hideSearch
             />
         </Box>
     );

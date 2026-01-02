@@ -521,7 +521,16 @@ export default function AppFormEditorPage() {
             }));
             setFields(existingFields);
             setLayout(schema['x-layout'] || []);
-            setCounter(existingFields.length);
+
+            // 既存のfield_N形式のIDから最大番号を取得してカウンター初期化
+            const maxFieldNum = Object.keys(props).reduce((max, id) => {
+                const match = id.match(/^field_(\d+)/);
+                if (match) {
+                    return Math.max(max, parseInt(match[1], 10));
+                }
+                return max;
+            }, -1);
+            setCounter(maxFieldNum + 1);
         } else if (app) {
             setFormName(`${(app as any).name}フォーム`);
         }
@@ -556,7 +565,8 @@ export default function AppFormEditorPage() {
             const data = dragEvent.dataTransfer?.getData('text/plain');
             if (data) {
                 const { type, label } = JSON.parse(data);
-                const newId = `field_${counter}`;
+                // タイムスタンプを含めて一意性を確保
+                const newId = `field_${counter}_${Date.now()}`;
                 setCounter(c => c + 1);
 
                 const defaultOptions = ['select', 'radio', 'checkbox'].includes(type)

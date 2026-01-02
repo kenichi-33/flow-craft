@@ -9,6 +9,9 @@ export interface FindAllOptions {
     sortBy?: string;
     sortOrder?: 'asc' | 'desc';
     status?: string;
+    applicationNumber?: number;
+    dateFrom?: string;
+    dateTo?: string;
 }
 
 @Injectable()
@@ -16,7 +19,7 @@ export class TasksService {
     constructor(private prisma: PrismaService) { }
 
     async findAll(options: FindAllOptions = {}) {
-        const { page, limit, search, sortBy = 'createdAt', sortOrder = 'desc', status } = options;
+        const { page, limit, search, sortBy = 'createdAt', sortOrder = 'desc', status, applicationNumber, dateFrom, dateTo } = options;
 
         // 基本検索条件
         const where: Prisma.ApprovalTaskWhereInput = {};
@@ -26,7 +29,25 @@ export class TasksService {
             where.status = status as TaskStatus;
         }
 
-        // 検索条件を追加
+        // 申請IDフィルタ
+        if (applicationNumber) {
+            where.application = { ...where.application as any, applicationNumber };
+        }
+
+        // 日付範囲フィルタ
+        if (dateFrom || dateTo) {
+            where.createdAt = {};
+            if (dateFrom) {
+                (where.createdAt as any).gte = new Date(dateFrom);
+            }
+            if (dateTo) {
+                const endDate = new Date(dateTo);
+                endDate.setHours(23, 59, 59, 999);
+                (where.createdAt as any).lte = endDate;
+            }
+        }
+
+        // テキスト検索条件を追加
         if (search) {
             where.OR = [
                 { application: { applicantId: { contains: search, mode: 'insensitive' } } },

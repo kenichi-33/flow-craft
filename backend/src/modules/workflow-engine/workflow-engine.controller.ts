@@ -34,6 +34,11 @@ export class WorkflowEngineController {
         return this.workflowService.startWorkflow(dto);
     }
 
+    @Post('save-draft')
+    saveDraft(@Body() dto: StartWorkflowDto) {
+        return this.workflowService.saveDraft(dto);
+    }
+
     @Post('tasks/:id/complete')
     completeTask(@Param('id') taskId: string, @Body() dto: CompleteTaskDto) {
         return this.workflowService.completeTask({
@@ -45,6 +50,11 @@ export class WorkflowEngineController {
     @Post('tasks/:id/retry')
     retryTask(@Param('id') taskId: string) {
         return this.workflowService.retryServiceTask(taskId);
+    }
+
+    @Post('submit-draft/:id')
+    submitDraft(@Param('id') applicationId: string, @Body() dto: { inputData: any }) {
+        return this.workflowService.submitDraft(applicationId, dto.inputData);
     }
 
     @Post('applications/:id/resubmit')

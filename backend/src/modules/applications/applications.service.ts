@@ -10,6 +10,9 @@ export interface FindAllOptions {
     sortBy?: string;
     sortOrder?: 'asc' | 'desc';
     status?: string;
+    applicationNumber?: number;
+    dateFrom?: string;
+    dateTo?: string;
 }
 
 @Injectable()
@@ -33,7 +36,7 @@ export class ApplicationsService {
     }
 
     async findAll(options: FindAllOptions = {}) {
-        const { page, limit, search, sortBy = 'createdAt', sortOrder = 'desc', status } = options;
+        const { page, limit, search, sortBy = 'createdAt', sortOrder = 'desc', status, applicationNumber, dateFrom, dateTo } = options;
 
         // 基本検索条件
         const where: Prisma.ApplicationWhereInput = {};
@@ -43,7 +46,26 @@ export class ApplicationsService {
             where.status = status as any;
         }
 
-        // 検索条件を追加
+        // 申請IDフィルタ
+        if (applicationNumber) {
+            where.applicationNumber = applicationNumber;
+        }
+
+        // 日付範囲フィルタ
+        if (dateFrom || dateTo) {
+            where.createdAt = {};
+            if (dateFrom) {
+                (where.createdAt as any).gte = new Date(dateFrom);
+            }
+            if (dateTo) {
+                // dateToはその日の終わりまで含む
+                const endDate = new Date(dateTo);
+                endDate.setHours(23, 59, 59, 999);
+                (where.createdAt as any).lte = endDate;
+            }
+        }
+
+        // テキスト検索条件を追加
         if (search) {
             where.OR = [
                 { applicantId: { contains: search, mode: 'insensitive' } },
@@ -125,5 +147,25 @@ export class ApplicationsService {
         });
         if (!application) throw new NotFoundException(`Application with ID ${id} not found`);
         return application;
+    }
+
+    async update(id: string, updateData: { inputData: any }) {
+        const application = await this.prisma.application.findUnique({
+            where: { id },
+        });
+
+        if (!application) {
+            throw new NotFoundException(`Application with ID ${id} not found`);
+        }
+
+        return this.prisma.application.update({
+            where: { id },
+            data: {
+                inputData: updateData.inputData as Prisma.InputJsonValue,
+            },
+            include: {
+                applicationDefinition: true,
+            },
+        });
     }
 }

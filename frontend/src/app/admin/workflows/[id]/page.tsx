@@ -20,6 +20,7 @@ import { useParams } from 'next/navigation';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import Link from 'next/link';
 import FlowVisualization from '@/components/flow-designer/FlowVisualization';
+import ApplicationFormViewer from '@/components/ApplicationFormViewer';
 
 interface ApplicationDetail {
     id: string;
@@ -146,6 +147,14 @@ export default function WorkflowDetailPage() {
                     height={400}
                 />
             </Paper>
+
+            {/* 申請内容 */}
+            <Box sx={{ mb: 3 }}>
+                <ApplicationFormViewer
+                    schema={application.formDefinition?.schema}
+                    inputData={application.inputData}
+                />
+            </Box>
 
             <Grid container spacing={3}>
                 {/* 申請情報 */}

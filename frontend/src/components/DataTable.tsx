@@ -40,6 +40,8 @@ export interface FetchParams {
     search?: string;
     sortBy?: string;
     sortOrder?: 'asc' | 'desc';
+    // 拡張フィルター
+    filters?: Record<string, any>;
 }
 
 // サーバーサイドページング用のレスポンス
@@ -69,6 +71,8 @@ interface DataTableProps<T> {
     onFetch?: (params: FetchParams) => Promise<PaginatedResponse<T>>;
     defaultSortBy?: string;
     defaultSortOrder?: 'asc' | 'desc';
+    // 検索ボックス非表示
+    hideSearch?: boolean;
 }
 
 type Order = 'asc' | 'desc';
@@ -89,6 +93,7 @@ export default function DataTable<T extends Record<string, any>>({
     onFetch,
     defaultSortBy = 'createdAt',
     defaultSortOrder = 'desc',
+    hideSearch = false,
 }: DataTableProps<T>) {
     const [page, setPage] = useState(0);
     const [rowsPerPage, setRowsPerPage] = useState(10);
@@ -268,29 +273,31 @@ export default function DataTable<T extends Record<string, any>>({
                     bgcolor: alpha('#667eea', 0.03),
                 }}
             >
-                <TextField
-                    placeholder="検索..."
-                    size="small"
-                    value={searchQuery}
-                    onChange={(e) => {
-                        setSearchQuery(e.target.value);
-                        if (!serverSide) setPage(0);
-                    }}
-                    InputProps={{
-                        startAdornment: (
-                            <InputAdornment position="start">
-                                <SearchIcon sx={{ color: 'text.secondary' }} />
-                            </InputAdornment>
-                        ),
-                    }}
-                    sx={{
-                        minWidth: 280,
-                        '& .MuiOutlinedInput-root': {
-                            borderRadius: 2,
-                            bgcolor: 'white',
-                        },
-                    }}
-                />
+                {!hideSearch && (
+                    <TextField
+                        placeholder="検索..."
+                        size="small"
+                        value={searchQuery}
+                        onChange={(e) => {
+                            setSearchQuery(e.target.value);
+                            if (!serverSide) setPage(0);
+                        }}
+                        InputProps={{
+                            startAdornment: (
+                                <InputAdornment position="start">
+                                    <SearchIcon sx={{ color: 'text.secondary' }} />
+                                </InputAdornment>
+                            ),
+                        }}
+                        sx={{
+                            minWidth: 280,
+                            '& .MuiOutlinedInput-root': {
+                                borderRadius: 2,
+                                bgcolor: 'white',
+                            },
+                        }}
+                    />
+                )}
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
                     <Chip
                         label={`${totalCount} 件`}

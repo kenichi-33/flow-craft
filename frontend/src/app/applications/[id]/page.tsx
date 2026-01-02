@@ -25,6 +25,7 @@ import ReplayIcon from '@mui/icons-material/Replay';
 import Link from 'next/link';
 import ReactFlow, { MarkerType } from 'reactflow';
 import 'reactflow/dist/style.css';
+import ApplicationFormViewer from '@/components/ApplicationFormViewer';
 
 interface ApplicationDetail {
     id: string;
@@ -360,28 +361,11 @@ export default function ApplicationDetailPage() {
                 </Box>
             </SectionPaper>
 
-            {/* 2. 申請内容 (フォームスタイル) */}
-            <SectionPaper title="申請内容">
-                <Grid container spacing={2}>
-                    {Object.entries(application.inputData || {}).map(([key, value]) => (
-                        <Grid size={{ xs: 12, sm: 6 }} key={key}>
-                            <TextField
-                                label={properties[key]?.title || key}
-                                value={String(value)}
-                                fullWidth
-                                InputProps={{ readOnly: true }}
-                                variant="outlined"
-                                size="small"
-                                sx={{
-                                    '& .MuiOutlinedInput-root': {
-                                        bgcolor: '#f8fafc',
-                                    },
-                                }}
-                            />
-                        </Grid>
-                    ))}
-                </Grid>
-            </SectionPaper>
+            {/* 2. 申請内容 (共通コンポーネント使用) */}
+            <ApplicationFormViewer
+                schema={application.formDefinition?.schema}
+                inputData={application.inputData}
+            />
 
             {/* 3. 現在のステップ */}
             {application.currentNode && (

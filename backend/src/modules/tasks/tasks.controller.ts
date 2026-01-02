@@ -13,6 +13,9 @@ export class TasksController {
         @Query('sortBy') sortBy?: string,
         @Query('sortOrder') sortOrder?: 'asc' | 'desc',
         @Query('status') status?: string,
+        @Query('applicationNumber') applicationNumber?: string,
+        @Query('dateFrom') dateFrom?: string,
+        @Query('dateTo') dateTo?: string,
     ) {
         return this.tasksService.findAll({
             page: page ? parseInt(page, 10) : undefined,
@@ -21,6 +24,9 @@ export class TasksController {
             sortBy,
             sortOrder,
             status,
+            applicationNumber: applicationNumber ? parseInt(applicationNumber, 10) : undefined,
+            dateFrom,
+            dateTo,
         });
     }
 

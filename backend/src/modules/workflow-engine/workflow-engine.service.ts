@@ -80,6 +80,111 @@ export class WorkflowEngineService {
     }
 
     /**
+     * 申請を下書きとして保存する（ワークフロー開始前）
+     */
+    async saveDraft(input: {
+        applicationDefinitionId: string;
+        applicantId: string;
+        inputData: any;
+    }) {
+        // アプリ定義を取得
+        const appDef = await this.prisma.applicationDefinition.findUnique({
+            where: { id: input.applicationDefinitionId },
+            include: {
+                formDefinition: true,
+                flowDefinition: true,
+            },
+        });
+
+        if (!appDef) {
+            throw new NotFoundException('ApplicationDefinition not found');
+        }
+
+        if (!appDef.formDefinitionId || !appDef.flowDefinitionId) {
+            throw new BadRequestException('ApplicationDefinition is not fully configured');
+        }
+
+        // フロー定義からノードを取得
+        const flowDef = appDef.flowDefinition;
+        const nodes = flowDef?.nodes as any[] || [];
+
+        // 開始ノードを見つける
+        const startNode = nodes.find(n => n.type === 'start');
+
+        // 申請を下書きステータスで作成
+        const application = await this.prisma.application.create({
+            data: {
+                applicationDefinitionId: appDef.id,
+                formDefinitionId: appDef.formDefinitionId,
+                flowDefinitionId: appDef.flowDefinitionId,
+                applicantId: input.applicantId,
+                status: 'DRAFT',
+                inputData: input.inputData,
+                currentNodeId: startNode?.id || null,
+                // スナップショット
+                formSchema: (appDef.formDefinition?.schema ?? undefined) as Prisma.InputJsonValue | undefined,
+                flowNodes: (flowDef?.nodes ?? undefined) as Prisma.InputJsonValue | undefined,
+                flowEdges: (flowDef?.edges ?? undefined) as Prisma.InputJsonValue | undefined,
+            },
+        });
+
+        return this.prisma.application.findUnique({
+            where: { id: application.id },
+            include: {
+                applicationDefinition: true,
+            },
+        });
+    }
+
+    /**
+     * 下書き申請を本申請として送信（ワークフロー開始）
+     */
+    async submitDraft(applicationId: string, inputData: any) {
+        const application = await this.prisma.application.findUnique({
+            where: { id: applicationId },
+            include: { flowDefinition: true },
+        });
+
+        if (!application) {
+            throw new NotFoundException('Application not found');
+        }
+
+        if (application.status !== 'DRAFT') {
+            throw new BadRequestException('この申請は下書きではありません');
+        }
+
+        // スナップショット優先
+        const nodes = (application.flowNodes || application.flowDefinition.nodes || []) as any[];
+
+        // 開始ノードを見つける
+        const startNode = nodes.find((n: any) => n.type === 'start');
+        if (!startNode) {
+            throw new BadRequestException('Flow has no start node');
+        }
+
+        // 申請を更新してワークフロー開始
+        await this.prisma.application.update({
+            where: { id: applicationId },
+            data: {
+                status: 'IN_PROGRESS',
+                inputData: inputData,
+                currentNodeId: startNode.id,
+            },
+        });
+
+        // 次のノードへ進む
+        await this.advanceToNextNode(applicationId);
+
+        return this.prisma.application.findUnique({
+            where: { id: applicationId },
+            include: {
+                applicationDefinition: true,
+                tasks: true,
+            },
+        });
+    }
+
+    /**
      * 次のノードへ進む
      */
     async advanceToNextNode(applicationId: string) {

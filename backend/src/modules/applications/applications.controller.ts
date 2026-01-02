@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Param, Query } from '@nestjs/common';
+import { Controller, Get, Post, Put, Body, Param, Query } from '@nestjs/common';
 import { ApplicationsService } from './applications.service';
 import { CreateApplicationDto } from './dto/create-application.dto';
 
@@ -19,6 +19,9 @@ export class ApplicationsController {
         @Query('sortBy') sortBy?: string,
         @Query('sortOrder') sortOrder?: 'asc' | 'desc',
         @Query('status') status?: string,
+        @Query('applicationNumber') applicationNumber?: string,
+        @Query('dateFrom') dateFrom?: string,
+        @Query('dateTo') dateTo?: string,
     ) {
         return this.applicationsService.findAll({
             page: page ? parseInt(page, 10) : undefined,
@@ -27,11 +30,19 @@ export class ApplicationsController {
             sortBy,
             sortOrder,
             status,
+            applicationNumber: applicationNumber ? parseInt(applicationNumber, 10) : undefined,
+            dateFrom,
+            dateTo,
         });
     }
 
     @Get(':id')
     findOne(@Param('id') id: string) {
         return this.applicationsService.findOne(id);
+    }
+
+    @Put(':id')
+    update(@Param('id') id: string, @Body() updateData: { inputData: any }) {
+        return this.applicationsService.update(id, updateData);
     }
 }
