@@ -4,7 +4,8 @@ import React, { useCallback, useState } from 'react';
 import { api } from '@/lib/api';
 import {
     Box, Chip, Button, IconButton, Tooltip, Paper, Collapse,
-    TextField, FormControl, InputLabel, Select, MenuItem, Grid, InputAdornment
+    TextField, FormControl, InputLabel, Select, MenuItem, Grid, InputAdornment,
+    Switch, FormControlLabel, Typography
 } from '@mui/material';
 import Link from 'next/link';
 import AddIcon from '@mui/icons-material/Add';
@@ -18,6 +19,7 @@ import DataTable, { Column, FetchParams, PaginatedResponse } from '@/components/
 interface Application {
     id: string;
     applicationNumber: number;
+    applicantId: string;
     status: string;
     currentNodeId?: string;
     createdAt: string;
@@ -39,6 +41,7 @@ interface Filters {
     status?: string;
     dateFrom?: string;
     dateTo?: string;
+    myApplicationsOnly?: boolean;
 }
 
 function getStepLabel(nodeId: string | undefined, nodes?: any[]): string {
@@ -97,6 +100,7 @@ export default function ApplicationsListPage() {
         if (appliedFilters.status) queryParams.set('status', appliedFilters.status);
         if (appliedFilters.dateFrom) queryParams.set('dateFrom', appliedFilters.dateFrom);
         if (appliedFilters.dateTo) queryParams.set('dateTo', appliedFilters.dateTo);
+        if (appliedFilters.myApplicationsOnly) queryParams.set('myApplications', 'true');
 
         return api.get(`/applications?${queryParams.toString()}`);
     }, [appliedFilters]);
@@ -127,6 +131,11 @@ export default function ApplicationsListPage() {
             label: '申請ID',
             minWidth: 100,
             format: (value) => <strong>#{value}</strong>,
+        },
+        {
+            id: 'applicantId',
+            label: '申請者',
+            minWidth: 120,
         },
         {
             id: 'appName',
@@ -220,6 +229,32 @@ export default function ApplicationsListPage() {
 
     return (
         <Box sx={{ p: 3, maxWidth: 1400, mx: 'auto' }}>
+            {/* 表示フィルタトグル */}
+            <Paper sx={{ mb: 2, p: 2 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 3, flexWrap: 'wrap' }}>
+                    <FormControlLabel
+                        control={
+                            <Switch
+                                checked={appliedFilters.myApplicationsOnly || false}
+                                onChange={() => {
+                                    const newFilters = { ...appliedFilters, myApplicationsOnly: !appliedFilters.myApplicationsOnly };
+                                    setFilters(newFilters);
+                                    setAppliedFilters(newFilters);
+                                    setFilterKey(k => k + 1);
+                                }}
+                                color="primary"
+                            />
+                        }
+                        label="自分の申請のみ"
+                    />
+                    <Typography variant="body2" color="text.secondary">
+                        {appliedFilters.myApplicationsOnly
+                            ? '自分が申請したものを表示'
+                            : '全ての申請を表示'}
+                    </Typography>
+                </Box>
+            </Paper>
+
             {/* フィルターパネル */}
             <Paper sx={{ mb: 2, overflow: 'hidden' }}>
                 <Box

@@ -106,19 +106,16 @@ export default function HomePage() {
               boxShadow: '0 20px 60px rgba(102,126,234,0.3)',
             }}
           >
-            <Typography
-              variant="h3"
-              fontWeight={800}
-              sx={{
-                textShadow: '0 2px 10px rgba(0,0,0,0.2)',
-                mb: 2,
+            <Box
+              component="img"
+              src="/flow-claft-top.svg"
+              alt="Flow Craft"
+              sx={{ 
+                height: 80,
+                mb: 3,
+                filter: 'drop-shadow(0 4px 6px rgba(0,0,0,0.2))'
               }}
-            >
-              Flow Craft
-            </Typography>
-            <Typography variant="h6" sx={{ opacity: 0.9, mb: 3 }}>
-              ワークフロー申請システム
-            </Typography>
+            />
             {user && (
               <Typography variant="body1" sx={{ opacity: 0.8 }}>
                 ようこそ、{user.username} さん

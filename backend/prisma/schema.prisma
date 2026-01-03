@@ -73,13 +73,15 @@ enum ApplicationStatus {
 }
 
 model ApprovalTask {
-  id            String   @id @default(uuid())
-  applicationId String   @map("application_id")
-  status        TaskStatus @default(PENDING)
-  stepId        String     @map("step_id") // 対応するノードID
-  assignedTo    String?  @map("assigned_to") // UserId or RoleId
-  dueDate       DateTime? @map("due_date")
-  createdAt     DateTime @default(now()) @map("created_at")
+  id                 String   @id @default(uuid())
+  applicationId      String   @map("application_id")
+  status             TaskStatus @default(PENDING)
+  stepId             String     @map("step_id") // 対応するノードID
+  assignedTo         String?  @map("assigned_to") // UserId or RoleId
+  assignedToDisplay  String?  @map("assigned_to_display") // 表示用の名前（例：営業第一課）
+  dueDate            DateTime? @map("due_date")
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @default(now()) @updatedAt @map("updated_at")
 
   application   Application @relation(fields: [applicationId], references: [id])
 
@@ -90,6 +92,7 @@ enum TaskStatus {
   PENDING
   COMPLETED
   FAILED
+  CANCELED
 }
 
 model ApprovalHistory {

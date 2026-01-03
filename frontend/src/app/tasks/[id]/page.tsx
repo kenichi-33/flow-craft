@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { api } from '@/lib/api';
+import { api, ApiError } from '@/lib/api';
 import {
     Box,
     Paper,
@@ -13,24 +13,43 @@ import {
     Divider,
     ButtonGroup,
     Chip,
+    Dialog,
+    DialogTitle,
+    DialogContent,
+    DialogActions,
+    Avatar,
 } from '@mui/material';
 import { useRouter, useParams } from 'next/navigation';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import CheckIcon from '@mui/icons-material/Check';
 import CloseIcon from '@mui/icons-material/Close';
 import UndoIcon from '@mui/icons-material/Undo';
+import PersonIcon from '@mui/icons-material/Person';
+import ErrorIcon from '@mui/icons-material/Error';
 import Link from 'next/link';
 import FlowVisualization from '@/components/flow-designer/FlowVisualization';
 import ApplicationFormViewer from '@/components/ApplicationFormViewer';
+import ApprovalHistory from '@/components/ApprovalHistory';
+
+interface ApprovalHistoryItem {
+    id: string;
+    actorId: string;
+    action: string;
+    comment?: string;
+    stepId: string;
+    createdAt: string;
+}
 
 interface TaskDetail {
     id: string;
     status: string;
     stepId: string;
+    assignedTo?: string;
     createdAt: string;
     application: {
         id: string;
         applicationNumber: number;
+        applicantId: string;
         inputData: any;
         currentNodeId: string | null;
         applicationDefinition?: {
@@ -44,6 +63,12 @@ interface TaskDetail {
             nodes: any[];
             edges: any[];
         };
+        history?: ApprovalHistoryItem[];
+        tasks?: {
+            id: string;
+            status: string;
+            stepId: string;
+        }[];
     };
 }
 
@@ -54,6 +79,21 @@ function getStepLabel(stepId: string, nodes?: any[]): string {
     return node?.data?.label || stepId;
 }
 
+// 担当者表示用のフォーマット
+function formatAssignedTo(assignedTo?: string): string {
+    if (!assignedTo) return '未指定';
+
+    const assignments = assignedTo.split(',').map(s => s.trim());
+    return assignments.map(a => {
+        if (a.startsWith('user:')) return a.substring(5);
+        if (a.startsWith('role:')) return `ロール: ${a.substring(5)}`;
+        if (a.startsWith('group:')) return `グループ: ${a.substring(6)}`;
+        if (a === 'applicant') return '申請者';
+        if (a === 'applicant_manager') return '申請者の上長';
+        return a;
+    }).join(', ');
+}
+
 export default function TaskDetailPage() {
     const router = useRouter();
     const params = useParams();
@@ -61,8 +101,9 @@ export default function TaskDetailPage() {
     const taskId = params.id as string;
 
     const [comment, setComment] = useState('');
-    const [error, setError] = useState<string | null>(null);
     const [success, setSuccess] = useState<string | null>(null);
+    const [errorDialogOpen, setErrorDialogOpen] = useState(false);
+    const [errorMessage, setErrorMessage] = useState('');
 
     const { data: task, isLoading } = useQuery<TaskDetail>({
         queryKey: ['task', taskId],
@@ -78,16 +119,21 @@ export default function TaskDetailPage() {
             }),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['my-tasks'] });
+            queryClient.invalidateQueries({ queryKey: ['task', taskId] });
             setSuccess('処理が完了しました');
             setTimeout(() => router.push('/tasks'), 1500);
         },
         onError: (err: any) => {
-            setError(err.message || '処理に失敗しました');
+            // エラーダイアログを表示
+            const message = err instanceof ApiError
+                ? err.message
+                : err.message || '処理に失敗しました';
+            setErrorMessage(message);
+            setErrorDialogOpen(true);
         },
     });
 
     const handleAction = (action: 'APPROVE' | 'REJECT' | 'REMAND') => {
-        setError(null);
         completeMutation.mutate(action);
     };
 
@@ -125,7 +171,7 @@ export default function TaskDetailPage() {
                 </Button>
             </Box>
 
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 3 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 3, flexWrap: 'wrap' }}>
                 <Typography variant="h4">
                     {task.application?.applicationDefinition?.name || '承認'} - 承認確認
                 </Typography>
@@ -136,7 +182,33 @@ export default function TaskDetailPage() {
                 />
             </Box>
 
-            {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
+            {/* 担当者情報 */}
+            <Paper sx={{ p: 2, mb: 3, display: 'flex', alignItems: 'center', gap: 2 }}>
+                <Avatar sx={{ bgcolor: '#667eea' }}>
+                    <PersonIcon />
+                </Avatar>
+                <Box>
+                    <Typography variant="body2" color="text.secondary">担当者</Typography>
+                    <Typography variant="body1" fontWeight={600}>
+                        {formatAssignedTo(task.assignedTo)}
+                    </Typography>
+                </Box>
+                <Divider orientation="vertical" flexItem sx={{ mx: 2 }} />
+                <Box>
+                    <Typography variant="body2" color="text.secondary">申請者</Typography>
+                    <Typography variant="body1" fontWeight={600}>
+                        {task.application?.applicantId}
+                    </Typography>
+                </Box>
+                <Divider orientation="vertical" flexItem sx={{ mx: 2 }} />
+                <Box>
+                    <Typography variant="body2" color="text.secondary">申請番号</Typography>
+                    <Typography variant="body1" fontWeight={600}>
+                        #{task.application?.applicationNumber}
+                    </Typography>
+                </Box>
+            </Paper>
+
             {success && <Alert severity="success" sx={{ mb: 2 }}>{success}</Alert>}
 
             {/* 1. フロー進捗 - Full Width */}
@@ -145,7 +217,19 @@ export default function TaskDetailPage() {
                 <FlowVisualization
                     nodes={flowNodes}
                     edges={flowEdges}
-                    currentNodeId={currentStepId}
+                    currentNodeId={
+                        // 現在のタスクだけでなく、並行して走っている他のPENDINGタスクも表示する
+                        task.application?.tasks
+                            ? task.application.tasks
+                                .filter(t => t.status === 'PENDING')
+                                .map(t => t.stepId)
+                            : [task.stepId]
+                    }
+                    completedStepIds={
+                        task.application?.history
+                            ?.filter(h => h.action !== 'REMAND')
+                            .map(h => h.stepId) || []
+                    }
                     showBackground
                 />
             </Paper>
@@ -158,7 +242,17 @@ export default function TaskDetailPage() {
                 />
             </Box>
 
-            {/* 3. 承認アクション */}
+            {/* 3. 承認履歴 */}
+            {task.application?.history && task.application.history.length > 0 && (
+                <Paper sx={{ p: 2, mb: 3 }}>
+                    <Typography variant="h6" gutterBottom>承認履歴</Typography>
+                    <ApprovalHistory
+                        history={task.application.history}
+                    />
+                </Paper>
+            )}
+
+            {/* 4. 承認アクション */}
             <Paper sx={{ p: 3 }}>
                 <Typography variant="h6" gutterBottom>承認アクション</Typography>
                 <Divider sx={{ mb: 2 }} />
@@ -204,6 +298,22 @@ export default function TaskDetailPage() {
                     </Button>
                 </ButtonGroup>
             </Paper>
+
+            {/* エラーダイアログ */}
+            <Dialog open={errorDialogOpen} onClose={() => setErrorDialogOpen(false)}>
+                <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1, color: 'error.main' }}>
+                    <ErrorIcon />
+                    エラー
+                </DialogTitle>
+                <DialogContent>
+                    <Typography>{errorMessage}</Typography>
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={() => setErrorDialogOpen(false)} autoFocus>
+                        閉じる
+                    </Button>
+                </DialogActions>
+            </Dialog>
         </Box>
     );
 }

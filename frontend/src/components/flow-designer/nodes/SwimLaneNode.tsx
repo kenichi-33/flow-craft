@@ -105,7 +105,7 @@ export default function SwimLaneNode({ id, data, selected }: SwimLaneNodeProps) 
                         flexDirection: 'column',
                         alignItems: 'center',
                         justifyContent: 'center',
-                        writingMode: 'vertical-rl',
+                        writingMode: 'vertical-lr',
                         textOrientation: 'mixed',
                     }}
                 >
@@ -113,14 +113,13 @@ export default function SwimLaneNode({ id, data, selected }: SwimLaneNodeProps) 
                         variant="body2"
                         sx={{
                             fontWeight: 'bold',
-                            transform: 'rotate(180deg)',
                             userSelect: 'none',
                         }}
                     >
                         {data.label}
                     </Typography>
                     {data.assignee && (
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 1, transform: 'rotate(180deg)' }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 1 }}>
                             {data.assigneeType === 'user' ? (
                                 <PersonIcon sx={{ fontSize: 12 }} />
                             ) : (

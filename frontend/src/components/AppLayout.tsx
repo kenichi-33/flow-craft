@@ -26,6 +26,7 @@ import SettingsIcon from '@mui/icons-material/Settings';
 import GroupIcon from '@mui/icons-material/Group';
 import PeopleIcon from '@mui/icons-material/People';
 import LogoutIcon from '@mui/icons-material/Logout';
+import HomeIcon from '@mui/icons-material/Home';
 import { Avatar, Chip, Menu, MenuItem, Tooltip, CircularProgress } from '@mui/material';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
@@ -114,6 +115,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         // 利用者向け
         {
             section: '利用者', items: [
+                { text: 'トップ', icon: <HomeIcon />, href: '/' },
                 { text: '新規申請', icon: <EditNoteIcon />, href: '/applications/new' },
                 { text: '申請一覧', icon: <DescriptionIcon />, href: '/applications' },
                 { text: 'タスク', icon: <DashboardIcon />, href: '/tasks' },
@@ -161,9 +163,14 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                     >
                         <MenuIcon />
                     </IconButton>
-                    <Typography variant="h6" noWrap component="div" sx={{ flexGrow: 1 }}>
-                        Flow Craft
-                    </Typography>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexGrow: 1 }}>
+                        <Box
+                            component="img"
+                            src="/flow-claft-top.svg"
+                            alt="Flow Craft"
+                            sx={{ height: 40 }}
+                        />
+                    </Box>
                     {user && (
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                             {user.roles.includes('wf_admin') && (

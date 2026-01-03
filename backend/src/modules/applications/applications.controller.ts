@@ -1,6 +1,8 @@
 import { Controller, Get, Post, Put, Body, Param, Query } from '@nestjs/common';
 import { ApplicationsService } from './applications.service';
 import { CreateApplicationDto } from './dto/create-application.dto';
+import { CurrentUser } from '../../auth/decorators';
+import type { AuthUser } from '../../auth/types/user.interface';
 
 @Controller('applications')
 export class ApplicationsController {
@@ -13,6 +15,7 @@ export class ApplicationsController {
 
     @Get()
     findAll(
+        @CurrentUser() user: AuthUser,
         @Query('page') page?: string,
         @Query('limit') limit?: string,
         @Query('search') search?: string,
@@ -22,6 +25,7 @@ export class ApplicationsController {
         @Query('applicationNumber') applicationNumber?: string,
         @Query('dateFrom') dateFrom?: string,
         @Query('dateTo') dateTo?: string,
+        @Query('myApplications') myApplications?: string,
     ) {
         return this.applicationsService.findAll({
             page: page ? parseInt(page, 10) : undefined,
@@ -33,6 +37,10 @@ export class ApplicationsController {
             applicationNumber: applicationNumber ? parseInt(applicationNumber, 10) : undefined,
             dateFrom,
             dateTo,
+            // myApplications=trueの場合、ログインユーザーの申請のみ
+            applicantId: myApplications === 'true' ? user.username : undefined,
+            // アクセス制御用: リクエストユーザーID
+            requestUserId: user.username,
         });
     }
 

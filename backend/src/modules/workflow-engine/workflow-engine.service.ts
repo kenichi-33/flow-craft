@@ -1,9 +1,15 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { Prisma } from '@prisma/client';
+import axios from 'axios';
 
 @Injectable()
 export class WorkflowEngineService {
+    private readonly keycloakUrl = process.env.KEYCLOAK_URL || 'http://localhost:8080';
+    private readonly realm = process.env.KEYCLOAK_REALM || 'workflow';
+    private readonly clientId = process.env.KEYCLOAK_ADMIN_CLIENT_ID || 'admin-cli';
+    private readonly clientSecret = process.env.KEYCLOAK_ADMIN_CLIENT_SECRET || '';
+
     constructor(private prisma: PrismaService) { }
 
     /**
@@ -269,11 +275,17 @@ export class WorkflowEngineService {
             });
         } else if (nextNode.type === 'approval') {
             // 承認ノード: タスクを生成
+            // applicant_manager等を実際のユーザーに解決
+            const resolvedAssignee = await this.resolveAssignedTo(
+                nextNode.data?.assignee || null,
+                application.applicantId
+            );
             await this.prisma.approvalTask.create({
                 data: {
                     applicationId,
                     stepId: nextNodeId,
-                    assignedTo: nextNode.data?.assignee || null,
+                    assignedTo: resolvedAssignee,
+                    assignedToDisplay: nextNode.data?.assigneeDisplay || null,  // フローノードから表示名をコピー
                     status: 'PENDING',
                 },
             });
@@ -368,11 +380,17 @@ export class WorkflowEngineService {
                         data: { status: 'APPROVED' },
                     });
                 } else if (branchTarget?.type === 'approval') {
+                    // applicant_manager等を実際のユーザーに解決
+                    const resolvedBranchAssignee = await this.resolveAssignedTo(
+                        branchTarget.data?.assignee || null,
+                        application.applicantId
+                    );
                     await this.prisma.approvalTask.create({
                         data: {
                             applicationId,
                             stepId: branchTargetId,
-                            assignedTo: branchTarget.data?.assignee || null,
+                            assignedTo: resolvedBranchAssignee,
+                            assignedToDisplay: branchTarget.data?.assigneeDisplay || null,  // フローノードから表示名をコピー
                             status: 'PENDING',
                         },
                     });
@@ -411,6 +429,87 @@ export class WorkflowEngineService {
             });
 
             await this.executeServiceTask(applicationId, nextNode, application.inputData);
+        } else if (nextNode.type === 'parallel') {
+            // パラレルゲートウェイ: 分岐処理（全ての後続タスクを並行生成）
+            // パラレルノード自体はタスクではないので、通過してすぐに後続を生成
+            
+            const parallelEdges = edges.filter((e: any) => e.source === nextNodeId);
+            console.log(`[WorkflowEngine] Parallel split: ${parallelEdges.length} branches`);
+
+            const createdTaskNodeIds: string[] = [];
+
+            for (const edge of parallelEdges) {
+                const targetNode = nodes.find((n: any) => n.id === edge.target);
+                if (!targetNode) continue;
+
+                if (targetNode.type === 'approval') {
+                    const resolvedAssignee = await this.resolveAssignedTo(
+                        targetNode.data?.assignee || null,
+                        application.applicantId
+                    );
+                    await this.prisma.approvalTask.create({
+                        data: {
+                            applicationId,
+                            stepId: targetNode.id,
+                            assignedTo: resolvedAssignee,
+                            assignedToDisplay: targetNode.data?.assigneeDisplay || null,  // フローノードから表示名をコピー
+                            status: 'PENDING',
+                        },
+                    });
+                    createdTaskNodeIds.push(targetNode.id);
+                    console.log(`[WorkflowEngine] Created parallel task for ${targetNode.id}`);
+                } else if (['apiCall', 'llmCall'].includes(targetNode.type)) {
+                    await this.executeServiceTask(applicationId, targetNode, application.inputData);
+                }
+            }
+
+            // 並行処理中: currentNodeIdはnullにして、各タスクのstepIdで追跡
+            // または最初のタスクノードを設定（フロー進捗表示用）
+            await this.prisma.application.update({
+                where: { id: applicationId },
+                data: { 
+                    currentNodeId: createdTaskNodeIds.length > 0 ? createdTaskNodeIds[0] : null,
+                },
+            });
+
+            // パラレル分岐を履歴に記録
+            await this.prisma.approvalHistory.create({
+                data: {
+                    applicationId,
+                    actorId: 'SYSTEM',
+                    action: 'PARALLEL_SPLIT',
+                    stepId: nextNodeId,
+                    comment: `${createdTaskNodeIds.length}件の並行タスクを生成`,
+                },
+            });
+        } else if (nextNode.type === 'join') {
+            // 合流ゲートウェイ: 全ての前タスクが完了するまで待機
+            await this.prisma.application.update({
+                where: { id: applicationId },
+                data: { currentNodeId: nextNodeId },
+            });
+
+            const joinEdges = edges.filter((e: any) => e.target === nextNodeId);
+            const sourceNodeIds = joinEdges.map((e: any) => e.source);
+            
+            // 前のノードに紐づく未完了タスクがあるかチェック
+            const pendingTasks = await this.prisma.approvalTask.count({
+                where: {
+                    applicationId,
+                    stepId: { in: sourceNodeIds },
+                    status: 'PENDING',
+                },
+            });
+
+            if (pendingTasks > 0) {
+                console.log(`[WorkflowEngine] Join waiting: ${pendingTasks} pending tasks`);
+                // 待機: まだ完了していないタスクがある
+                return;
+            }
+
+            console.log(`[WorkflowEngine] Join complete, advancing to next`);
+            // 全て完了していれば次に進む
+            await this.advanceToNextNode(applicationId);
         } else {
             // その他のノード: 次へ進む
             await this.prisma.application.update({
@@ -446,6 +545,13 @@ export class WorkflowEngineService {
 
         if (task.status !== 'PENDING') {
             throw new BadRequestException('Task is already completed');
+        }
+
+        // 権限チェック: 担当者のみがタスクを完了できる
+        // assignedToは「user:username」「role:rolename」「group:/path」「applicant_manager」「applicant」などの形式
+        const canExecute = await this.canUserExecuteTask(task, input.actorId);
+        if (!canExecute) {
+            throw new BadRequestException(`User ${input.actorId} is not authorized to execute this task`);
         }
 
         // タスクを完了としてマーク（アクションはApprovalHistoryに記録済み）
@@ -495,6 +601,26 @@ export class WorkflowEngineService {
 
             // 開始ノードを見つける
             const startNode = nodes.find((n: any) => n.type === 'start');
+            
+            // 重要: 並行して実行中の他のタスクをキャンセルする
+            // 同じアプリケーションIDで、ステータスがPENDINGのタスクを全てCANCELEDにする
+            await this.prisma.approvalTask.updateMany({
+                where: {
+                    applicationId: task.applicationId,
+                    status: 'PENDING',
+                    id: { not: task.id } // 自分以外（自分は後で更新されるか、ここで更新するか）
+                },
+                data: {
+                    status: 'CANCELED'
+                }
+            });
+
+            // 差し戻しを実行したタスク自体も CANCELED にする（完了ではなく）
+            await this.prisma.approvalTask.update({
+                where: { id: task.id },
+                data: { status: 'CANCELED' }
+            });
+
             // ステータスをREMANDEDにし、開始ノードへ戻す（申請者が再編集・再申請できる）
             await this.prisma.application.update({
                 where: { id: task.applicationId },
@@ -823,5 +949,214 @@ export class WorkflowEngineService {
                 history: true,
             },
         });
+    }
+
+    /**
+     * ユーザーがタスクを実行できるかチェック
+     * assignedTo形式: "user:username", "role:rolename", "group:/path", "applicant", "applicant_manager"
+     */
+    private async canUserExecuteTask(task: any, userId: string): Promise<boolean> {
+        const assignedTo = task.assignedTo;
+
+        if (!assignedTo) {
+            // assignedToが未設定の場合は誰でも実行可能（後方互換性）
+            return true;
+        }
+
+        // 複数のassignedToがある場合（カンマ区切り）
+        const assignments = assignedTo.split(',').map((s: string) => s.trim());
+
+        for (const assignment of assignments) {
+            // 特定ユーザー指定: "user:username"
+            if (assignment.startsWith('user:')) {
+                const targetUser = assignment.substring(5);
+                if (targetUser === userId) {
+                    return true;
+                }
+            }
+            // ロール指定: "role:rolename"
+            else if (assignment.startsWith('role:')) {
+                const targetRole = assignment.substring(5);
+                const user = await this.getUserFromKeycloak(userId);
+                if (user) {
+                    // Keycloakからロールマッピングも取得
+                    try {
+                        const token = await this.getAdminToken();
+                        const rolesResponse = await axios.get(
+                            `${this.keycloakUrl}/admin/realms/${this.realm}/users/${user.id}/role-mappings/realm`,
+                            { headers: { Authorization: `Bearer ${token}` } }
+                        );
+                        const userRoles = rolesResponse.data?.map((r: any) => r.name) || [];
+                        if (userRoles.includes(targetRole)) {
+                            return true;
+                        }
+                    } catch (error) {
+                        console.error(`[WorkflowEngine] Failed to get roles for ${userId}:`, error);
+                    }
+                }
+            }
+            // グループ指定: "group:/path"
+            else if (assignment.startsWith('group:')) {
+                const targetGroup = assignment.substring(6);
+                const user = await this.getUserFromKeycloak(userId);
+                if (user) {
+                    // Keycloakからユーザーのグループを取得
+                    try {
+                        const token = await this.getAdminToken();
+                        const groupsResponse = await axios.get(
+                            `${this.keycloakUrl}/admin/realms/${this.realm}/users/${user.id}/groups`,
+                            { headers: { Authorization: `Bearer ${token}` } }
+                        );
+                        const userGroups = groupsResponse.data?.map((g: any) => g.path) || [];
+                        // グループパスが一致するか、サブグループかをチェック
+                        if (userGroups.some((g: string) => g === targetGroup || g.startsWith(targetGroup + '/'))) {
+                            return true;
+                        }
+                    } catch (error) {
+                        console.error(`[WorkflowEngine] Failed to get groups for ${userId}:`, error);
+                    }
+                }
+            }
+            // 申請者指定: "applicant"
+            else if (assignment === 'applicant') {
+                if (task.application?.applicantId === userId) {
+                    return true;
+                }
+            }
+            // 申請者の上長指定: "applicant_manager"
+            else if (assignment === 'applicant_manager') {
+                const applicantId = task.application?.applicantId;
+                if (applicantId) {
+                    const isManager = await this.isUserManagerOf(userId, applicantId);
+                    if (isManager) {
+                        return true;
+                    }
+                }
+            }
+            // 直接ユーザー名指定（レガシー形式）
+            else if (assignment === userId) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Keycloak管理者トークンを取得
+     */
+    private async getAdminToken(): Promise<string> {
+        try {
+            const response = await axios.post(
+                `${this.keycloakUrl}/realms/master/protocol/openid-connect/token`,
+                new URLSearchParams({
+                    grant_type: 'password',
+                    client_id: 'admin-cli',
+                    username: 'admin',
+                    password: 'admin',
+                }),
+                {
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                }
+            );
+            return response.data.access_token;
+        } catch (error) {
+            console.error('[WorkflowEngine] Failed to get admin token:', error);
+            throw new Error('Failed to get Keycloak admin token');
+        }
+    }
+
+    /**
+     * Keycloakからユーザー情報を取得
+     */
+    private async getUserFromKeycloak(username: string): Promise<any | null> {
+        try {
+            const token = await this.getAdminToken();
+            const response = await axios.get(
+                `${this.keycloakUrl}/admin/realms/${this.realm}/users`,
+                {
+                    params: { username, exact: true },
+                    headers: { Authorization: `Bearer ${token}` },
+                }
+            );
+            return response.data?.[0] || null;
+        } catch (error) {
+            console.error(`[WorkflowEngine] Failed to get user ${username}:`, error);
+            return null;
+        }
+    }
+
+    /**
+     * ユーザーが指定ユーザーの上長かチェック
+     * Keycloakのユーザー属性 managerId で判定
+     */
+    private async isUserManagerOf(managerId: string, subordinateId: string): Promise<boolean> {
+        try {
+            // 部下のKeycloak情報を取得
+            const subordinate = await this.getUserFromKeycloak(subordinateId);
+            if (!subordinate) {
+                console.log(`[WorkflowEngine] Subordinate user ${subordinateId} not found in Keycloak`);
+                return false;
+            }
+
+            // 部下のmanagerId属性を取得
+            const subordinateManagerId = subordinate.attributes?.managerId?.[0];
+            if (!subordinateManagerId) {
+                console.log(`[WorkflowEngine] User ${subordinateId} has no managerId attribute`);
+                return false;
+            }
+
+            // managerIdが現在のユーザーと一致するかチェック
+            const isManager = subordinateManagerId === managerId;
+            console.log(`[WorkflowEngine] Manager check: ${managerId} is manager of ${subordinateId}? ${isManager} (managerId=${subordinateManagerId})`);
+            return isManager;
+        } catch (error) {
+            console.error(`[WorkflowEngine] Error checking manager relationship:`, error);
+            return false;
+        }
+    }
+
+    /**
+     * assignedTo の値を実際のユーザーに解決する
+     * applicant_manager -> 実際の上長のユーザー名
+     * applicant -> 申請者のユーザー名
+     */
+    private async resolveAssignedTo(assignee: string | null, applicantId: string): Promise<string | null> {
+        if (!assignee) return null;
+
+        // 複数のassigneeがある場合（カンマ区切り）
+        const assignments = assignee.split(',').map(s => s.trim());
+        const resolvedAssignments: string[] = [];
+
+        for (const assignment of assignments) {
+            console.log(`[WorkflowEngine] Processing assignment: ${assignment}`);
+            if (assignment === 'applicant_manager') {
+                // 申請者の上長を取得
+                const applicant = await this.getUserFromKeycloak(applicantId);
+                if (applicant) {
+                    const managerId = applicant.attributes?.managerId?.[0];
+                    if (managerId) {
+                        console.log(`[WorkflowEngine] Resolved applicant_manager to: user:${managerId} (for applicant: ${applicantId})`);
+                        resolvedAssignments.push(`user:${managerId}`);
+                    } else {
+                        // managerIdがない場合は申請者本人に割り当て
+                        console.log(`[WorkflowEngine] Applicant ${applicantId} has no managerId, assigning to applicant`);
+                        resolvedAssignments.push(`user:${applicantId}`);
+                    }
+                } else {
+                    // ユーザーが見つからない場合も申請者本人に割り当て
+                    console.log(`[WorkflowEngine] Applicant ${applicantId} not found in Keycloak, assigning to applicant`);
+                    resolvedAssignments.push(`user:${applicantId}`);
+                }
+            } else if (assignment === 'applicant') {
+                // 申請者自身に解決
+                resolvedAssignments.push(`user:${applicantId}`);
+            } else {
+                // その他はそのまま
+                resolvedAssignments.push(assignment);
+            }
+        }
+
+        return resolvedAssignments.join(', ');
     }
 }

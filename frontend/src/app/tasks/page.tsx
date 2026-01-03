@@ -5,20 +5,21 @@ import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import {
     Box, Chip, IconButton, Tooltip, Button, Paper, Typography, Divider,
-    TextField, FormControl, InputLabel, Select, MenuItem, Grid, Collapse, InputAdornment
+    TextField, Grid, Collapse, InputAdornment, FormControlLabel, Switch, Avatar
 } from '@mui/material';
 import Link from 'next/link';
 import EditIcon from '@mui/icons-material/Edit';
-import RefreshIcon from '@mui/icons-material/Refresh';
 import FilterListIcon from '@mui/icons-material/FilterList';
 import ClearIcon from '@mui/icons-material/Clear';
 import SearchIcon from '@mui/icons-material/Search';
+import PersonIcon from '@mui/icons-material/Person';
 import DataTable, { Column, FetchParams, PaginatedResponse } from '@/components/DataTable';
 
 interface Task {
     id: string;
     status: string;
     stepId: string;
+    assignedTo?: string;
     createdAt: string;
     application: {
         id: string;
@@ -48,6 +49,7 @@ interface Filters {
     applicationNumber?: string;
     dateFrom?: string;
     dateTo?: string;
+    myTasksOnly?: boolean;
 }
 
 const getStatusColor = (status: string) => {
@@ -74,10 +76,25 @@ function getStepLabel(stepId: string, nodes?: any[]): string {
     return node?.data?.label || stepId;
 }
 
+// 担当者表示用のフォーマット
+function formatAssignedTo(assignedTo?: string): string {
+    if (!assignedTo) return '未指定';
+
+    const assignments = assignedTo.split(',').map(s => s.trim());
+    return assignments.map(a => {
+        if (a.startsWith('user:')) return a.substring(5);
+        if (a.startsWith('role:')) return `ロール: ${a.substring(5)}`;
+        if (a.startsWith('group:')) return `グループ: ${a.substring(6)}`;
+        if (a === 'applicant') return '申請者';
+        if (a === 'applicant_manager') return '申請者の上長';
+        return a;
+    }).join(', ');
+}
+
 export default function TasksListPage() {
     const [filterOpen, setFilterOpen] = useState(false);
-    const [filters, setFilters] = useState<Filters>({});
-    const [appliedFilters, setAppliedFilters] = useState<Filters>({});
+    const [filters, setFilters] = useState<Filters>({ myTasksOnly: true });
+    const [appliedFilters, setAppliedFilters] = useState<Filters>({ myTasksOnly: true });
     const [filterKey, setFilterKey] = useState(0);
 
     // 差し戻しされた申請を取得
@@ -112,6 +129,9 @@ export default function TasksListPage() {
         if (appliedFilters.dateFrom) queryParams.set('dateFrom', appliedFilters.dateFrom);
         if (appliedFilters.dateTo) queryParams.set('dateTo', appliedFilters.dateTo);
 
+        // 自分のタスクのみ表示
+        if (appliedFilters.myTasksOnly) queryParams.set('myTasks', 'true');
+
         return api.get(`/tasks?${queryParams.toString()}`);
     }, [appliedFilters]);
 
@@ -121,8 +141,8 @@ export default function TasksListPage() {
     };
 
     const handleClearFilters = () => {
-        setFilters({});
-        setAppliedFilters({});
+        setFilters({ myTasksOnly: true });
+        setAppliedFilters({ myTasksOnly: true });
         setFilterKey(k => k + 1);
     };
 
@@ -132,37 +152,60 @@ export default function TasksListPage() {
         }
     };
 
-    const hasActiveFilters = Object.values(appliedFilters).some(v => v);
+    const handleMyTasksToggle = () => {
+        const newValue = !filters.myTasksOnly;
+        setFilters({ ...filters, myTasksOnly: newValue });
+        setAppliedFilters({ ...appliedFilters, myTasksOnly: newValue });
+        setFilterKey(k => k + 1);
+    };
+
+    const hasActiveFilters = appliedFilters.search || appliedFilters.applicationNumber ||
+        appliedFilters.dateFrom || appliedFilters.dateTo;
 
     const columns: Column<Task>[] = [
         {
             id: 'applicationNumber',
             label: '申請ID',
-            minWidth: 100,
+            minWidth: 80,
             format: (_, row) => <strong>#{row.application?.applicationNumber}</strong>,
         },
         {
             id: 'appName',
             label: 'アプリ名',
-            minWidth: 150,
+            minWidth: 130,
             format: (_, row) => row.application?.applicationDefinition?.name || '不明',
         },
         {
             id: 'applicantId',
             label: '申請者',
-            minWidth: 120,
+            minWidth: 100,
             format: (_, row) => row.application?.applicantId,
+        },
+        {
+            id: 'assignedTo',
+            label: '担当者',
+            minWidth: 140,
+            format: (value) => (
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                    <Avatar sx={{ width: 24, height: 24, bgcolor: '#667eea', fontSize: '0.7rem' }}>
+                        <PersonIcon sx={{ fontSize: 14 }} />
+                    </Avatar>
+                    <Typography variant="body2" sx={{ fontSize: '0.85rem' }}>
+                        {formatAssignedTo(value)}
+                    </Typography>
+                </Box>
+            ),
         },
         {
             id: 'stepId',
             label: '現在のステップ',
-            minWidth: 140,
+            minWidth: 120,
             format: (value, row) => getStepLabel(value, row.application?.flowDefinition?.nodes),
         },
         {
             id: 'status',
             label: 'ステータス',
-            minWidth: 100,
+            minWidth: 90,
             format: (value) => (
                 <Chip
                     label={getStatusLabel(value)}
@@ -174,8 +217,8 @@ export default function TasksListPage() {
         },
         {
             id: 'createdAt',
-            label: 'タスク作成日時',
-            minWidth: 160,
+            label: '作成日時',
+            minWidth: 140,
             format: (value) => (
                 <span suppressHydrationWarning>
                     {new Date(value).toLocaleString('ja-JP')}
@@ -185,7 +228,7 @@ export default function TasksListPage() {
         {
             id: 'actions',
             label: '操作',
-            minWidth: 100,
+            minWidth: 80,
             sortable: false,
             searchable: false,
             format: (_, row) => (
@@ -208,28 +251,24 @@ export default function TasksListPage() {
             {/* 差し戻しされた申請がある場合のアラート */}
             {remandedApps && remandedApps.length > 0 && (
                 <Paper sx={{ mb: 3, p: 2, bgcolor: 'warning.light', borderRadius: 2 }}>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-                        <RefreshIcon color="warning" />
-                        <Typography variant="h6" color="warning.dark">
-                            差し戻しされた申請があります
-                        </Typography>
-                    </Box>
-                    <Divider sx={{ my: 1 }} />
-                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                        {remandedApps.map((app) => (
-                            <Box key={app.id} sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                    <Typography variant="subtitle1" fontWeight={600} sx={{ mb: 1 }}>
+                        差し戻しされた申請があります（{remandedApps.length}件）
+                    </Typography>
+                    <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                        {remandedApps.map(app => (
+                            <Box key={app.id} sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                <Chip label={`#${app.applicationNumber}`} size="small" />
                                 <Typography variant="body2">
-                                    <strong>#{app.applicationNumber}</strong> - {app.applicationDefinition?.name || '申請'}
+                                    {app.applicationDefinition?.name}
                                 </Typography>
                                 <Button
                                     size="small"
-                                    variant="contained"
-                                    color="warning"
+                                    variant="outlined"
                                     startIcon={<EditIcon />}
                                     component={Link}
                                     href={`/applications/${app.id}/edit`}
                                 >
-                                    再編集
+                                    編集
                                 </Button>
                             </Box>
                         ))}
@@ -237,26 +276,22 @@ export default function TasksListPage() {
                 </Paper>
             )}
 
-            {/* 下書き申請セクション */}
+            {/* 下書きがある場合のアラート */}
             {draftApps && draftApps.length > 0 && (
-                <Paper sx={{ mb: 3, p: 2, bgcolor: 'grey.100', borderRadius: 2 }}>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-                        <EditIcon color="action" />
-                        <Typography variant="h6" color="text.secondary">
-                            下書きの申請があります
-                        </Typography>
-                    </Box>
-                    <Divider sx={{ my: 1 }} />
-                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                        {draftApps.map((app) => (
-                            <Box key={app.id} sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                <Paper sx={{ mb: 3, p: 2, bgcolor: 'info.lighter', borderRadius: 2 }}>
+                    <Typography variant="subtitle1" fontWeight={600} sx={{ mb: 1 }}>
+                        下書きの申請があります（{draftApps.length}件）
+                    </Typography>
+                    <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                        {draftApps.map(app => (
+                            <Box key={app.id} sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                <Chip label={`#${app.applicationNumber}`} size="small" />
                                 <Typography variant="body2">
-                                    <strong>#{app.applicationNumber}</strong> - {app.applicationDefinition?.name || '申請'}
+                                    {app.applicationDefinition?.name}
                                 </Typography>
                                 <Button
                                     size="small"
-                                    variant="contained"
-                                    color="primary"
+                                    variant="outlined"
                                     startIcon={<EditIcon />}
                                     component={Link}
                                     href={`/applications/${app.id}/edit`}
@@ -268,6 +303,27 @@ export default function TasksListPage() {
                     </Box>
                 </Paper>
             )}
+
+            {/* 自分のタスクトグル */}
+            <Paper sx={{ mb: 2, p: 2 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <FormControlLabel
+                        control={
+                            <Switch
+                                checked={appliedFilters.myTasksOnly || false}
+                                onChange={handleMyTasksToggle}
+                                color="primary"
+                            />
+                        }
+                        label="自分のタスクのみ表示"
+                    />
+                    <Typography variant="body2" color="text.secondary">
+                        {appliedFilters.myTasksOnly
+                            ? '自分に割り当てられたタスクのみ表示しています'
+                            : '全てのタスクを表示しています'}
+                    </Typography>
+                </Box>
+            </Paper>
 
             {/* フィルターパネル */}
             <Paper sx={{ mb: 2, overflow: 'hidden' }}>

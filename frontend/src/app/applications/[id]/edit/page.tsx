@@ -33,6 +33,8 @@ import SendIcon from '@mui/icons-material/Send';
 import SaveIcon from '@mui/icons-material/Save';
 import EditIcon from '@mui/icons-material/Edit';
 import Link from 'next/link';
+import FlowVisualization from '@/components/flow-designer/FlowVisualization';
+import 'reactflow/dist/style.css';
 
 interface ApplicationDetail {
     id: string;
@@ -48,6 +50,20 @@ interface ApplicationDetail {
     formDefinition?: {
         schema: any;
     };
+    flowDefinition?: {
+        nodes: any[];
+        edges: any[];
+    };
+    currentNodeId?: string;
+    history?: any[];
+    tasks?: Array<{
+        id: string;
+        status: string;
+        stepId: string;
+        assignedTo?: string;
+        assignedToDisplay?: string;
+        createdAt: string;
+    }>;
 }
 
 interface LayoutItem {
@@ -503,6 +519,33 @@ export default function EditApplicationPage() {
                         </Alert>
                     </CardContent>
                 </Card>
+
+                {/* Flow Visualization */}
+                {application.flowDefinition?.nodes && application.flowDefinition.nodes.length > 0 && (
+                    <Card sx={{ mb: 3, borderRadius: 3, boxShadow: '0 8px 32px rgba(0,0,0,0.1)' }}>
+                        <CardContent sx={{ p: 3 }}>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+                                <Typography variant="h6" fontWeight="bold">
+                                    フロー進捗
+                                </Typography>
+                            </Box>
+                            <Divider sx={{ mb: 2 }} />
+                            <Box sx={{ height: 280, bgcolor: '#fafafa', borderRadius: 2 }}>
+                                <FlowVisualization
+                                    nodes={application.flowDefinition.nodes}
+                                    edges={application.flowDefinition.edges || []}
+                                    currentNodeId={
+                                        (application.tasks?.filter((t: any) => t.status === 'PENDING').length ?? 0) > 0
+                                            ? application.tasks!.filter((t: any) => t.status === 'PENDING').map((t: any) => t.stepId)
+                                            : application.currentNodeId
+                                    }
+                                    completedStepIds={application.history?.filter((h: any) => h.action !== 'REMAND').map((h: any) => h.stepId) || []}
+                                    height={280}
+                                />
+                            </Box>
+                        </CardContent>
+                    </Card>
+                )}
 
                 {/* Form Card */}
                 <Card sx={{

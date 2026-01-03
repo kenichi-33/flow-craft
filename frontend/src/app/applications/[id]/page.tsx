@@ -23,14 +23,18 @@ import InfoIcon from '@mui/icons-material/Info';
 import AccountTreeIcon from '@mui/icons-material/AccountTree';
 import ReplayIcon from '@mui/icons-material/Replay';
 import Link from 'next/link';
-import ReactFlow, { MarkerType } from 'reactflow';
+import FlowVisualization from '@/components/flow-designer/FlowVisualization';
 import 'reactflow/dist/style.css';
 import ApplicationFormViewer from '@/components/ApplicationFormViewer';
 import ApprovalHistory from '@/components/ApprovalHistory';
+import TaskList from '@/components/TaskList';
+import { useAuth } from '@/providers/AuthProvider';
+import AssignmentIcon from '@mui/icons-material/Assignment';
 
 interface ApplicationDetail {
     id: string;
     applicationNumber: number;
+    applicantId: string;
     status: string;
     inputData: any;
     createdAt: string;
@@ -52,6 +56,7 @@ interface ApplicationDetail {
         id: string;
         status: string;
         stepId: string;
+        assignedTo?: string;
         createdAt: string;
     }>;
     history: Array<{
@@ -78,6 +83,26 @@ interface ApplicationDetail {
         }>;
     }>;
 }
+
+// フロー進捗表示用のシンプルなノードコンポーネント（警告抑制用）
+const SimpleNode = ({ data }: { data: any }) => (
+    <Box sx={{ p: 1, textAlign: 'center' }}>
+        {data?.label || ''}
+    </Box>
+);
+
+// nodeTypesの定義（ReactFlow警告抑制）
+const nodeTypes = {
+    approval: SimpleNode,
+    apiCall: SimpleNode,
+    llmCall: SimpleNode,
+    start: SimpleNode,
+    end: SimpleNode,
+    parallel: SimpleNode,
+    join: SimpleNode,
+    branch: SimpleNode,
+    swimlane: SimpleNode,
+};
 
 const SectionPaper = ({ title, children }: { title: string; children: React.ReactNode }) => (
     <Paper
@@ -112,6 +137,54 @@ export default function ApplicationDetailPage() {
     const params = useParams();
     const id = params.id as string;
     const queryClient = useQueryClient();
+    const { user } = useAuth();
+
+    // ユーザーがタスクの担当者かチェック
+    const isUserAssignedToTask = (assignedTo: string | undefined): boolean => {
+        if (!assignedTo || !user) {
+            console.log('[isUserAssignedToTask] No assignedTo or user', { assignedTo, user });
+            return false;
+        }
+
+        console.log('[isUserAssignedToTask] Checking:', { 
+            assignedTo, 
+            username: user.username,
+            userGroups: user.groups,
+            userRoles: user.roles 
+        });
+
+        const assignments = assignedTo.split(',').map(s => s.trim());
+        const result = assignments.some(a => {
+            if (a.startsWith('user:')) {
+                const match = a.substring(5) === user.username;
+                console.log('[isUserAssignedToTask] user check:', { a, match });
+                return match;
+            }
+            if (a.startsWith('role:')) {
+                const match = user.roles?.includes(a.substring(5));
+                console.log('[isUserAssignedToTask] role check:', { a, match });
+                return match;
+            }
+            if (a.startsWith('group:')) {
+                const assignedGroup = a.substring(6); // "group:"を除去
+                // ユーザーのグループが割り当てグループに一致またはサブグループか確認
+                const match = user.groups?.some(userGroup => 
+                    userGroup === assignedGroup || 
+                    userGroup.startsWith(assignedGroup + '/') ||
+                    assignedGroup.startsWith(userGroup + '/')
+                );
+                console.log('[isUserAssignedToTask] group check:', { a, assignedGroup, userGroups: user.groups, match });
+                return match;
+            }
+            // レガシー形式またはその他
+            const match = a === user.username;
+            console.log('[isUserAssignedToTask] legacy check:', { a, match });
+            return match;
+        });
+        
+        console.log('[isUserAssignedToTask] Result:', result);
+        return result;
+    };
 
     const handleRetry = async (taskId: string) => {
         if (!confirm('再実行してもよろしいですか？')) return;
@@ -150,134 +223,6 @@ export default function ApplicationDetailPage() {
             default: return status;
         }
     };
-
-    // Prepare flow visualization (include swimlane nodes with background styling)
-    const { displayNodes, displayEdges } = useMemo(() => {
-        const rawNodes = application?.flowDefinition?.nodes || [];
-        const rawEdges = application?.flowDefinition?.edges || [];
-        const currentNodeId = application?.currentNodeId;
-
-        const completedStepIds = new Set(
-            (application?.history || []).map(h => h.stepId)
-        );
-
-        const displayNodes = rawNodes.map((node: any) => {
-            // スイムレーンは背景として表示
-            if (node.type === 'swimlane') {
-                return {
-                    ...node,
-                    zIndex: -10,
-                    style: {
-                        background: node.data?.color || '#e3f2fd',
-                        border: '2px solid #90caf9',
-                        borderRadius: 4,
-                        width: node.style?.width || node.data?.width || 800,
-                        height: node.style?.height || node.data?.height || 200,
-                    },
-                    data: {
-                        ...node.data,
-                        label: (
-                            <Box sx={{
-                                position: 'absolute',
-                                left: 0,
-                                top: 0,
-                                bottom: 0,
-                                width: 36,
-                                bgcolor: 'rgba(0,0,0,0.05)',
-                                borderRight: '1px solid #90caf9',
-                                display: 'flex',
-                                flexDirection: 'column',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                writingMode: 'vertical-rl',
-                            }}>
-                                <Typography
-                                    variant="body2"
-                                    sx={{
-                                        fontWeight: 'bold',
-                                        transform: 'rotate(180deg)',
-                                        fontSize: '0.75rem',
-                                    }}
-                                >
-                                    {node.data?.label || 'レーン'}
-                                </Typography>
-                            </Box>
-                        ),
-                    },
-                };
-            }
-
-            const isCurrent = node.id === currentNodeId;
-            const isCompleted = completedStepIds.has(node.id);
-            const isStart = node.type === 'start';
-            const isEnd = node.type === 'end';
-
-            let bgColor = '#f5f5f5';
-            let borderColor = '#ccc';
-
-            if (isStart) {
-                bgColor = '#e8f5e9';
-                borderColor = '#4caf50';
-            } else if (isEnd) {
-                bgColor = '#ffebee';
-                borderColor = '#f44336';
-            } else if (isCurrent) {
-                bgColor = '#e3f2fd';
-                borderColor = '#2196f3';
-            } else if (isCompleted) {
-                bgColor = '#e8f5e9';
-                borderColor = '#4caf50';
-            }
-
-            return {
-                ...node,
-                zIndex: 1,
-                style: {
-                    background: bgColor,
-                    border: `2px solid ${borderColor}`,
-                    borderRadius: 8,
-                    padding: 10,
-                    minWidth: 100,
-                },
-                data: {
-                    ...node.data,
-                    label: (
-                        <Box sx={{ textAlign: 'center' }}>
-                            <Typography variant="body2" fontWeight={isCurrent ? 'bold' : 'normal'}>
-                                {node.data?.label || node.type}
-                            </Typography>
-                            {isCurrent && (
-                                <Chip label="現在" size="small" color="primary" sx={{ mt: 0.5, height: 18, fontSize: 10 }} />
-                            )}
-                            {isCompleted && !isCurrent && (
-                                <Chip label="完了" size="small" color="success" sx={{ mt: 0.5, height: 18, fontSize: 10 }} />
-                            )}
-                        </Box>
-                    ),
-                },
-            };
-        });
-
-        const displayEdges = rawEdges.map((edge: any) => {
-            const sourceCompleted = completedStepIds.has(edge.source) || edge.source === 'start';
-            const targetCompleted = completedStepIds.has(edge.target);
-            const targetIsCurrent = edge.target === currentNodeId;
-            const isTraversed = sourceCompleted && (targetCompleted || targetIsCurrent);
-            const leadsToTarget = sourceCompleted && targetIsCurrent;
-
-            return {
-                ...edge,
-                markerEnd: { type: MarkerType.ArrowClosed, color: isTraversed ? (leadsToTarget ? '#2196f3' : '#4caf50') : '#999' },
-                style: {
-                    strokeWidth: isTraversed ? 3 : 2,
-                    stroke: isTraversed ? (leadsToTarget ? '#2196f3' : '#4caf50') : '#999',
-                },
-                animated: leadsToTarget,
-            };
-        });
-
-        return { displayNodes, displayEdges };
-    }, [application]);
 
     if (isLoading) {
         return <Box sx={{ p: 3, textAlign: 'center' }}><Typography>読み込み中...</Typography></Box>;
@@ -340,19 +285,83 @@ export default function ApplicationDetailPage() {
                 </Box>
             </Paper>
 
+            {/* 現在の担当タスク情報 */}
+            {application.tasks?.filter(t => t.status === 'PENDING').length > 0 && (
+                <Paper sx={{ p: 2, mb: 3, bgcolor: 'info.lighter', borderRadius: 2 }}>
+                    <Typography variant="subtitle1" fontWeight={600} sx={{ mb: 1 }}>
+                        現在承認待ちのタスク
+                    </Typography>
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                        {application.tasks.filter(t => t.status === 'PENDING').map(task => {
+                            const stepNode = application.flowDefinition?.nodes?.find(n => n.id === task.stepId);
+                            const stepLabel = stepNode?.data?.label || task.stepId;
+                            const assignedTo = task.assignedTo || '未指定';
+
+                            // 担当者表示のフォーマット
+                            const formatAssigned = (str: string) => {
+                                if (!str || str === '未指定') return str;
+                                return str.split(',').map(s => {
+                                    const t = s.trim();
+                                    if (t.startsWith('user:')) return t.substring(5);
+                                    if (t.startsWith('role:')) return `ロール: ${t.substring(5)}`;
+                                    if (t.startsWith('group:')) return `グループ: ${t.substring(6)}`;
+                                    if (t === 'applicant') return '申請者';
+                                    if (t === 'applicant_manager') return '申請者の上長';
+                                    return t;
+                                }).join(', ');
+                            };
+
+                            return (
+                                <Box key={task.id} sx={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'space-between',
+                                    p: 1.5,
+                                    bgcolor: 'white',
+                                    borderRadius: 1,
+                                    border: '1px solid',
+                                    borderColor: 'divider'
+                                }}>
+                                    <Box>
+                                        <Typography variant="body2" fontWeight={600}>
+                                            ステップ: {stepLabel}
+                                        </Typography>
+                                        <Typography variant="body2" color="text.secondary">
+                                            担当者: {formatAssigned(assignedTo)}
+                                        </Typography>
+                                    </Box>
+                                    {isUserAssignedToTask(task.assignedTo) && (
+                                        <Button
+                                            variant="contained"
+                                            size="small"
+                                            component={Link}
+                                            href={`/tasks/${task.id}`}
+                                            sx={{ bgcolor: '#667eea' }}
+                                        >
+                                            承認画面へ
+                                        </Button>
+                                    )}
+                                </Box>
+                            );
+                        })}
+                    </Box>
+                </Paper>
+            )}
+
             {/* 1. フロー進捗 */}
             <SectionPaper title="フロー進捗">
                 <Box sx={{ height: 280, bgcolor: '#fafafa', borderRadius: 2 }}>
-                    {displayNodes.length > 0 ? (
-                        <ReactFlow
-                            nodes={displayNodes}
-                            edges={displayEdges}
-                            fitView
-                            nodesDraggable={false}
-                            nodesConnectable={false}
-                            elementsSelectable={false}
-                            panOnDrag={false}
-                            zoomOnScroll={false}
+                    {application.flowDefinition?.nodes && application.flowDefinition.nodes.length > 0 ? (
+                        <FlowVisualization
+                            nodes={application.flowDefinition.nodes}
+                            edges={application.flowDefinition.edges || []}
+                            currentNodeId={
+                                (application.tasks?.filter((t: any) => t.status === 'PENDING').length ?? 0) > 0
+                                    ? application.tasks!.filter((t: any) => t.status === 'PENDING').map((t: any) => t.stepId)
+                                    : application.currentNodeId
+                            }
+                            completedStepIds={application.history?.filter((h: any) => h.action !== 'REMAND').map((h: any) => h.stepId) || []}
+                            height={280}
                         />
                     ) : (
                         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
@@ -363,12 +372,31 @@ export default function ApplicationDetailPage() {
             </SectionPaper>
 
             {/* 2. 申請内容 (共通コンポーネント使用) */}
-            <ApplicationFormViewer
-                schema={application.formDefinition?.schema}
-                inputData={application.inputData}
-            />
+            <Box sx={{ mb: 3 }}>
+                <ApplicationFormViewer
+                    schema={application.formDefinition?.schema}
+                    inputData={application.inputData}
+                />
+            </Box>
 
-            {/* 3. 現在のステップ */}
+            {/* 3. タスク一覧 */}
+            {((application.tasks?.length ?? 0) > 0 || (application.flowDefinition?.nodes?.length ?? 0) > 0) && (
+                <SectionPaper title="タスク一覧">
+                    <TaskList
+                        tasks={application.tasks || []}
+                        flowNodes={application.flowDefinition?.nodes}
+                        flowEdges={application.flowDefinition?.edges}
+                        applicationInfo={{
+                            applicantId: application.applicantId,
+                            createdAt: application.createdAt,
+                            status: application.status,
+                        }}
+                        showHeader={false}
+                    />
+                </SectionPaper>
+            )}
+
+            {/* 4. 現在のステップ */}
             {application.currentNode && (
                 <SectionPaper title="現在のステップ">
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>

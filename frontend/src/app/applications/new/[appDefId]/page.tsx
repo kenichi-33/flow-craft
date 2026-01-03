@@ -36,7 +36,9 @@ import SendIcon from '@mui/icons-material/Send';
 import SaveIcon from '@mui/icons-material/Save';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import DescriptionIcon from '@mui/icons-material/Description';
+import AccountTreeIcon from '@mui/icons-material/AccountTree';
 import Link from 'next/link';
+import FlowVisualization from '@/components/flow-designer/FlowVisualization';
 
 interface ApplicationDefinition {
     id: string;
@@ -46,6 +48,12 @@ interface ApplicationDefinition {
         id: string;
         name: string;
         schema: any;
+    };
+    flowDefinition?: {
+        id: string;
+        name: string;
+        nodes: any[];
+        edges: any[];
     };
 }
 
@@ -502,6 +510,33 @@ export default function SubmitApplicationPage() {
                         </Stepper>
                     </CardContent>
                 </Card>
+
+                {/* Flow Progress */}
+                {appDef?.flowDefinition && (
+                    <Card sx={{
+                        mb: 3,
+                        borderRadius: 3,
+                        boxShadow: '0 8px 32px rgba(0,0,0,0.1)',
+                    }}>
+                        <CardContent>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+                                <AccountTreeIcon color="primary" />
+                                <Typography variant="h6" fontWeight="bold">
+                                    承認フロー
+                                </Typography>
+                            </Box>
+                            <Divider sx={{ mb: 2 }} />
+                            <Box sx={{ height: 300, bgcolor: '#fafafa', borderRadius: 2 }}>
+                                <FlowVisualization
+                                    nodes={appDef.flowDefinition.nodes}
+                                    edges={appDef.flowDefinition.edges}
+                                    currentNodeId={null}
+                                    height={300}
+                                />
+                            </Box>
+                        </CardContent>
+                    </Card>
+                )}
 
                 {/* Form Card */}
                 <Card sx={{

@@ -18,7 +18,8 @@ interface HistoryItem {
     actorId: string;
     comment?: string;
     stepId: string;
-    actedAt: string;
+    actedAt?: string;
+    createdAt?: string;
 }
 
 interface ApprovalHistoryProps {
@@ -103,7 +104,7 @@ export default function ApprovalHistory({ history }: ApprovalHistoryProps) {
                             {h.comment && <span style={{ fontWeight: 400 }}> - {h.comment}</span>}
                         </Typography>
                         <Typography variant="caption" color="text.secondary" suppressHydrationWarning>
-                            {h.actorId === 'SYSTEM' ? 'システム' : h.actorId} • {new Date(h.actedAt).toLocaleString('ja-JP')}
+                            {h.actorId === 'SYSTEM' ? 'システム' : h.actorId} • {new Date(h.actedAt || h.createdAt || new Date()).toLocaleString('ja-JP')}
                         </Typography>
                     </Box>
                 </Box>

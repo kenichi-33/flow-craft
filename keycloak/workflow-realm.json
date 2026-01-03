@@ -38,7 +38,7 @@
                 {
                     "name": "営業部",
                     "attributes": {
-                        "code": [
+                        "deptCode": [
                             "sales"
                         ]
                     },
@@ -46,7 +46,7 @@
                         {
                             "name": "営業第一課",
                             "attributes": {
-                                "code": [
+                                "deptCode": [
                                     "sales-1"
                                 ]
                             }
@@ -54,7 +54,7 @@
                         {
                             "name": "営業第二課",
                             "attributes": {
-                                "code": [
+                                "deptCode": [
                                     "sales-2"
                                 ]
                             }
@@ -64,7 +64,7 @@
                 {
                     "name": "経理部",
                     "attributes": {
-                        "code": [
+                        "deptCode": [
                             "accounting"
                         ]
                     }
@@ -72,7 +72,7 @@
                 {
                     "name": "IT部",
                     "attributes": {
-                        "code": [
+                        "deptCode": [
                             "it"
                         ]
                     },
@@ -80,7 +80,7 @@
                         {
                             "name": "システム課",
                             "attributes": {
-                                "code": [
+                                "deptCode": [
                                     "systems"
                                 ]
                             }
@@ -3958,6 +3958,21 @@
                         "access.token.claim": "true",
                         "claim.name": "displayName",
                         "userinfo.token.claim": "true"
+                    }
+                },
+                {
+                    "name": "group-code-mapper",
+                    "protocol": "openid-connect",
+                    "protocolMapper": "oidc-usermodel-attribute-mapper",
+                    "consentRequired": false,
+                    "config": {
+                        "user.attribute": "deptCode",
+                        "claim.name": "groupCodes",
+                        "jsonType.label": "String",
+                        "id.token.claim": "true",
+                        "access.token.claim": "true",
+                        "multivalued": "true",
+                        "aggregate.attrs": "true"
                     }
                 }
             ]

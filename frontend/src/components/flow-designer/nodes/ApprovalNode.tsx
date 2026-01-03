@@ -1,16 +1,18 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Handle, Position, useReactFlow } from 'reactflow';
 import {
     Box, Typography, IconButton, Dialog, DialogTitle,
     DialogContent, DialogActions, TextField, Button,
-    FormControl, InputLabel, Select, MenuItem, Chip, FormHelperText
+    FormControl, InputLabel, Select, MenuItem, Chip, FormHelperText, CircularProgress,
+    Autocomplete
 } from '@mui/material';
 import EditIcon from '@mui/icons-material/Edit';
 import PersonIcon from '@mui/icons-material/Person';
 import GroupIcon from '@mui/icons-material/Group';
 import SecurityIcon from '@mui/icons-material/Security';
+import { api } from '@/lib/api';
 
 // 担当者タイプ
 type AssigneeType = 'role' | 'group' | 'specific' | 'applicant_manager';
@@ -23,16 +25,6 @@ const AVAILABLE_ROLES = [
     { value: 'wf_admin', label: 'システム管理者' },
 ];
 
-// 選択可能なグループ（部署）
-const AVAILABLE_GROUPS = [
-    { value: '/Company/営業部', label: '営業部' },
-    { value: '/Company/営業部/営業第一課', label: '営業第一課' },
-    { value: '/Company/営業部/営業第二課', label: '営業第二課' },
-    { value: '/Company/経理部', label: '経理部' },
-    { value: '/Company/IT部', label: 'IT部' },
-    { value: '/Company/IT部/システム課', label: 'システム課' },
-];
-
 // BPMN-style Approval/Task Node (Rounded Rectangle)
 export default function ApprovalNode({ id, data }: { id: string; data: any }) {
     const [dialogOpen, setDialogOpen] = useState(false);
@@ -40,8 +32,66 @@ export default function ApprovalNode({ id, data }: { id: string; data: any }) {
     const [assigneeType, setAssigneeType] = useState<AssigneeType>(data.assigneeType || 'role');
     const [assigneeRole, setAssigneeRole] = useState(data.assigneeRole || 'wf_approver');
     const [assigneeGroup, setAssigneeGroup] = useState(data.assigneeGroup || '');
+    const [assigneeGroupDisplay, setAssigneeGroupDisplay] = useState(data.assigneeGroupDisplay || '');  // 部署名表示用
     const [assigneeUser, setAssigneeUser] = useState(data.assigneeUser || '');
+    const [availableGroups, setAvailableGroups] = useState<{ value: string; label: string; name: string }[]>([]);
+    const [loadingGroups, setLoadingGroups] = useState(false);
+    // ユーザー検索用
+    const [userSearchInput, setUserSearchInput] = useState('');
+    const [userOptions, setUserOptions] = useState<{ username: string; displayName: string }[]>([]);
+    const [loadingUsers, setLoadingUsers] = useState(false);
     const { setNodes } = useReactFlow();
+
+    // ダイアログが開いたときに部署一覧を取得
+    useEffect(() => {
+        if (dialogOpen && availableGroups.length === 0) {
+            setLoadingGroups(true);
+            api.get('/users/departments')
+                .then((response) => {
+                    const departments = response as any[];
+                    const groups = departments.map(dept => ({
+                        // codeがあればcodeを使用（効率的な比較用）、なければpathを使用
+                        value: dept.code || dept.path,
+                        label: `${dept.name} (${dept.code || dept.path})`,  // 表示用
+                        name: dept.name,  // 部署名（表示用）
+                    }));
+                    setAvailableGroups(groups);
+                })
+                .catch((err) => {
+                    console.error('Failed to fetch departments:', err);
+                    alert('部署一覧の取得に失敗しました。ネットワーク接続を確認してください。');
+                    setAvailableGroups([]);
+                })
+                .finally(() => setLoadingGroups(false));
+        }
+    }, [dialogOpen, availableGroups.length]);
+
+    // ユーザー検索（debounce付き）
+    useEffect(() => {
+        if (userSearchInput.length < 2) {
+            setUserOptions([]);
+            return;
+        }
+
+        const timer = setTimeout(() => {
+            setLoadingUsers(true);
+            api.get(`/users/search?q=${encodeURIComponent(userSearchInput)}&limit=10`)
+                .then((response: any) => {
+                    const users = response.data || [];
+                    setUserOptions(users.map((u: any) => ({
+                        username: u.username,
+                        displayName: u.displayName || u.username,
+                    })));
+                })
+                .catch((err) => {
+                    console.error('Failed to search users:', err);
+                    setUserOptions([]);
+                })
+                .finally(() => setLoadingUsers(false));
+        }, 300);
+
+        return () => clearTimeout(timer);
+    }, [userSearchInput]);
 
     const handleSave = () => {
         setNodes((nds) =>
@@ -56,8 +106,10 @@ export default function ApprovalNode({ id, data }: { id: string; data: any }) {
                             assigneeRole: assigneeType === 'role' ? assigneeRole : undefined,
                             assigneeGroup: assigneeType === 'group' ? assigneeGroup : undefined,
                             assigneeUser: assigneeType === 'specific' ? assigneeUser : undefined,
-                            // 表示用のassignee（互換性維持）
-                            assignee: getAssigneeDisplay(),
+                            // バックエンドで使用する内部値（role:xxx, group:xxx, user:xxx, applicant_manager）
+                            assignee: getAssigneeValue(),
+                            // 表示用（日本語ラベル）
+                            assigneeDisplay: getAssigneeDisplay(),
                         },
                     }
                     : node
@@ -66,12 +118,29 @@ export default function ApprovalNode({ id, data }: { id: string; data: any }) {
         setDialogOpen(false);
     };
 
+    // バックエンドで使用する値
+    const getAssigneeValue = () => {
+        switch (assigneeType) {
+            case 'role':
+                return `role:${assigneeRole}`;
+            case 'group':
+                return `group:${assigneeGroup}`;
+            case 'specific':
+                return assigneeUser ? `user:${assigneeUser}` : '';
+            case 'applicant_manager':
+                return 'applicant_manager';
+            default:
+                return '';
+        }
+    };
+
     const getAssigneeDisplay = () => {
         switch (assigneeType) {
             case 'role':
                 return AVAILABLE_ROLES.find(r => r.value === assigneeRole)?.label || assigneeRole;
             case 'group':
-                return AVAILABLE_GROUPS.find(g => g.value === assigneeGroup)?.label || assigneeGroup;
+                // assigneeGroupDisplayに保存された部署名を使用、なければlabelから取得
+                return assigneeGroupDisplay || availableGroups.find(g => g.value === assigneeGroup)?.name || assigneeGroup;
             case 'specific':
                 return assigneeUser || '指定ユーザー';
             case 'applicant_manager':
@@ -150,7 +219,7 @@ export default function ApprovalNode({ id, data }: { id: string; data: any }) {
                             variant="caption"
                             sx={{ color: 'rgba(255,255,255,0.9)', fontSize: 10 }}
                         >
-                            {data.assignee || getAssigneeDisplay()}
+                            {data.assigneeDisplay || getAssigneeDisplay()}
                         </Typography>
                     </Box>
                 )}
@@ -223,26 +292,85 @@ export default function ApprovalNode({ id, data }: { id: string; data: any }) {
                             <Select
                                 value={assigneeGroup}
                                 label="担当部署"
-                                onChange={(e) => setAssigneeGroup(e.target.value)}
+                                onChange={(e) => {
+                                    const value = e.target.value;
+                                    setAssigneeGroup(value);
+                                    // 選択されたグループのnameを取得して表示用に保存
+                                    const selectedGroup = availableGroups.find(g => g.value === value);
+                                    setAssigneeGroupDisplay(selectedGroup?.name || '');
+                                }}
+                                disabled={loadingGroups}
                             >
-                                {AVAILABLE_GROUPS.map((group) => (
-                                    <MenuItem key={group.value} value={group.value}>
-                                        {group.label}
+                                {loadingGroups ? (
+                                    <MenuItem disabled>
+                                        <CircularProgress size={20} sx={{ mr: 1 }} />
+                                        読み込み中...
                                     </MenuItem>
-                                ))}
+                                ) : availableGroups.length === 0 ? (
+                                    <MenuItem disabled>部署が見つかりません</MenuItem>
+                                ) : (
+                                    availableGroups.map((group) => (
+                                        <MenuItem key={group.value} value={group.value}>
+                                            {group.label}
+                                        </MenuItem>
+                                    ))
+                                )}
                             </Select>
                         </FormControl>
                     )}
 
                     {assigneeType === 'specific' && (
-                        <TextField
-                            label="ユーザー名"
+                        <Autocomplete
+                            freeSolo
+                            options={userOptions}
+                            getOptionLabel={(option) => 
+                                typeof option === 'string' ? option : option.username
+                            }
+                            renderOption={(props, option) => (
+                                <li {...props} key={option.username}>
+                                    <Box>
+                                        <Typography variant="body2">{option.username}</Typography>
+                                        <Typography variant="caption" color="text.secondary">
+                                            {option.displayName}
+                                        </Typography>
+                                    </Box>
+                                </li>
+                            )}
                             value={assigneeUser}
-                            onChange={(e) => setAssigneeUser(e.target.value)}
-                            fullWidth
-                            sx={{ mt: 2 }}
-                            placeholder="例: tanaka, admin"
-                            helperText="Keycloakのユーザー名を入力"
+                            onChange={(_, newValue) => {
+                                if (typeof newValue === 'string') {
+                                    setAssigneeUser(newValue);
+                                } else if (newValue) {
+                                    setAssigneeUser(newValue.username);
+                                }
+                            }}
+                            inputValue={userSearchInput}
+                            onInputChange={(_, newInputValue) => {
+                                setUserSearchInput(newInputValue);
+                                if (newInputValue && !userOptions.find(u => u.username === newInputValue)) {
+                                    setAssigneeUser(newInputValue);
+                                }
+                            }}
+                            loading={loadingUsers}
+                            renderInput={(params) => (
+                                <TextField
+                                    {...params}
+                                    label="ユーザー名"
+                                    fullWidth
+                                    sx={{ mt: 2 }}
+                                    placeholder="2文字以上入力して検索"
+                                    helperText="Keycloakのユーザー名を入力（自動補完）"
+                                    InputProps={{
+                                        ...params.InputProps,
+                                        endAdornment: (
+                                            <>
+                                                {loadingUsers ? <CircularProgress size={20} /> : null}
+                                                {params.InputProps.endAdornment}
+                                            </>
+                                        ),
+                                    }}
+                                />
+                            )}
                         />
                     )}
                 </DialogContent>

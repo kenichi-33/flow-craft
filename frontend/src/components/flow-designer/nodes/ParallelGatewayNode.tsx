@@ -3,16 +3,15 @@
 import React, { useState } from 'react';
 import { Handle, Position, useReactFlow } from 'reactflow';
 import {
-    Box, Typography, IconButton, Dialog, DialogTitle, DialogContent,
+    Box, Typography, Dialog, DialogTitle, DialogContent,
     DialogActions, TextField, Button
 } from '@mui/material';
-import EditIcon from '@mui/icons-material/Edit';
-import AddIcon from '@mui/icons-material/Add';
+import CallSplitIcon from '@mui/icons-material/CallSplit';
 
-// Parallel Gateway Node - One input, multiple parallel outputs
+// Parallel Gateway Node - 分岐専用（全ての後続タスクを並行生成）
 export default function ParallelGatewayNode({ id, data }: { id: string; data: any }) {
     const [dialogOpen, setDialogOpen] = useState(false);
-    const [label, setLabel] = useState(data.label || '並行');
+    const [label, setLabel] = useState(data.label || '分岐');
     const { setNodes } = useReactFlow();
 
     const handleSave = () => {
@@ -24,6 +23,7 @@ export default function ParallelGatewayNode({ id, data }: { id: string; data: an
                         data: {
                             ...node.data,
                             label,
+                            mode: 'split', // 常にsplit
                         }
                     }
                     : node
@@ -39,7 +39,7 @@ export default function ParallelGatewayNode({ id, data }: { id: string; data: an
                     width: 50,
                     height: 50,
                     transform: 'rotate(45deg)',
-                    background: '#ffeb3b', // Yellow
+                    background: '#ffeb3b',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
@@ -58,10 +58,9 @@ export default function ParallelGatewayNode({ id, data }: { id: string; data: an
                         justifyContent: 'center',
                     }}
                 >
-                    <AddIcon sx={{ color: '#f57f17', fontSize: 32 }} />
+                    <CallSplitIcon sx={{ color: '#f57f17', fontSize: 28 }} />
                 </Box>
 
-                {/* Input Handle (Top-Left in diamond -> Top visually) */}
                 <Handle
                     type="target"
                     position={Position.Top}
@@ -76,9 +75,6 @@ export default function ParallelGatewayNode({ id, data }: { id: string; data: an
                     }}
                 />
 
-                {/* Output Handle (Bottom-Right in diamond -> Bottom visually) */}
-                {/* Note: In ReactFlow, multiple edges can come from one handle by default unless restricted. */}
-                {/* We will rely on validation to allow multiple edges from here but restrict others. */}
                 <Handle
                     type="source"
                     position={Position.Bottom}
@@ -108,19 +104,20 @@ export default function ParallelGatewayNode({ id, data }: { id: string; data: an
                     pointerEvents: 'none',
                 }}
             >
-                {data.label || '並行'}
+                {data.label || '分岐'}
             </Typography>
 
             <Dialog open={dialogOpen} onClose={() => setDialogOpen(false)}>
-                <DialogTitle>並行ゲートウェイ設定</DialogTitle>
+                <DialogTitle>並行分岐の設定</DialogTitle>
                 <DialogContent>
                     <TextField
-                        autoFocus
                         margin="dense"
                         label="ラベル"
                         fullWidth
                         value={label}
                         onChange={(e) => setLabel(e.target.value)}
+                        sx={{ mt: 1 }}
+                        helperText="全ての後続タスクを並行して生成します"
                     />
                 </DialogContent>
                 <DialogActions>

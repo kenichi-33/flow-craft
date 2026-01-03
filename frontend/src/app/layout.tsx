@@ -18,6 +18,7 @@ export default function RootLayout({
       <head>
         <title>Flow Craft</title>
         <meta name="description" content="Workflow System" />
+        <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
       </head>
       <body className={inter.className}>
         <AuthProvider>
