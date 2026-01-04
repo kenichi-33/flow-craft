@@ -8,6 +8,7 @@ import { FlowsModule } from './modules/flows/flows.module';
 import { ApplicationsModule } from './modules/applications/applications.module';
 import { ApplicationDefinitionsModule } from './modules/application-definitions/application-definitions.module';
 import { WorkflowEngineModule } from './modules/workflow-engine/workflow-engine.module';
+import { NotificationsModule } from './modules/notifications/notifications.module';
 import { TasksModule } from './modules/tasks/tasks.module';
 import { TeamsModule } from './modules/teams/teams.module';
 import { UsersModule } from './modules/users/users.module';
@@ -29,6 +30,7 @@ import { RolesGuard } from './auth/guards/roles.guard';
     TeamsModule,
     UsersModule,
     PrismaModule,
+    NotificationsModule,
   ],
   controllers: [AppController],
   providers: [

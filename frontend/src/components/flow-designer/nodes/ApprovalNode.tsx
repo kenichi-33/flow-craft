@@ -6,13 +6,38 @@ import {
     Box, Typography, IconButton, Dialog, DialogTitle,
     DialogContent, DialogActions, TextField, Button,
     FormControl, InputLabel, Select, MenuItem, Chip, FormHelperText, CircularProgress,
-    Autocomplete
+    Autocomplete, Tabs, Tab, FormControlLabel, Switch, Divider
 } from '@mui/material';
 import EditIcon from '@mui/icons-material/Edit';
 import PersonIcon from '@mui/icons-material/Person';
 import GroupIcon from '@mui/icons-material/Group';
 import SecurityIcon from '@mui/icons-material/Security';
+import EmailIcon from '@mui/icons-material/Email';
 import { api } from '@/lib/api';
+
+interface TabPanelProps {
+    children?: React.ReactNode;
+    index: number;
+    value: number;
+}
+
+function CustomTabPanel(props: TabPanelProps) {
+    const { children, value, index, ...other } = props;
+
+    return (
+        <div
+            role="tabpanel"
+            hidden={value !== index}
+            id={`approval-tabpanel-${index}`}
+            aria-labelledby={`approval-tab-${index}`}
+            {...other}
+        >
+            {value === index && (
+                <Box sx={{ py: 2 }}>{children}</Box>
+            )}
+        </div>
+    );
+}
 
 // 担当者タイプ
 type AssigneeType = 'role' | 'group' | 'specific' | 'applicant_manager';
@@ -40,7 +65,18 @@ export default function ApprovalNode({ id, data }: { id: string; data: any }) {
     const [userSearchInput, setUserSearchInput] = useState('');
     const [userOptions, setUserOptions] = useState<{ username: string; displayName: string }[]>([]);
     const [loadingUsers, setLoadingUsers] = useState(false);
+    // 通知設定
+    const [notificationEnabled, setNotificationEnabled] = useState(data.notificationEnabled || false);
+    const [notificationSubject, setNotificationSubject] = useState(data.notificationSubject || '【Flow Craft】承認依頼: {{applicationDefinition.name}}');
+    const [notificationBody, setNotificationBody] = useState(data.notificationBody || '{{assignee}} 様\n\n申請が届いています。\n確認をお願いします。');
+    
+    // UI制御
+    const [tabValue, setTabValue] = useState(0);
     const { setNodes } = useReactFlow();
+
+    const handleTabChange = (event: React.SyntheticEvent, newValue: number) => {
+        setTabValue(newValue);
+    };
 
     // ダイアログが開いたときに部署一覧を取得
     useEffect(() => {
@@ -110,6 +146,10 @@ export default function ApprovalNode({ id, data }: { id: string; data: any }) {
                             assignee: getAssigneeValue(),
                             // 表示用（日本語ラベル）
                             assigneeDisplay: getAssigneeDisplay(),
+                            // 通知設定
+                            notificationEnabled,
+                            notificationSubject,
+                            notificationBody,
                         },
                     }
                     : node
@@ -192,6 +232,7 @@ export default function ApprovalNode({ id, data }: { id: string; data: any }) {
                 />
 
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                    {notificationEnabled && <EmailIcon sx={{ color: 'rgba(255,255,255,0.7)', fontSize: 12, mr: -0.2 }} />}
                     <Typography
                         variant="body2"
                         sx={{
@@ -239,140 +280,193 @@ export default function ApprovalNode({ id, data }: { id: string; data: any }) {
             <Dialog open={dialogOpen} onClose={() => setDialogOpen(false)} maxWidth="sm" fullWidth>
                 <DialogTitle>承認ステップの設定</DialogTitle>
                 <DialogContent>
-                    <TextField
-                        label="ステップ名"
-                        value={label}
-                        onChange={(e) => setLabel(e.target.value)}
-                        fullWidth
-                        sx={{ mt: 2 }}
-                        placeholder="例: 部長承認、経理確認"
-                    />
+                    <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
+                        <Tabs value={tabValue} onChange={handleTabChange} aria-label="approval node settings">
+                            <Tab label="基本設定" />
+                            <Tab label="通知設定" />
+                        </Tabs>
+                    </Box>
 
-                    <FormControl fullWidth sx={{ mt: 3 }}>
-                        <InputLabel>担当者の指定方法</InputLabel>
-                        <Select
-                            value={assigneeType}
-                            label="担当者の指定方法"
-                            onChange={(e) => setAssigneeType(e.target.value as AssigneeType)}
-                        >
-                            <MenuItem value="role">ロールで指定</MenuItem>
-                            <MenuItem value="group">部署・グループで指定</MenuItem>
-                            <MenuItem value="specific">特定ユーザーを指定</MenuItem>
-                            <MenuItem value="applicant_manager">申請者の上長</MenuItem>
-                        </Select>
-                        <FormHelperText>
-                            {assigneeType === 'role' && 'このロールを持つユーザーが承認可能'}
-                            {assigneeType === 'group' && 'この部署に所属するユーザーが承認可能'}
-                            {assigneeType === 'specific' && '指定したユーザーのみ承認可能'}
-                            {assigneeType === 'applicant_manager' && '申請者の直属上長が承認'}
-                        </FormHelperText>
-                    </FormControl>
-
-                    {assigneeType === 'role' && (
-                        <FormControl fullWidth sx={{ mt: 2 }}>
-                            <InputLabel>必要なロール</InputLabel>
-                            <Select
-                                value={assigneeRole}
-                                label="必要なロール"
-                                onChange={(e) => setAssigneeRole(e.target.value)}
-                            >
-                                {AVAILABLE_ROLES.map((role) => (
-                                    <MenuItem key={role.value} value={role.value}>
-                                        <Chip label={role.label} size="small" sx={{ mr: 1 }} />
-                                        {role.value}
-                                    </MenuItem>
-                                ))}
-                            </Select>
-                        </FormControl>
-                    )}
-
-                    {assigneeType === 'group' && (
-                        <FormControl fullWidth sx={{ mt: 2 }}>
-                            <InputLabel>担当部署</InputLabel>
-                            <Select
-                                value={assigneeGroup}
-                                label="担当部署"
-                                onChange={(e) => {
-                                    const value = e.target.value;
-                                    setAssigneeGroup(value);
-                                    // 選択されたグループのnameを取得して表示用に保存
-                                    const selectedGroup = availableGroups.find(g => g.value === value);
-                                    setAssigneeGroupDisplay(selectedGroup?.name || '');
-                                }}
-                                disabled={loadingGroups}
-                            >
-                                {loadingGroups ? (
-                                    <MenuItem disabled>
-                                        <CircularProgress size={20} sx={{ mr: 1 }} />
-                                        読み込み中...
-                                    </MenuItem>
-                                ) : availableGroups.length === 0 ? (
-                                    <MenuItem disabled>部署が見つかりません</MenuItem>
-                                ) : (
-                                    availableGroups.map((group) => (
-                                        <MenuItem key={group.value} value={group.value}>
-                                            {group.label}
-                                        </MenuItem>
-                                    ))
-                                )}
-                            </Select>
-                        </FormControl>
-                    )}
-
-                    {assigneeType === 'specific' && (
-                        <Autocomplete
-                            freeSolo
-                            options={userOptions}
-                            getOptionLabel={(option) => 
-                                typeof option === 'string' ? option : option.username
-                            }
-                            renderOption={(props, option) => (
-                                <li {...props} key={option.username}>
-                                    <Box>
-                                        <Typography variant="body2">{option.username}</Typography>
-                                        <Typography variant="caption" color="text.secondary">
-                                            {option.displayName}
-                                        </Typography>
-                                    </Box>
-                                </li>
-                            )}
-                            value={assigneeUser}
-                            onChange={(_, newValue) => {
-                                if (typeof newValue === 'string') {
-                                    setAssigneeUser(newValue);
-                                } else if (newValue) {
-                                    setAssigneeUser(newValue.username);
-                                }
-                            }}
-                            inputValue={userSearchInput}
-                            onInputChange={(_, newInputValue) => {
-                                setUserSearchInput(newInputValue);
-                                if (newInputValue && !userOptions.find(u => u.username === newInputValue)) {
-                                    setAssigneeUser(newInputValue);
-                                }
-                            }}
-                            loading={loadingUsers}
-                            renderInput={(params) => (
-                                <TextField
-                                    {...params}
-                                    label="ユーザー名"
-                                    fullWidth
-                                    sx={{ mt: 2 }}
-                                    placeholder="2文字以上入力して検索"
-                                    helperText="Keycloakのユーザー名を入力（自動補完）"
-                                    InputProps={{
-                                        ...params.InputProps,
-                                        endAdornment: (
-                                            <>
-                                                {loadingUsers ? <CircularProgress size={20} /> : null}
-                                                {params.InputProps.endAdornment}
-                                            </>
-                                        ),
-                                    }}
-                                />
-                            )}
+                    {/* 基本設定タブ */}
+                    <CustomTabPanel value={tabValue} index={0}>
+                        <TextField
+                            label="ステップ名"
+                            value={label}
+                            onChange={(e) => setLabel(e.target.value)}
+                            fullWidth
+                            sx={{ mt: 1 }}
+                            placeholder="例: 部長承認、経理確認"
                         />
-                    )}
+
+                        <FormControl fullWidth sx={{ mt: 3 }}>
+                            <InputLabel>担当者の指定方法</InputLabel>
+                            <Select
+                                value={assigneeType}
+                                label="担当者の指定方法"
+                                onChange={(e) => setAssigneeType(e.target.value as AssigneeType)}
+                            >
+                                <MenuItem value="role">ロールで指定</MenuItem>
+                                <MenuItem value="group">部署・グループで指定</MenuItem>
+                                <MenuItem value="specific">特定ユーザーを指定</MenuItem>
+                                <MenuItem value="applicant_manager">申請者の上長</MenuItem>
+                            </Select>
+                            <FormHelperText>
+                                {assigneeType === 'role' && 'このロールを持つユーザーが承認可能'}
+                                {assigneeType === 'group' && 'この部署に所属するユーザーが承認可能'}
+                                {assigneeType === 'specific' && '指定したユーザーのみ承認可能'}
+                                {assigneeType === 'applicant_manager' && '申請者の直属上長が承認'}
+                            </FormHelperText>
+                        </FormControl>
+
+                        {assigneeType === 'role' && (
+                            <FormControl fullWidth sx={{ mt: 2 }}>
+                                <InputLabel>必要なロール</InputLabel>
+                                <Select
+                                    value={assigneeRole}
+                                    label="必要なロール"
+                                    onChange={(e) => setAssigneeRole(e.target.value)}
+                                >
+                                    {AVAILABLE_ROLES.map((role) => (
+                                        <MenuItem key={role.value} value={role.value}>
+                                            <Chip label={role.label} size="small" sx={{ mr: 1 }} />
+                                            {role.value}
+                                        </MenuItem>
+                                    ))}
+                                </Select>
+                            </FormControl>
+                        )}
+
+                        {assigneeType === 'group' && (
+                            <FormControl fullWidth sx={{ mt: 2 }}>
+                                <InputLabel>担当部署</InputLabel>
+                                <Select
+                                    value={assigneeGroup}
+                                    label="担当部署"
+                                    onChange={(e) => {
+                                        const value = e.target.value;
+                                        setAssigneeGroup(value);
+                                        // 選択されたグループのnameを取得して表示用に保存
+                                        const selectedGroup = availableGroups.find(g => g.value === value);
+                                        setAssigneeGroupDisplay(selectedGroup?.name || '');
+                                    }}
+                                    disabled={loadingGroups}
+                                >
+                                    {loadingGroups ? (
+                                        <MenuItem disabled>
+                                            <CircularProgress size={20} sx={{ mr: 1 }} />
+                                            読み込み中...
+                                        </MenuItem>
+                                    ) : availableGroups.length === 0 ? (
+                                        <MenuItem disabled>部署が見つかりません</MenuItem>
+                                    ) : (
+                                        availableGroups.map((group) => (
+                                            <MenuItem key={group.value} value={group.value}>
+                                                {group.label}
+                                            </MenuItem>
+                                        ))
+                                    )}
+                                </Select>
+                            </FormControl>
+                        )}
+
+                        {assigneeType === 'specific' && (
+                            <Autocomplete
+                                freeSolo
+                                options={userOptions}
+                                getOptionLabel={(option) => 
+                                    typeof option === 'string' ? option : option.username
+                                }
+                                renderOption={(props, option) => (
+                                    <li {...props} key={option.username}>
+                                        <Box>
+                                            <Typography variant="body2">{option.username}</Typography>
+                                            <Typography variant="caption" color="text.secondary">
+                                                {option.displayName}
+                                            </Typography>
+                                        </Box>
+                                    </li>
+                                )}
+                                value={assigneeUser}
+                                onChange={(_, newValue) => {
+                                    if (typeof newValue === 'string') {
+                                        setAssigneeUser(newValue);
+                                    } else if (newValue) {
+                                        setAssigneeUser(newValue.username);
+                                    }
+                                }}
+                                inputValue={userSearchInput}
+                                onInputChange={(_, newInputValue) => {
+                                    setUserSearchInput(newInputValue);
+                                    if (newInputValue && !userOptions.find(u => u.username === newInputValue)) {
+                                        setAssigneeUser(newInputValue);
+                                    }
+                                }}
+                                loading={loadingUsers}
+                                renderInput={(params) => (
+                                    <TextField
+                                        {...params}
+                                        label="ユーザー名"
+                                        fullWidth
+                                        sx={{ mt: 2 }}
+                                        placeholder="2文字以上入力して検索"
+                                        helperText="Keycloakのユーザー名を入力（自動補完）"
+                                        InputProps={{
+                                            ...params.InputProps,
+                                            endAdornment: (
+                                                <>
+                                                    {loadingUsers ? <CircularProgress size={20} /> : null}
+                                                    {params.InputProps.endAdornment}
+                                                </>
+                                            ),
+                                        }}
+                                    />
+                                )}
+                            />
+                        )}
+                    </CustomTabPanel>
+
+                    {/* 通知設定タブ */}
+                    <CustomTabPanel value={tabValue} index={1}>
+                        <FormControlLabel
+                            control={
+                                <Switch
+                                    checked={notificationEnabled}
+                                    onChange={(e) => setNotificationEnabled(e.target.checked)}
+                                />
+                            }
+                            label="担当者にメール通知を送信する"
+                            sx={{ mb: 2, display: 'block' }}
+                        />
+
+                        {notificationEnabled && (
+                            <>
+                                <TextField
+                                    label="件名テンプレート"
+                                    value={notificationSubject}
+                                    onChange={(e) => setNotificationSubject(e.target.value)}
+                                    fullWidth
+                                    size="small"
+                                    sx={{ mb: 2 }}
+                                    helperText="変数: {{applicationDefinition.name}}, {{assignee}} など"
+                                />
+                                <TextField
+                                    label="本文テンプレート"
+                                    value={notificationBody}
+                                    onChange={(e) => setNotificationBody(e.target.value)}
+                                    fullWidth
+                                    multiline
+                                    rows={8}
+                                    helperText="申請データは {{fieldName}} で参照可能"
+                                />
+                            </>
+                        )}
+                        {!notificationEnabled && (
+                            <Typography variant="body2" color="text.secondary">
+                                通知機能は無効です。
+                            </Typography>
+                        )}
+                    </CustomTabPanel>
+
                 </DialogContent>
                 <DialogActions>
                     <Button onClick={() => setDialogOpen(false)}>キャンセル</Button>

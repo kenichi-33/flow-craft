@@ -44,6 +44,16 @@ services:
     volumes:
       - ./keycloak:/opt/keycloak/data/import
 
+  mailpit:
+    image: axllent/mailpit
+    ports:
+      - "1025:1025"
+      - "8025:8025"
+    environment:
+      MP_MAX_MESSAGES: 5000
+      MP_SMTP_AUTH_ACCEPT_ANY: 1
+      MP_SMTP_AUTH_ALLOW_INSECURE: 1
+
   backend:
     build:
       context: ./backend
@@ -55,6 +65,12 @@ services:
       KEYCLOAK_REALM: workflow
       KEYCLOAK_CLIENT_ID: workflow-api
       KEYCLOAK_CLIENT_SECRET: workflow-api-secret
+      # Mail Configuration
+      MAIL_HOST: mailpit
+      MAIL_PORT: 1025
+      MAIL_USER: user
+      MAIL_PASSWORD: password
+      MAIL_FROM: noreply@flowcraft.local
     ports:
       - "8080:8080"
     depends_on:

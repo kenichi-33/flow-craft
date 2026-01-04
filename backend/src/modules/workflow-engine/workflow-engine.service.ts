@@ -3,6 +3,8 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { Prisma } from '@prisma/client';
 import axios from 'axios';
 
+import { MailService } from '../notifications/mail.service';
+
 @Injectable()
 export class WorkflowEngineService {
     private readonly keycloakUrl = process.env.KEYCLOAK_URL || 'http://localhost:8080';
@@ -10,7 +12,10 @@ export class WorkflowEngineService {
     private readonly clientId = process.env.KEYCLOAK_ADMIN_CLIENT_ID || 'admin-cli';
     private readonly clientSecret = process.env.KEYCLOAK_ADMIN_CLIENT_SECRET || '';
 
-    constructor(private prisma: PrismaService) { }
+    constructor(
+        private prisma: PrismaService,
+        private mailService: MailService
+    ) { }
 
     /**
      * ワークフローを開始する
@@ -285,10 +290,20 @@ export class WorkflowEngineService {
                     applicationId,
                     stepId: nextNodeId,
                     assignedTo: resolvedAssignee,
-                    assignedToDisplay: nextNode.data?.assigneeDisplay || null,  // フローノードから表示名をコピー
+                    assignedToDisplay: nextNode.data?.assigneeDisplay || null,
                     status: 'PENDING',
                 },
             });
+
+            // メール通知送信
+            if (nextNode.data?.notificationEnabled) {
+                this.sendNotificationEmail(
+                    resolvedAssignee,
+                    nextNode.data.notificationSubject,
+                    nextNode.data.notificationBody,
+                    application
+                ).catch(err => console.error('[WorkflowEngine] Failed to send email:', err));
+            }
 
             await this.prisma.application.update({
                 where: { id: applicationId },
@@ -452,10 +467,20 @@ export class WorkflowEngineService {
                             applicationId,
                             stepId: targetNode.id,
                             assignedTo: resolvedAssignee,
-                            assignedToDisplay: targetNode.data?.assigneeDisplay || null,  // フローノードから表示名をコピー
+                            assignedToDisplay: targetNode.data?.assigneeDisplay || null,
                             status: 'PENDING',
                         },
                     });
+
+                    // メール通知送信
+                    if (targetNode.data?.notificationEnabled) {
+                        this.sendNotificationEmail(
+                            resolvedAssignee,
+                            targetNode.data.notificationSubject,
+                            targetNode.data.notificationBody,
+                            application
+                        ).catch(err => console.error('[WorkflowEngine] Failed to send email:', err));
+                    }
                     createdTaskNodeIds.push(targetNode.id);
                     console.log(`[WorkflowEngine] Created parallel task for ${targetNode.id}`);
                 } else if (['apiCall', 'llmCall'].includes(targetNode.type)) {
@@ -1205,5 +1230,65 @@ export class WorkflowEngineService {
         }
         
         return current;
+    }
+
+    /**
+     * 通知メールを送信する
+     */
+    private async sendNotificationEmail(
+        assignee: string | null,
+        subjectTemplate: string,
+        bodyTemplate: string,
+        application: any
+    ) {
+        if (!assignee) return;
+
+        // 宛先ユーザーのリストを解決
+        const assignments = assignee.split(',').map(s => s.trim());
+        const recipients: string[] = [];
+
+        for (const assignment of assignments) {
+            if (assignment.startsWith('user:')) {
+                const userId = assignment.substring(5);
+                const user = await this.getUserFromKeycloak(userId);
+                if (user?.email) {
+                    recipients.push(user.email);
+                }
+            } else if (assignment.startsWith('group:')) {
+                // グループのメンバー全員に送信は今回は省略（必要なら実装）
+                console.log(`[WorkflowEngine] Email to group not supported yet: ${assignment}`);
+            } else if (assignment.startsWith('role:')) {
+                // ロールのメンバーも同様省略
+                console.log(`[WorkflowEngine] Email to role not supported yet: ${assignment}`);
+            }
+        }
+
+        if (recipients.length === 0) {
+            console.log('[WorkflowEngine] No email recipients found');
+            return;
+        }
+
+        // テンプレート変数の置換
+        const data = {
+            ...application.inputData,
+            application,
+            applicationDefinition: application.applicationDefinition,
+            assignee: assignee // TODO: 表示名に変換できればベター
+        };
+
+        const subject = this.replaceVariables(
+            subjectTemplate || '【Flow Craft】承認依頼: {{applicationDefinition.name}}',
+            data
+        );
+        const body = this.replaceVariables(
+            bodyTemplate || '{{assignee}} 様\n\n申請が届いています。\n確認をお願いします。',
+            data
+        );
+
+        // 重複を除外して送信
+        const uniqueRecipients = [...new Set(recipients)];
+        for (const to of uniqueRecipients) {
+            await this.mailService.sendEmail(to, subject, body);
+        }
     }
 }
