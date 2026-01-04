@@ -787,6 +787,34 @@ export class WorkflowEngineService {
                 };
             }
 
+            // レスポンスマッピング処理
+            const responseMappingStr = node.data.responseMapping;
+            if (responseMappingStr) {
+                try {
+                    const mapping = JSON.parse(responseMappingStr);
+                    let inputDataUpdated = false;
+
+                    for (const [responsePath, formFieldId] of Object.entries(mapping)) {
+                        const value = this.getValueByPath(result, responsePath);
+                        if (value !== undefined) {
+                            console.log(`[WorkflowEngine] Mapping response value: ${responsePath} -> ${formFieldId} = ${value}`);
+                            inputData[formFieldId as string] = value;
+                            inputDataUpdated = true;
+                        }
+                    }
+
+                    if (inputDataUpdated) {
+                        await this.prisma.application.update({
+                            where: { id: applicationId },
+                            data: { inputData: inputData as Prisma.InputJsonValue },
+                        });
+                        console.log(`[WorkflowEngine] Updated application inputData based on response mapping`);
+                    }
+                } catch (e) {
+                    console.error('[WorkflowEngine] Failed to process response mapping:', e);
+                }
+            }
+
             // 成功
             await this.prisma.serviceTask.update({
                 where: { id: task.id },
@@ -1158,5 +1186,24 @@ export class WorkflowEngineService {
         }
 
         return resolvedAssignments.join(', ');
+    }
+
+    /**
+     * ドット記法でオブジェクトから値を取得する
+     */
+    private getValueByPath(obj: any, path: string): any {
+        if (!path || !obj) return undefined;
+        // 単純なプロパティアクセスのサポート (data.user.id -> obj['data']['user']['id'])
+        const keys = path.split('.');
+        let current = obj;
+        
+        for (const key of keys) {
+            if (current === null || current === undefined) {
+                return undefined;
+            }
+            current = current[key];
+        }
+        
+        return current;
     }
 }

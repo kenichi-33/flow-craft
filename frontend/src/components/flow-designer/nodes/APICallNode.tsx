@@ -131,6 +131,7 @@ export default function APICallNode({ id, data }: { id: string; data: any }) {
     const [body, setBody] = useState(data.body || '{}');
     const [successCodes, setSuccessCodes] = useState(data.successCodes || '200,201,204');
     const [errorBehavior, setErrorBehavior] = useState(data.errorBehavior || 'stop');
+    const [responseMapping, setResponseMapping] = useState(data.responseMapping || '{}');
     const [tabValue, setTabValue] = useState(0);
 
     const { setNodes } = useReactFlow();
@@ -150,6 +151,7 @@ export default function APICallNode({ id, data }: { id: string; data: any }) {
                             body,
                             successCodes,
                             errorBehavior,
+                            responseMapping,
                         }
                     }
                     : node
@@ -371,6 +373,23 @@ export default function APICallNode({ id, data }: { id: string; data: any }) {
                             </FormControl>
                         </Grid>
                     </Grid>
+
+                    <Divider sx={{ my: 3 }} />
+
+                    <Typography variant="subtitle2" gutterBottom>レスポンスマッピング (JSONパス → フォームID)</Typography>
+                    <Typography variant="caption" color="text.secondary" sx={{ mb: 2, display: 'block' }}>
+                        APIレスポンスから値を抽出し、フォーム項目を自動更新します。
+                        <br />
+                        Key: レスポンスJSONのパス (例: <code>data.user.id</code>)
+                        <br />
+                        Value: 反映先のフォーム項目ID (例: <code>userId</code>)
+                    </Typography>
+                    <KeyValueEditor
+                        value={responseMapping}
+                        onChange={setResponseMapping}
+                        placeholderKey="Response JSON Path"
+                        placeholderValue="Form Field ID"
+                    />
 
                 </DialogContent>
                 <DialogActions>
