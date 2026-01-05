@@ -26,8 +26,10 @@ export default function CanvasDroppable({ fields, onUpdateField, onRemoveField }
                 bgcolor: isOver ? 'action.hover' : 'background.default',
                 border: '2px dashed',
                 borderColor: isOver ? 'primary.main' : 'divider',
-                borderRadius: 1,
+                borderRadius: 2,
                 transition: 'all 0.2s',
+                backgroundImage: 'radial-gradient(#e0e0e0 1px, transparent 1px)',
+                backgroundSize: '20px 20px',
             }}
         >
             {fields.length === 0 ? (

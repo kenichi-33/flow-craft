@@ -16,6 +16,8 @@ import 'react-grid-layout/css/styles.css';
 import 'react-resizable/css/styles.css';
 
 import ToolboxItem from '@/components/form-designer/ToolboxItem';
+import DynamicFormRenderer from '@/components/application/DynamicFormRenderer';
+import FieldSettingsDialog from '@/components/form-designer/FieldSettingsDialog';
 import TextFieldsIcon from '@mui/icons-material/TextFields';
 import NumbersIcon from '@mui/icons-material/Numbers';
 import CheckBoxIcon from '@mui/icons-material/CheckBox';
@@ -36,6 +38,7 @@ interface FormField {
     type: 'text' | 'number' | 'checkbox' | 'textarea' | 'select' | 'radio' | 'date' | 'divider' | 'label';
     label: string;
     options?: string[];
+    required?: boolean;
 }
 
 const TOOLBOX_ITEMS = [
@@ -51,433 +54,253 @@ const TOOLBOX_ITEMS = [
 ];
 
 
+
+// Custom styled components
+const inputStyle = {
+    '& .MuiInputBase-root': {
+        bgcolor: '#f8f9fa',
+        borderRadius: 3,
+        border: '1px solid #e2e8f0',
+        transition: 'all 0.2s ease-in-out',
+        '&:hover': {
+            bgcolor: '#fff',
+            borderColor: '#bkc',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.05)',
+        },
+        '&.Mui-focused': {
+            bgcolor: '#fff',
+            borderColor: '#3a1c71',
+            boxShadow: '0 0 0 3px rgba(58, 28, 113, 0.1)',
+        }
+    },
+    '& .MuiInputBase-input': {
+        padding: '12px 16px',
+    },
+    '& .MuiInputLabel-root': {
+        transform: 'translate(14px, 12px) scale(1)',
+        '&.Mui-focused, &.MuiFormLabel-filled': {
+            transform: 'translate(14px, -9px) scale(0.75)',
+            fontWeight: 'bold',
+            color: '#3a1c71',
+        }
+    }
+};
+
+const selectionCardStyle = {
+    flex: 1,
+    minWidth: '150px',
+    m: 0.5,
+    p: 1.5,
+    borderRadius: 3,
+    border: '1px solid #edf2f7',
+    transition: 'all 0.2s',
+    bgcolor: '#f8f9fa',
+    '&:hover': {
+        bgcolor: '#fff',
+        borderColor: '#cbd5e0',
+        transform: 'translateY(-1px)',
+        boxShadow: '0 4px 12px rgba(0,0,0,0.05)'
+    },
+    '&:has(.Mui-checked)': {
+        bgcolor: '#f0f5ff',
+        borderColor: '#3a1c71',
+        boxShadow: '0 4px 12px rgba(58, 28, 113, 0.1)'
+    }
+};
+
 // WYSIWYG Preview Component
-function FieldPreview({ field, onUpdateLabel, onDelete, onUpdateOptions, onUpdateId, existingIds }: {
+// WYSIWYG Preview Component
+function FieldPreview({ field, onUpdateLabel, onDelete, onUpdateOptions, onUpdateId, existingIds, onUpdateRequired }: {
     field: FormField;
     onUpdateLabel: (label: string) => void;
     onDelete: () => void;
     onUpdateOptions: (options: string[]) => void;
     onUpdateId: (newId: string) => void;
+    onUpdateRequired: (required: boolean) => void;
     existingIds: string[];
 }) {
-    const [isEditing, setIsEditing] = useState(false);
-    const [isEditingId, setIsEditingId] = useState(false);
-    const [labelValue, setLabelValue] = useState(field.label);
-    const [idValue, setIdValue] = useState(field.id);
-    const [idError, setIdError] = useState<string | null>(null);
-    const [optionsText, setOptionsText] = useState((field.options || []).join(', '));
-    const sampleOptions = field.options && field.options.length > 0
-        ? field.options
-        : ['選択肢1', '選択肢2', '選択肢3'];
+    const [settingsOpen, setSettingsOpen] = useState(false);
 
-    // Sync label value when field.label changes
-    useEffect(() => {
-        setLabelValue(field.label);
-    }, [field.label]);
-
-    // Sync id value when field.id changes
-    useEffect(() => {
-        setIdValue(field.id);
-    }, [field.id]);
-
-    const validateId = (newId: string): string | null => {
-        if (!newId.trim()) return 'IDは必須です';
-        if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(newId)) return 'IDは英数字とアンダースコアのみ（先頭は英字または_）';
-        if (newId !== field.id && existingIds.includes(newId)) return 'このIDは既に使用されています';
-        return null;
+    // Get icon based on type
+    const getIcon = () => {
+        const item = TOOLBOX_ITEMS.find(i => i.type === field.type);
+        return item ? item.icon : <TextIcon />;
     };
 
-    const handleIdChange = (newId: string) => {
-        setIdValue(newId);
-        setIdError(validateId(newId));
-    };
-
-    const handleIdSave = () => {
-        const error = validateId(idValue);
-        if (error) {
-            setIdError(error);
-            return;
-        }
-        onUpdateId(idValue);
-        setIsEditingId(false);
-        setIdError(null);
-    };
-
-    const handleIdCancel = () => {
-        setIdValue(field.id);
-        setIsEditingId(false);
-        setIdError(null);
-    };
-
-    const handleSaveOptions = () => {
-        const newOptions = optionsText.split(',').map(s => s.trim()).filter(s => s);
-        onUpdateOptions(newOptions);
-        setIsEditing(false);
-    };
-
-    const handleLabelChange = (newLabel: string) => {
-        setLabelValue(newLabel);
-        onUpdateLabel(newLabel);
-    };
-
-    // Render editable ID chip
-    const renderIdChip = () => {
-        if (isEditingId) {
-            return (
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, pointerEvents: 'auto' }} onMouseDown={e => e.stopPropagation()}>
-                    <TextField
-                        size="small"
-                        value={idValue}
-                        onChange={(e) => handleIdChange(e.target.value)}
-                        error={!!idError}
-                        helperText={idError}
-                        autoFocus
-                        onKeyDown={(e) => {
-                            if (e.key === 'Enter') handleIdSave();
-                            if (e.key === 'Escape') handleIdCancel();
-                        }}
-                        sx={{
-                            width: 150,
-                            '& .MuiInputBase-input': { fontSize: '0.75rem', py: 0.5, px: 1 },
-                            '& .MuiFormHelperText-root': { fontSize: '0.6rem', mt: 0.25 }
-                        }}
-                    />
-                    <Button size="small" onClick={handleIdSave} sx={{ minWidth: 'auto', p: 0.5, fontSize: '0.7rem' }}>
-                        保存
-                    </Button>
-                    <Button size="small" onClick={handleIdCancel} sx={{ minWidth: 'auto', p: 0.5, fontSize: '0.7rem' }}>
-                        ×
-                    </Button>
-                </Box>
-            );
-        }
-        return (
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, pointerEvents: 'auto' }}>
-                <Chip
-                    label={`ID: ${field.id}`}
-                    size="small"
-                    sx={{
-                        height: 20,
-                        fontSize: '0.625rem',
-                        bgcolor: 'grey.100',
-                        color: 'text.secondary',
-                    }}
-                />
-                <IconButton
-                    size="small"
-                    onClick={(e) => {
-                        e.stopPropagation();
-                        e.preventDefault();
-                        setIsEditingId(true);
-                    }}
-                    onMouseDown={e => e.stopPropagation()}
-                    sx={{
-                        p: 0.25,
-                        '&:hover': { bgcolor: 'primary.light', color: 'white' }
-                    }}
-                >
-                    <EditIcon sx={{ fontSize: 14 }} />
-                </IconButton>
-            </Box>
-        );
+    const handleSettingsSave = (id: string, updates: Partial<FormField>) => {
+        if (updates.label !== undefined) onUpdateLabel(updates.label);
+        if (updates.id !== undefined && updates.id !== field.id) onUpdateId(updates.id);
+        if (updates.options !== undefined) onUpdateOptions(updates.options);
+        if (updates.required !== undefined) onUpdateRequired(updates.required);
     };
 
     const renderPreview = () => {
+        // Reduced preview - minimal interactivity here, focusing on layout
         switch (field.type) {
-            case 'divider':
-                return (
-                    <Box sx={{ py: 1 }}>
-                        <Divider sx={{ borderColor: '#333', borderBottomWidth: 2 }} />
-                    </Box>
-                );
-
-            case 'label':
-                return (
-                    <Box>
-                        <Box sx={{ display: 'flex', alignItems: 'center', mb: 0.5, gap: 1 }}>
-                            <Typography variant="h6" sx={{ fontWeight: 'bold', color: '#333' }}>
-                                {field.label || '見出しテキスト'}
-                            </Typography>
-                            {renderIdChip()}
-                        </Box>
-                    </Box>
-                );
-
             case 'text':
-                return (
-                    <Box>
-                        <Box sx={{ display: 'flex', alignItems: 'center', mb: 0.5, gap: 1 }}>
-                            <FormLabel>{field.label}</FormLabel>
-                            {renderIdChip()}
-                        </Box>
-                        <TextField
-                            fullWidth
-                            disabled
-                            size="small"
-                            placeholder="テキストを入力"
-                            sx={{ bgcolor: 'white' }}
-                        />
-                    </Box>
-                );
-
-            case 'textarea':
-                return (
-                    <Box>
-                        <Box sx={{ display: 'flex', alignItems: 'center', mb: 0.5, gap: 1 }}>
-                            <FormLabel>{field.label}</FormLabel>
-                            {renderIdChip()}
-                        </Box>
-                        <TextField
-                            fullWidth
-                            disabled
-                            multiline
-                            rows={3}
-                            placeholder="長文テキストを入力"
-                            sx={{ bgcolor: 'white' }}
-                        />
-                    </Box>
-                );
-
             case 'number':
-                return (
-                    <Box>
-                        <Box sx={{ display: 'flex', alignItems: 'center', mb: 0.5, gap: 1 }}>
-                            <FormLabel>{field.label}</FormLabel>
-                            {renderIdChip()}
-                        </Box>
-                        <TextField
-                            type="number"
-                            fullWidth
-                            disabled
-                            size="small"
-                            placeholder="0"
-                            sx={{ bgcolor: 'white' }}
-                        />
-                    </Box>
-                );
-
-            case 'select':
-                return (
-                    <Box>
-                        <Box sx={{ display: 'flex', alignItems: 'center', mb: 0.5, gap: 1 }}>
-                            <FormLabel>{field.label}</FormLabel>
-                            {renderIdChip()}
-                        </Box>
-                        <Select
-                            fullWidth
-                            disabled
-                            size="small"
-                            value=""
-                            displayEmpty
-                            sx={{ bgcolor: 'white' }}
-                        >
-                            <MenuItem value="">選択してください</MenuItem>
-                            {sampleOptions.map((opt, i) => (
-                                <MenuItem key={i} value={opt}>{opt}</MenuItem>
-                            ))}
-                        </Select>
-                    </Box>
-                );
-
-            case 'radio':
-                return (
-                    <Box>
-                        <Box sx={{ display: 'flex', alignItems: 'center', mb: 0.5, gap: 1 }}>
-                            <FormLabel>{field.label}</FormLabel>
-                            {renderIdChip()}
-                        </Box>
-                        <RadioGroup row>
-                            {sampleOptions.map((opt, i) => (
-                                <FormControlLabel
-                                    key={i}
-                                    value={opt}
-                                    control={<Radio size="small" disabled />}
-                                    label={opt}
-                                />
-                            ))}
-                        </RadioGroup>
-                    </Box>
-                );
-
-            case 'checkbox':
-                return (
-                    <Box>
-                        <Box sx={{ display: 'flex', alignItems: 'center', mb: 0.5, gap: 1 }}>
-                            <FormLabel>{field.label}</FormLabel>
-                            {renderIdChip()}
-                        </Box>
-                        <FormGroup row>
-                            {sampleOptions.map((opt, i) => (
-                                <FormControlLabel
-                                    key={i}
-                                    control={<Checkbox size="small" disabled />}
-                                    label={opt}
-                                />
-                            ))}
-                        </FormGroup>
-                    </Box>
-                );
-
             case 'date':
                 return (
-                    <Box>
-                        <Box sx={{ display: 'flex', alignItems: 'center', mb: 0.5, gap: 1 }}>
-                            <FormLabel>{field.label}</FormLabel>
-                            {renderIdChip()}
-                        </Box>
-                        <TextField
-                            type="date"
-                            fullWidth
-                            disabled
-                            size="small"
-                            InputLabelProps={{ shrink: true }}
-                            sx={{ bgcolor: 'white' }}
-                        />
+                    <TextField
+                        fullWidth
+                        disabled
+                        size="small"
+                        placeholder={field.label}
+                        InputProps={{ disableUnderline: true }}
+                        sx={inputStyle}
+                    />
+                );
+            case 'textarea':
+                return (
+                    <TextField
+                        fullWidth
+                        disabled
+                        multiline
+                        rows={2}
+                        placeholder={field.label}
+                        InputProps={{ disableUnderline: true }}
+                        sx={inputStyle}
+                    />
+                );
+            case 'select':
+                return (
+                    <Select
+                        fullWidth
+                        disabled
+                        size="small"
+                        value=""
+                        displayEmpty
+                        disableUnderline
+                        sx={inputStyle}
+                    >
+                        <MenuItem value="">{field.label}</MenuItem>
+                    </Select>
+                );
+            case 'radio':
+            case 'checkbox':
+                return (
+                    <Box sx={{ p: 1, bgcolor: '#f8f9fa', borderRadius: 2, border: '1px solid #e2e8f0' }}>
+                        <Typography variant="caption" color="text.secondary">選択肢プレビュー...</Typography>
                     </Box>
                 );
-
+            case 'divider':
+                 return <Divider sx={{ borderColor: '#333', borderBottomWidth: 2, my: 1 }} />;
+            case 'label':
+                return <Typography variant="h6" sx={{ fontWeight: 'bold' }}>{field.label}</Typography>
             default:
-                return <Typography>Unknown field type</Typography>;
+                return null;
         }
     };
 
-    // Special rendering for divider - minimal UI
     if (field.type === 'divider') {
         return (
             <Paper
-                elevation={1}
+                elevation={0}
                 sx={{
                     p: 1,
                     height: '100%',
-                    bgcolor: '#fafafa',
+                    bgcolor: 'transparent',
                     border: '1px dashed #ccc',
                     borderRadius: 1,
                     display: 'flex',
-                    flexDirection: 'column',
+                    alignItems: 'center',
                     justifyContent: 'center',
+                    position: 'relative',
+                    '&:hover .actions': { opacity: 1 }
                 }}
             >
-                <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 0.5 }}>
-                    <IconButton
-                        size="small"
-                        onClick={onDelete}
-                        onMouseDown={(e) => e.stopPropagation()}
-                        color="error"
-                    >
-                        <DeleteIcon fontSize="small" />
-                    </IconButton>
+                <Box sx={{ width: '100%' }}><Divider sx={{ borderColor: '#333', borderBottomWidth: 2 }} /></Box>
+                 <Box className="actions" sx={{ position: 'absolute', right: 8, top: -12, opacity: 0, transition: 'opacity 0.2s', bgcolor: 'white', border: '1px solid #ddd', borderRadius: 4, display: 'flex' }}>
+                    <IconButton size="small" onClick={onDelete} color="error"><DeleteIcon fontSize="small" /></IconButton>
                 </Box>
-                {renderPreview()}
             </Paper>
         );
     }
 
     return (
-        <Paper
-            elevation={2}
-            sx={{
-                p: 2,
-                height: '100%',
-                bgcolor: '#fafafa',
-                border: '1px solid #e0e0e0',
-                borderRadius: 2,
-                position: 'relative',
-                overflow: 'auto',
-                '&:hover': {
-                    borderColor: 'primary.main',
-                    boxShadow: 3,
-                },
-            }}
-        >
-            {/* Header with actions */}
-            <Box sx={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                mb: 1,
-            }}>
-                <Chip
-                    label={field.type}
-                    size="small"
-                    color="primary"
-                    variant="outlined"
-                    sx={{ fontSize: '0.7rem', height: 20 }}
-                />
-                <Box>
-                    {['select', 'radio', 'checkbox'].includes(field.type) && (
-                        <IconButton
-                            size="small"
-                            onClick={() => setIsEditing(!isEditing)}
-                            onMouseDown={(e) => e.stopPropagation()}
-                            color="primary"
-                        >
-                            <SettingsIcon fontSize="small" />
-                        </IconButton>
-                    )}
+        <>
+            <Paper
+                elevation={0}
+                sx={{
+                    p: 2,
+                    height: '100%',
+                    bgcolor: 'white',
+                    border: '1px solid',
+                    borderColor: 'divider',
+                    borderRadius: 3,
+                    position: 'relative',
+                    overflow: 'hidden',
+                    transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    '&:hover': {
+                        borderColor: 'primary.main',
+                        boxShadow: '0 4px 20px rgba(0,0,0,0.08)',
+                        transform: 'translateY(-2px)',
+                        '& .field-actions': { opacity: 1 }
+                    },
+                }}
+            >
+                {/* Simplified Header */}
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                    <Box sx={{ color: 'primary.main', display: 'flex' }}>{getIcon()}</Box>
+                    <Box sx={{ flex: 1, overflow: 'hidden' }}>
+                        <Typography variant="subtitle2" noWrap sx={{ fontWeight: 600 }}>{field.label}</Typography>
+                        <Typography variant="caption" color="text.secondary" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                            {field.type} <span style={{ opacity: 0.5 }}>|</span> ID: {field.id}
+                            {field.required && <Chip label="必須" size="small" color="error" sx={{ height: 16, fontSize: '0.6rem' }} />}
+                        </Typography>
+                    </Box>
+                </Box>
+
+                {/* Simplified Content Preview */}
+                <Box sx={{ flex: 1, pointerEvents: 'none', opacity: 0.7 }}>
+                    {renderPreview()}
+                </Box>
+
+                {/* Floating Actions */}
+                <Box 
+                    className="field-actions" 
+                    sx={{ 
+                        position: 'absolute', 
+                        top: 8, 
+                        right: 8, 
+                        opacity: 0, 
+                        transition: 'opacity 0.2s',
+                        display: 'flex',
+                        gap: 0.5,
+                        bgcolor: 'background.paper',
+                        borderRadius: 1,
+                        boxShadow: 1
+                    }}
+                >
+                    <IconButton
+                        size="small"
+                        onClick={() => setSettingsOpen(true)}
+                        color="primary"
+                        sx={{ bgcolor: 'primary.50', '&:hover': { bgcolor: 'primary.100' } }}
+                    >
+                        <SettingsIcon fontSize="small" />
+                    </IconButton>
                     <IconButton
                         size="small"
                         onClick={onDelete}
-                        onMouseDown={(e) => e.stopPropagation()}
                         color="error"
+                        sx={{ bgcolor: 'error.50', '&:hover': { bgcolor: 'error.100' } }}
                     >
                         <DeleteIcon fontSize="small" />
                     </IconButton>
                 </Box>
-            </Box>
+            </Paper>
 
-            {/* Field Preview */}
-            <Box sx={{ pointerEvents: 'none', mb: 1 }}>
-                {renderPreview()}
-            </Box>
-
-            {/* Label editor - always visible for most field types */}
-            {!['divider'].includes(field.type) && (
-                <TextField
-                    size="small"
-                    fullWidth
-                    value={labelValue}
-                    label="ラベル"
-                    sx={{ mt: 1, bgcolor: 'white' }}
-                    onMouseDown={(e) => e.stopPropagation()}
-                    onClick={(e) => e.stopPropagation()}
-                    onChange={(e) => handleLabelChange(e.target.value)}
-                />
-            )}
-
-            {/* Options Editor for select/radio/checkbox */}
-            {isEditing && ['select', 'radio', 'checkbox'].includes(field.type) && (
-                <Box
-                    sx={{ mt: 1.5, pt: 1.5, borderTop: '1px dashed #ccc' }}
-                    onMouseDown={(e) => e.stopPropagation()}
-                >
-                    <TextField
-                        label="選択肢（カンマ区切り）"
-                        value={optionsText}
-                        onChange={(e) => setOptionsText(e.target.value)}
-                        size="small"
-                        fullWidth
-                        placeholder="選択肢1, 選択肢2, 選択肢3"
-                        helperText="Enterで保存"
-                        sx={{ bgcolor: 'white' }}
-                        onKeyDown={(e) => {
-                            if (e.key === 'Enter') {
-                                e.preventDefault();
-                                handleSaveOptions();
-                            }
-                        }}
-                        onMouseDown={(e) => e.stopPropagation()}
-                    />
-                    <Button
-                        size="small"
-                        onClick={handleSaveOptions}
-                        sx={{ mt: 1 }}
-                        onMouseDown={(e) => e.stopPropagation()}
-                    >
-                        保存
-                    </Button>
-                </Box>
-            )}
-        </Paper>
+            <FieldSettingsDialog 
+                open={settingsOpen}
+                onClose={() => setSettingsOpen(false)}
+                onSave={handleSettingsSave}
+                field={field}
+                existingIds={existingIds}
+            />
+        </>
     );
 }
 
@@ -518,6 +341,7 @@ export default function AppFormEditorPage() {
                 type: prop.type || 'text',
                 label: prop.title || id,
                 options: prop.options,
+                required: (schema.required || []).includes(id)
             }));
             setFields(existingFields);
             setLayout(schema['x-layout'] || []);
@@ -642,7 +466,8 @@ export default function AppFormEditorPage() {
                     options: field.options
                 }
             }), {}),
-            "x-layout": layout
+            "x-layout": layout,
+            required: fields.filter(f => f.required).map(f => f.id)
         };
 
         saveMutation.mutate({ name: formName, schema });
@@ -683,7 +508,15 @@ export default function AppFormEditorPage() {
                 </Grid>
 
                 <Grid size={9}>
-                    <Paper sx={{ p: 2, minHeight: 600, bgcolor: '#f5f5f5' }}>
+                    <Paper sx={{ 
+                        p: 3, 
+                        minHeight: 600, 
+                        bgcolor: '#fafafa',
+                        backgroundImage: 'radial-gradient(#e0e0e0 1px, transparent 1px)',
+                        backgroundSize: '20px 20px',
+                        borderRadius: 3,
+                        boxShadow: 'inset 0 0 20px rgba(0,0,0,0.02)'
+                    }}>
                         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
                             <Typography variant="h6">プレビューキャンバス</Typography>
                             <Box sx={{ display: 'flex', gap: 1 }}>
@@ -699,7 +532,11 @@ export default function AppFormEditorPage() {
                             {mounted && (
                                 <ReactGridLayout
                                     className="layout"
-                                    style={{ minHeight: '500px', background: 'white', borderRadius: 8 }}
+                                    style={{ 
+                                        minHeight: '500px', 
+                                        background: 'transparent', // Transparent to show dots
+                                        borderRadius: 8 
+                                    }}
                                     layout={layout}
                                     gridConfig={{ cols: 12, rowHeight: 80 }}
                                     width={width}
@@ -719,6 +556,7 @@ export default function AppFormEditorPage() {
                                                 onDelete={() => handleRemoveField(field.id)}
                                                 onUpdateOptions={(options) => handleUpdateField(field.id, { options })}
                                                 onUpdateId={(newId) => handleUpdateFieldId(field.id, newId)}
+                                                onUpdateRequired={(required) => handleUpdateField(field.id, { required })}
                                                 existingIds={fields.map(f => f.id)}
                                             />
                                         </div>
@@ -766,72 +604,23 @@ export default function AppFormEditorPage() {
                             </Typography>
                         ) : (
                             <Box>
-                                {/* レイアウト順にソートしてフィールドを表示 */}
-                                {[...layout]
-                                    .sort((a, b) => (a.y * 100 + a.x) - (b.y * 100 + b.x))
-                                    .map((layoutItem) => {
-                                        const field = fields.find(f => f.id === layoutItem.i);
-                                        if (!field) return null;
-                                        const isHalfWidth = layoutItem.w <= 6;
-                                        return (
-                                            <Box
-                                                key={field.id}
-                                                sx={{
-                                                    mb: 2,
-                                                    display: isHalfWidth ? 'inline-block' : 'block',
-                                                    width: isHalfWidth ? '48%' : '100%',
-                                                    mr: isHalfWidth ? '2%' : 0,
-                                                    verticalAlign: 'top',
-                                                }}
-                                            >
-                                                {field.type === 'divider' && <Divider sx={{ my: 2 }} />}
-                                                {field.type === 'label' && (
-                                                    <Typography variant="h6" sx={{ fontWeight: 'bold', mb: 1 }}>
-                                                        {field.label}
-                                                    </Typography>
-                                                )}
-                                                {field.type === 'text' && (
-                                                    <TextField fullWidth label={field.label} size="small" />
-                                                )}
-                                                {field.type === 'textarea' && (
-                                                    <TextField fullWidth label={field.label} multiline rows={3} />
-                                                )}
-                                                {field.type === 'number' && (
-                                                    <TextField fullWidth label={field.label} type="number" size="small" />
-                                                )}
-                                                {field.type === 'date' && (
-                                                    <TextField fullWidth label={field.label} type="date" InputLabelProps={{ shrink: true }} size="small" />
-                                                )}
-                                                {field.type === 'select' && (
-                                                    <TextField select fullWidth label={field.label} size="small" defaultValue="">
-                                                        {(field.options || []).map(opt => (
-                                                            <MenuItem key={opt} value={opt}>{opt}</MenuItem>
-                                                        ))}
-                                                    </TextField>
-                                                )}
-                                                {field.type === 'radio' && (
-                                                    <FormControl component="fieldset">
-                                                        <FormLabel>{field.label}</FormLabel>
-                                                        <RadioGroup row>
-                                                            {(field.options || []).map(opt => (
-                                                                <FormControlLabel key={opt} value={opt} control={<Radio />} label={opt} />
-                                                            ))}
-                                                        </RadioGroup>
-                                                    </FormControl>
-                                                )}
-                                                {field.type === 'checkbox' && (
-                                                    <FormControl component="fieldset">
-                                                        <FormLabel>{field.label}</FormLabel>
-                                                        <FormGroup row>
-                                                            {(field.options || []).map(opt => (
-                                                                <FormControlLabel key={opt} control={<Checkbox />} label={opt} />
-                                                            ))}
-                                                        </FormGroup>
-                                                    </FormControl>
-                                                )}
-                                            </Box>
-                                        );
-                                    })}
+                                <DynamicFormRenderer
+                                    schema={{
+                                        type: 'object',
+                                        properties: fields.reduce((acc, field) => ({
+                                            ...acc,
+                                            [field.id]: {
+                                                type: field.type,
+                                                title: field.label,
+                                                options: field.options
+                                            }
+                                        }), {}),
+                                        "x-layout": layout
+                                    }}
+                                    onSubmit={(data) => {
+                                        alert('プレビューモード: 送信データ\\n' + JSON.stringify(data, null, 2));
+                                    }}
+                                />
                             </Box>
                         )}
                     </Box>

@@ -39,6 +39,7 @@ import DescriptionIcon from '@mui/icons-material/Description';
 import AccountTreeIcon from '@mui/icons-material/AccountTree';
 import Link from 'next/link';
 import FlowVisualization from '@/components/flow-designer/FlowVisualization';
+import DynamicFormRenderer from '@/components/application/DynamicFormRenderer';
 
 interface ApplicationDefinition {
     id: string;
@@ -78,13 +79,64 @@ interface FieldDef {
     helperText?: string;
 }
 
+// Custom styled components for consistent premium look
+const inputStyle = {
+    '& .MuiInputBase-root': {
+        bgcolor: '#f8f9fa',
+        borderRadius: 3,
+        border: '1px solid #e2e8f0',
+        transition: 'all 0.2s ease-in-out',
+        '&:hover': {
+            bgcolor: '#fff',
+            borderColor: '#bkc',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.05)',
+        },
+        '&.Mui-focused': {
+            bgcolor: '#fff',
+            borderColor: '#3a1c71',
+            boxShadow: '0 0 0 3px rgba(58, 28, 113, 0.1)',
+        }
+    },
+    '& .MuiInputBase-input': {
+        padding: '12px 16px',
+    },
+    '& .MuiInputLabel-root': {
+        transform: 'translate(14px, 12px) scale(1)',
+        '&.Mui-focused, &.MuiFormLabel-filled': {
+            transform: 'translate(14px, -9px) scale(0.75)',
+            fontWeight: 'bold',
+            color: '#3a1c71',
+        }
+    }
+};
+
+const selectionCardStyle = {
+    flex: 1,
+    minWidth: '150px',
+    m: 0.5,
+    p: 1.5,
+    borderRadius: 3,
+    border: '1px solid #edf2f7',
+    transition: 'all 0.2s',
+    bgcolor: '#f8f9fa',
+    '&:hover': {
+        bgcolor: '#fff',
+        borderColor: '#cbd5e0',
+        transform: 'translateY(-1px)',
+        boxShadow: '0 4px 12px rgba(0,0,0,0.05)'
+    },
+    '&:has(.Mui-checked)': {
+        bgcolor: '#f0f5ff',
+        borderColor: '#3a1c71',
+        boxShadow: '0 4px 12px rgba(58, 28, 113, 0.1)'
+    }
+};
+
 export default function SubmitApplicationPage() {
     const router = useRouter();
     const params = useParams();
     const appDefId = params.appDefId as string;
 
-    const [formData, setFormData] = useState<Record<string, any>>({});
-    const [errors, setErrors] = useState<Record<string, string>>({});
     const [error, setError] = useState<string | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -122,318 +174,9 @@ export default function SubmitApplicationPage() {
         },
     });
 
-    const handleSaveDraft = () => {
-        saveDraftMutation.mutate(formData);
-    };
-
-    // Validate form data
-    const validateForm = (): boolean => {
-        const newErrors: Record<string, string> = {};
-
-        for (const field of sortedFields) {
-            const value = formData[field.id];
-
-            // Skip UI-only elements
-            if (['divider', 'label'].includes(field.type)) continue;
-
-            // Required check
-            if (field.required && (!value || (typeof value === 'string' && !value.trim()))) {
-                newErrors[field.id] = `${field.title}は必須です`;
-                continue;
-            }
-
-            if (value && typeof value === 'string') {
-                // Pattern check
-                if (field.pattern) {
-                    const regex = new RegExp(field.pattern);
-                    if (!regex.test(value)) {
-                        newErrors[field.id] = `${field.title}の形式が正しくありません`;
-                        continue;
-                    }
-                }
-
-                // MinLength check
-                if (field.minLength && value.length < field.minLength) {
-                    newErrors[field.id] = `${field.title}は${field.minLength}文字以上で入力してください`;
-                    continue;
-                }
-
-                // MaxLength check
-                if (field.maxLength && value.length > field.maxLength) {
-                    newErrors[field.id] = `${field.title}は${field.maxLength}文字以下で入力してください`;
-                    continue;
-                }
-            }
-
-            // Number range checks
-            if (field.type === 'number' && value !== '' && value !== undefined) {
-                const numValue = Number(value);
-                if (field.min !== undefined && numValue < field.min) {
-                    newErrors[field.id] = `${field.title}は${field.min}以上で入力してください`;
-                    continue;
-                }
-                if (field.max !== undefined && numValue > field.max) {
-                    newErrors[field.id] = `${field.title}は${field.max}以下で入力してください`;
-                    continue;
-                }
-            }
-        }
-
-        setErrors(newErrors);
-        return Object.keys(newErrors).length === 0;
-    };
-
-    const handleSubmit = (e: React.FormEvent) => {
-        e.preventDefault();
-        setError(null);
-
-        if (!validateForm()) {
-            setError('入力内容にエラーがあります。修正してください。');
-            return;
-        }
-
-        setIsSubmitting(true);
-        submitMutation.mutate(formData);
-    };
-
-    const handleFieldChange = (fieldId: string, value: any) => {
-        setFormData(prev => ({ ...prev, [fieldId]: value }));
-        // Clear error on change
-        if (errors[fieldId]) {
-            setErrors(prev => {
-                const newErrors = { ...prev };
-                delete newErrors[fieldId];
-                return newErrors;
-            });
-        }
-    };
-
-    // Get layout-sorted fields (including UI elements)
-    const sortedFields = useMemo(() => {
-        const schema = appDef?.formDefinition?.schema;
-        if (!schema?.properties) return [];
-
-        const properties = schema.properties as Record<string, FieldDef>;
-        const layout: LayoutItem[] = schema['x-layout'] || [];
-        const required: string[] = schema.required || [];
-
-        // Create field array with layout info - include all elements
-        const fields = Object.entries(properties)
-            .map(([id, prop]) => {
-                const layoutItem = layout.find(l => l.i === id);
-                return {
-                    id,
-                    ...prop,
-                    required: required.includes(id) || prop.required === true,
-                    x: layoutItem?.x ?? 0,
-                    y: layoutItem?.y ?? 0,
-                    w: layoutItem?.w ?? 12,
-                    h: layoutItem?.h ?? 1,
-                };
-            });
-
-        // Sort by y then x
-        fields.sort((a, b) => {
-            if (a.y !== b.y) return a.y - b.y;
-            return a.x - b.x;
-        });
-
-        return fields;
-    }, [appDef]);
-
-    // Group fields by row (same y)
-    const rows = useMemo(() => {
-        const rowMap: Record<number, typeof sortedFields> = {};
-        for (const field of sortedFields) {
-            if (!rowMap[field.y]) rowMap[field.y] = [];
-            rowMap[field.y].push(field);
-        }
-        return Object.entries(rowMap)
-            .sort(([a], [b]) => Number(a) - Number(b))
-            .map(([, fields]) => fields.sort((a, b) => a.x - b.x));
-    }, [sortedFields]);
-
-    const renderField = (field: any) => {
-        const value = formData[field.id] ?? '';
-        // Map layout width (out of 12) to MD grid columns
-        const gridWidth = Math.min(12, Math.max(1, field.w));
-        const fieldError = errors[field.id];
-
-        // Handle UI-only elements
-        if (field.type === 'divider') {
-            return (
-                <Grid key={field.id} size={12}>
-                    <Divider sx={{ my: 1 }} />
-                </Grid>
-            );
-        }
-
-        if (field.type === 'label') {
-            return (
-                <Grid key={field.id} size={12}>
-                    <Typography variant="subtitle1" fontWeight="bold" sx={{ mt: 2, mb: 1 }}>
-                        {field.title}
-                    </Typography>
-                </Grid>
-            );
-        }
-
-        const fieldElement = (() => {
-            switch (field.type) {
-                case 'text':
-                    return (
-                        <TextField
-                            label={field.title}
-                            fullWidth
-                            value={value}
-                            onChange={(e) => handleFieldChange(field.id, e.target.value)}
-                            required={field.required}
-                            error={!!fieldError}
-                            helperText={fieldError || field.helperText}
-                            inputProps={{
-                                minLength: field.minLength,
-                                maxLength: field.maxLength,
-                                pattern: field.pattern,
-                            }}
-                        />
-                    );
-                case 'textarea':
-                    return (
-                        <TextField
-                            label={field.title}
-                            fullWidth
-                            multiline
-                            rows={3}
-                            value={value}
-                            onChange={(e) => handleFieldChange(field.id, e.target.value)}
-                            required={field.required}
-                            error={!!fieldError}
-                            helperText={fieldError || field.helperText}
-                        />
-                    );
-                case 'number':
-                    return (
-                        <TextField
-                            label={field.title}
-                            type="number"
-                            fullWidth
-                            value={value}
-                            onChange={(e) => handleFieldChange(field.id, e.target.value)}
-                            required={field.required}
-                            error={!!fieldError}
-                            helperText={fieldError || field.helperText}
-                            inputProps={{
-                                min: field.min,
-                                max: field.max,
-                            }}
-                        />
-                    );
-                case 'date':
-                    return (
-                        <TextField
-                            label={field.title}
-                            type="date"
-                            fullWidth
-                            InputLabelProps={{ shrink: true }}
-                            value={value}
-                            onChange={(e) => handleFieldChange(field.id, e.target.value)}
-                            required={field.required}
-                            error={!!fieldError}
-                            helperText={fieldError || field.helperText}
-                        />
-                    );
-                case 'select':
-                    return (
-                        <FormControl fullWidth error={!!fieldError} required={field.required}>
-                            <InputLabel>{field.title}</InputLabel>
-                            <Select
-                                label={field.title}
-                                value={value}
-                                onChange={(e) => handleFieldChange(field.id, e.target.value)}
-                            >
-                                {(field.options || []).map((opt: string) => (
-                                    <MenuItem key={opt} value={opt}>{opt}</MenuItem>
-                                ))}
-                            </Select>
-                        </FormControl>
-                    );
-                case 'radio':
-                    return (
-                        <FormControl component="fieldset">
-                            <FormLabel>{field.title}</FormLabel>
-                            <RadioGroup
-                                row
-                                value={value}
-                                onChange={(e) => handleFieldChange(field.id, e.target.value)}
-                            >
-                                {(field.options || []).map((opt: string) => (
-                                    <FormControlLabel key={opt} value={opt} control={<Radio />} label={opt} />
-                                ))}
-                            </RadioGroup>
-                        </FormControl>
-                    );
-                case 'checkbox':
-                    if (field.options && field.options.length > 0) {
-                        const checkedValues = Array.isArray(value) ? value : [];
-                        return (
-                            <FormControl component="fieldset">
-                                <FormLabel>{field.title}</FormLabel>
-                                <FormGroup row>
-                                    {field.options.map((opt: string) => (
-                                        <FormControlLabel
-                                            key={opt}
-                                            control={
-                                                <Checkbox
-                                                    checked={checkedValues.includes(opt)}
-                                                    onChange={(e) => {
-                                                        if (e.target.checked) {
-                                                            handleFieldChange(field.id, [...checkedValues, opt]);
-                                                        } else {
-                                                            handleFieldChange(field.id, checkedValues.filter((v: string) => v !== opt));
-                                                        }
-                                                    }}
-                                                />
-                                            }
-                                            label={opt}
-                                        />
-                                    ))}
-                                </FormGroup>
-                            </FormControl>
-                        );
-                    }
-                    return (
-                        <FormControlLabel
-                            control={
-                                <Checkbox
-                                    checked={!!value}
-                                    onChange={(e) => handleFieldChange(field.id, e.target.checked)}
-                                />
-                            }
-                            label={field.title}
-                        />
-                    );
-                default:
-                    return (
-                        <TextField
-                            label={field.title}
-                            fullWidth
-                            value={value}
-                            onChange={(e) => handleFieldChange(field.id, e.target.value)}
-                        />
-                    );
-            }
-        })();
-
-        return (
-            <Grid key={field.id} size={{ xs: 12, md: gridWidth }}>
-                {fieldElement}
-            </Grid>
-        );
-    };
-
     if (isLoading) {
         return (
-            <Box sx={{ p: 3, maxWidth: 900, mx: 'auto' }}>
+            <Box sx={{ p: 3, maxWidth: 1200, mx: 'auto' }}>
                 <LinearProgress />
                 <Typography sx={{ mt: 2, textAlign: 'center' }}>読み込み中...</Typography>
             </Box>
@@ -442,7 +185,7 @@ export default function SubmitApplicationPage() {
 
     if (!appDef) {
         return (
-            <Box sx={{ p: 3, maxWidth: 900, mx: 'auto' }}>
+            <Box sx={{ p: 3, maxWidth: 1200, mx: 'auto' }}>
                 <Alert severity="error">アプリが見つかりません</Alert>
             </Box>
         );
@@ -454,7 +197,7 @@ export default function SubmitApplicationPage() {
             background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
             py: 4,
         }}>
-            <Box sx={{ maxWidth: 900, mx: 'auto', px: 2 }}>
+            <Box sx={{ maxWidth: 1200, mx: 'auto', px: 2 }}>
                 {/* Header Card */}
                 <Card sx={{
                     mb: 3,
@@ -558,21 +301,14 @@ export default function SubmitApplicationPage() {
                             </Alert>
                         )}
 
-                        {sortedFields.length === 0 ? (
-                            <Alert severity="info">
-                                フィールドが定義されていません。設計者に連絡してください。
-                            </Alert>
-                        ) : (
-                            <form onSubmit={handleSubmit}>
-                                {rows.map((rowFields, rowIdx) => (
-                                    <Grid container spacing={2} key={rowIdx} sx={{ mb: 2 }}>
-                                        {rowFields.map(renderField)}
-                                    </Grid>
-                                ))}
-
-                                <Divider sx={{ my: 3 }} />
-
-                                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <DynamicFormRenderer 
+                            schema={appDef.formDefinition.schema}
+                            onSubmit={(data) => {
+                                setIsSubmitting(true);
+                                submitMutation.mutate(data);
+                            }}
+                            renderActions={(methods) => (
+                                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
                                     <Button
                                         variant="outlined"
                                         component={Link}
@@ -585,7 +321,10 @@ export default function SubmitApplicationPage() {
                                         <Button
                                             variant="outlined"
                                             startIcon={<SaveIcon />}
-                                            onClick={handleSaveDraft}
+                                            onClick={() => {
+                                                const data = methods.getValues();
+                                                saveDraftMutation.mutate(data);
+                                            }}
                                             disabled={saveDraftMutation.isPending}
                                             sx={{ borderRadius: 2, px: 3 }}
                                         >
@@ -609,8 +348,8 @@ export default function SubmitApplicationPage() {
                                         </Button>
                                     </Box>
                                 </Box>
-                            </form>
-                        )}
+                            )}
+                        />
                     </CardContent>
                 </Card>
 
