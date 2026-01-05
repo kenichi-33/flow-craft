@@ -2,7 +2,7 @@
 
 import React, { useMemo } from 'react';
 import { Box, Typography, Chip } from '@mui/material';
-import ReactFlow, { MarkerType, Background, Handle, Position } from 'reactflow';
+import ReactFlow, { MarkerType, Background, Handle, Position, Controls } from 'reactflow';
 import 'reactflow/dist/style.css';
 
 // 共通のハンドル設定
@@ -357,6 +357,18 @@ export default function FlowVisualization({
         return { displayNodes, displayEdges };
     }, [rawNodes, rawEdges, currentStepIds, completedStepIds]);
 
+    const nodeTypesMemo = useMemo(() => ({
+        approval: ApprovalNode,
+        apiCall: SimpleNode,
+        llmCall: SimpleNode,
+        start: CycleNode,
+        end: CycleNode,
+        parallel: GatewayNode,
+        join: GatewayNode,
+        branch: GatewayNode,
+        swimlane: SwimlaneNode,
+    }), []);
+
     if (displayNodes.length === 0) {
         return (
             <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height, bgcolor: '#fafafa', borderRadius: 2 }}>
@@ -370,15 +382,16 @@ export default function FlowVisualization({
             <ReactFlow
                 nodes={displayNodes}
                 edges={displayEdges}
-                nodeTypes={nodeTypes}
+                nodeTypes={nodeTypesMemo}
                 fitView
                 nodesDraggable={false}
                 nodesConnectable={false}
                 elementsSelectable={false}
-                panOnDrag={false}
+                panOnDrag={true}
                 zoomOnScroll={false}
             >
                 {showBackground && <Background />}
+                <Controls />
             </ReactFlow>
         </Box>
     );

@@ -28,6 +28,7 @@ import 'reactflow/dist/style.css';
 import ApplicationFormViewer from '@/components/ApplicationFormViewer';
 import ApprovalHistory from '@/components/ApprovalHistory';
 import TaskList from '@/components/TaskList';
+import { UserDisplay } from '@/components/UserDisplay';
 import { useAuth } from '@/providers/AuthProvider';
 import AssignmentIcon from '@mui/icons-material/Assignment';
 
@@ -35,6 +36,7 @@ interface ApplicationDetail {
     id: string;
     applicationNumber: number;
     applicantId: string;
+    applicantInfo?: any;
     status: string;
     inputData: any;
     createdAt: string;
@@ -57,12 +59,14 @@ interface ApplicationDetail {
         status: string;
         stepId: string;
         assignedTo?: string;
+        assignedToInfo?: any;
         createdAt: string;
     }>;
     history: Array<{
         id: string;
         action: string;
         actorId: string;
+        actorInfo?: any;
         comment?: string;
         stepId: string;
         actedAt: string;
@@ -269,6 +273,8 @@ export default function ApplicationDetailPage() {
                         </Typography>
                         <Typography variant="body2" sx={{ opacity: 0.9 }} suppressHydrationWarning>
                             申請日: {new Date(application.createdAt).toLocaleString('ja-JP')}
+                            {' / '}
+                            申請者: <UserDisplay user={application.applicantInfo} fallback={application.applicantId} />
                         </Typography>
                     </Box>
                     <Chip
@@ -327,7 +333,11 @@ export default function ApplicationDetailPage() {
                                             ステップ: {stepLabel}
                                         </Typography>
                                         <Typography variant="body2" color="text.secondary">
-                                            担当者: {formatAssigned(assignedTo)}
+                                            担当者: {task.assignedToInfo ? (
+                                                <UserDisplay user={task.assignedToInfo} fallback={task.assignedTo} />
+                                            ) : (
+                                                formatAssigned(assignedTo)
+                                            )}
                                         </Typography>
                                     </Box>
                                     {isUserAssignedToTask(task.assignedTo) && (
@@ -388,6 +398,7 @@ export default function ApplicationDetailPage() {
                         flowEdges={application.flowDefinition?.edges}
                         applicationInfo={{
                             applicantId: application.applicantId,
+                            applicantInfo: application.applicantInfo, // スナップショットを渡す
                             createdAt: application.createdAt,
                             status: application.status,
                         }}

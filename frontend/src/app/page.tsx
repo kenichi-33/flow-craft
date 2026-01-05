@@ -18,7 +18,7 @@ import AssignmentTurnedInIcon from '@mui/icons-material/AssignmentTurnedIn';
 import DesignServicesIcon from '@mui/icons-material/DesignServices';
 import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings';
 import { useAuth } from '@/providers/AuthProvider';
-import AppLayout from '@/components/AppLayout';
+
 
 const quickActions = [
   {
@@ -76,24 +76,23 @@ export default function HomePage() {
 
   if (isLoading) {
     return (
-      <AppLayout>
         <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '50vh' }}>
           <Typography>読み込み中...</Typography>
         </Box>
-      </AppLayout>
     );
   }
 
   return (
-    <AppLayout>
+
       <Box
         sx={{
           minHeight: 'calc(100vh - 64px)',
           background: 'linear-gradient(135deg, rgba(102,126,234,0.05) 0%, rgba(118,75,162,0.05) 100%)',
           py: 6,
+          width: '100%',
         }}
       >
-        <Container maxWidth="lg">
+        <Container maxWidth="lg" sx={{ mx: 'auto' }}>
           {/* ヒーローセクション */}
           <Box
             sx={{
@@ -196,6 +195,5 @@ export default function HomePage() {
           </Box>
         </Container>
       </Box>
-    </AppLayout>
   );
 }

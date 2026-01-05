@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { Box, Typography, alpha } from '@mui/material';
+import { UserDisplay } from './UserDisplay';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import CancelIcon from '@mui/icons-material/Cancel';
 import ReplayIcon from '@mui/icons-material/Replay';
@@ -16,6 +17,7 @@ interface HistoryItem {
     id: string;
     action: string;
     actorId: string;
+    actorInfo?: any;
     comment?: string;
     stepId: string;
     actedAt?: string;
@@ -104,7 +106,7 @@ export default function ApprovalHistory({ history }: ApprovalHistoryProps) {
                             {h.comment && <span style={{ fontWeight: 400 }}> - {h.comment}</span>}
                         </Typography>
                         <Typography variant="caption" color="text.secondary" suppressHydrationWarning>
-                            {h.actorId === 'SYSTEM' ? 'システム' : h.actorId} • {new Date(h.actedAt || h.createdAt || new Date()).toLocaleString('ja-JP')}
+                            {h.actorId === 'SYSTEM' ? 'システム' : <UserDisplay user={h.actorInfo} fallback={h.actorId} />} • {new Date(h.actedAt || h.createdAt || new Date()).toLocaleString('ja-JP')}
                         </Typography>
                     </Box>
                 </Box>

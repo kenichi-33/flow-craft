@@ -17,12 +17,14 @@ import PersonIcon from '@mui/icons-material/Person';
 import GroupIcon from '@mui/icons-material/Group';
 import SecurityIcon from '@mui/icons-material/Security';
 import ScheduleIcon from '@mui/icons-material/Schedule';
+import { UserDisplay } from './UserDisplay';
 
 interface Task {
     id: string;
     stepId: string;
     stepName?: string;
     assignedTo?: string;
+    assignedToInfo?: any;
     assignedToDisplay?: string;  // バックエンドで変換済みの表示用名前
     status: string;
     createdAt: string;
@@ -36,6 +38,7 @@ interface TaskListProps {
     flowEdges?: any[];
     applicationInfo?: {
         applicantId?: string;
+        applicantInfo?: any; // スナップショットを追加
         createdAt?: string;
         status?: string;
     };
@@ -72,16 +75,43 @@ const getStatusChip = (status: string, isStartNode: boolean, applicationStatus?:
     }
 };
 
-const getAssigneeDisplay = (assignedTo: string | undefined, nodeData?: any, departmentsMap?: Record<string, string>, assignedToDisplay?: string) => {
-    // バックエンドで変換済みの表示があればそれを使用
-    if (assignedToDisplay) {
+const getAssigneeDisplay = (assignedTo: string | undefined, nodeData?: any, departmentsMap?: Record<string, string>, assignedToDisplay?: string, assignedToInfo?: any) => {
+    // スナップショットがあればUserDisplayを使用
+    if (assignedToInfo) {
+        return <UserDisplay user={assignedToInfo} fallback={assignedToDisplay || assignedTo} />;
+    }
+
+    // バックエンドで変換済みの表示がある場合、かつユーザーIDが特定できるならUserDisplay風に表示
+    // 未来のタスクの場合、nodeData.assignee に "user:username" が入っている可能性がある
+    const rawAssignee = assignedTo || nodeData?.assignee;
+    const display = assignedToDisplay || nodeData?.assigneeDisplay;
+    
+    if (display && rawAssignee && rawAssignee.startsWith('user:')) {
+        // ユーザー名がわかる場合はツールチップ付きで表示したい
+        const username = rawAssignee.substring(5);
+        // 仮のSnapshotを作成
+        // UserDisplayは first/last がない場合 username を優先してしまうため、
+        // 表示名を lastName に入れることで強制的に表示させる（ツールチップには username が出る）
+        const fakeSnapshot = {
+            username: username,
+            lastName: display,
+            type: 'user' as const
+        };
+        // fallbackに表示名を使うことで、UserDisplayは表示名を表示しつつ、ツールチップにusernameを表示する
+        return <UserDisplay user={fakeSnapshot} fallback={display} />;
+    }
+
+    // 表示名だけがある場合（グループ名など）
+    if (display) {
         return (
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                 <GroupIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
-                <Typography variant="body2">{assignedToDisplay}</Typography>
+                <Typography variant="body2">{display}</Typography>
             </Box>
         );
     }
+
+
     
     // 未生成のタスクの場合、ノードから担当者を取得
     const assigned = assignedTo || nodeData?.assignee;
@@ -203,6 +233,7 @@ export default function TaskList({ tasks, flowNodes, flowEdges, applicationInfo,
                     stepId: node.id,
                     stepName: node.data?.label || '開始',
                     assignedTo: applicationInfo?.applicantId ? `user:${applicationInfo.applicantId}` : undefined,
+                    assignedToInfo: applicationInfo?.applicantInfo, // スナップショットを渡す
                     status: 'COMPLETED', // 開始は常に完了
                     createdAt: applicationInfo?.createdAt || '',
                     updatedAt: applicationInfo?.createdAt,
@@ -234,6 +265,7 @@ export default function TaskList({ tasks, flowNodes, flowEdges, applicationInfo,
                 stepId: node.id,
                 stepName: node.data?.label || node.id,
                 assignedTo: task?.assignedTo,
+                assignedToInfo: task?.assignedToInfo,
                 assignedToDisplay: task?.assignedToDisplay,  // バックエンドで変換済みの表示
                 status: task?.status || 'WAITING',
                 createdAt: task?.createdAt || '',
@@ -293,7 +325,7 @@ export default function TaskList({ tasks, flowNodes, flowEdges, applicationInfo,
                                     </Typography>
                                 </TableCell>
                                 <TableCell>
-                                    {getAssigneeDisplay(step.assignedTo, step.nodeData, departmentsMap, step.assignedToDisplay)}
+                                    {getAssigneeDisplay(step.assignedTo, step.nodeData, departmentsMap, step.assignedToDisplay, (step as any).assignedToInfo)}
                                 </TableCell>
                                 <TableCell>
                                     {getStatusChip(

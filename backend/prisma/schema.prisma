@@ -1,5 +1,6 @@
 generator client {
   provider = "prisma-client-js"
+  binaryTargets = ["native", "linux-musl-arm64-openssl-3.0.x"]
 }
 
 datasource db {
@@ -43,6 +44,8 @@ model Application {
   formDefinitionId        String   @map("form_definition_id")
   flowDefinitionId        String   @map("flow_definition_id")
   applicantId             String   @map("applicant_id")
+  // スナップショット: 申請者情報 { username, firstName, lastName, email, department }
+  applicantInfo           Json?    @map("applicant_info")
   status                  ApplicationStatus @default(DRAFT)
   inputData               Json     @map("input_data")
   currentNodeId           String?  @map("current_node_id")
@@ -79,6 +82,8 @@ model ApprovalTask {
   stepId             String     @map("step_id") // 対応するノードID
   assignedTo         String?  @map("assigned_to") // UserId or RoleId
   assignedToDisplay  String?  @map("assigned_to_display") // 表示用の名前（例：営業第一課）
+  // スナップショット: 担当者情報 { type, username, firstName, lastName, email, department, ... }
+  assignedToInfo     Json?    @map("assigned_to_info")
   dueDate            DateTime? @map("due_date")
   createdAt          DateTime @default(now()) @map("created_at")
   updatedAt          DateTime @default(now()) @updatedAt @map("updated_at")
@@ -99,6 +104,8 @@ model ApprovalHistory {
   id            String   @id @default(uuid())
   applicationId String   @map("application_id")
   actorId       String   @map("actor_id")
+  // スナップショット: 実行者情報 { username, firstName, lastName, email, department }
+  actorInfo     Json?    @map("actor_info")
   action        String   // APPROVE, REJECT, REMAND
   comment       String?
   stepId        String   @map("step_id")

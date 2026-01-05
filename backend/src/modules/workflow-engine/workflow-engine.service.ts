@@ -4,6 +4,7 @@ import { Prisma } from '@prisma/client';
 import axios from 'axios';
 
 import { MailService } from '../notifications/mail.service';
+import { UsersService } from '../users/users.service';
 
 @Injectable()
 export class WorkflowEngineService {
@@ -14,7 +15,8 @@ export class WorkflowEngineService {
 
     constructor(
         private prisma: PrismaService,
-        private mailService: MailService
+        private mailService: MailService,
+        private usersService: UsersService,
     ) { }
 
     /**
@@ -61,6 +63,9 @@ export class WorkflowEngineService {
             throw new BadRequestException('Flow has no start node');
         }
 
+        // 申請者情報のスナップショットを取得
+        const applicantInfo = await this.usersService.getUserSnapshotByUsername(input.applicantId);
+
         // 申請を作成（スナップショット保存でバージョン互換性を確保）
         const application = await this.prisma.application.create({
             data: {
@@ -68,6 +73,7 @@ export class WorkflowEngineService {
                 formDefinitionId: appDef.formDefinitionId,
                 flowDefinitionId: appDef.flowDefinitionId,
                 applicantId: input.applicantId,
+                applicantInfo: applicantInfo as any,
                 status: 'IN_PROGRESS',
                 inputData: input.inputData,
                 currentNodeId: startNode.id,
@@ -83,6 +89,7 @@ export class WorkflowEngineService {
             data: {
                 applicationId: application.id,
                 actorId: input.applicantId,
+                actorInfo: applicantInfo as any, // 申請者情報を履歴にも保存
                 action: 'START',
                 stepId: startNode.id,
                 comment: '申請を開始しました',
@@ -133,6 +140,9 @@ export class WorkflowEngineService {
         // 開始ノードを見つける
         const startNode = nodes.find(n => n.type === 'start');
 
+        // 申請者情報のスナップショットを取得
+        const applicantInfo = await this.usersService.getUserSnapshotByUsername(input.applicantId);
+
         // 申請を下書きステータスで作成
         const application = await this.prisma.application.create({
             data: {
@@ -140,6 +150,7 @@ export class WorkflowEngineService {
                 formDefinitionId: appDef.formDefinitionId,
                 flowDefinitionId: appDef.flowDefinitionId,
                 applicantId: input.applicantId,
+                applicantInfo: applicantInfo as any,
                 status: 'DRAFT',
                 inputData: input.inputData,
                 currentNodeId: startNode?.id || null,
@@ -214,6 +225,7 @@ export class WorkflowEngineService {
             where: { id: applicationId },
             include: {
                 flowDefinition: true,
+                applicationDefinition: true,
             },
         });
 
@@ -285,12 +297,17 @@ export class WorkflowEngineService {
                 nextNode.data?.assignee || null,
                 application.applicantId
             );
+
+            // 担当者情報のスナップショットを取得
+            const assignedToInfo = await this.usersService.resolveAssignedToSnapshot(resolvedAssignee || '');
+
             await this.prisma.approvalTask.create({
                 data: {
                     applicationId,
                     stepId: nextNodeId,
                     assignedTo: resolvedAssignee,
                     assignedToDisplay: nextNode.data?.assigneeDisplay || null,
+                    assignedToInfo: assignedToInfo as any,
                     status: 'PENDING',
                 },
             });
@@ -400,12 +417,16 @@ export class WorkflowEngineService {
                         branchTarget.data?.assignee || null,
                         application.applicantId
                     );
+
+                    const assignedToInfo = await this.usersService.resolveAssignedToSnapshot(resolvedBranchAssignee || '');
+
                     await this.prisma.approvalTask.create({
                         data: {
                             applicationId,
                             stepId: branchTargetId,
                             assignedTo: resolvedBranchAssignee,
                             assignedToDisplay: branchTarget.data?.assigneeDisplay || null,  // フローノードから表示名をコピー
+                            assignedToInfo: assignedToInfo as any,
                             status: 'PENDING',
                         },
                     });
@@ -462,12 +483,16 @@ export class WorkflowEngineService {
                         targetNode.data?.assignee || null,
                         application.applicantId
                     );
+
+                    const assignedToInfo = await this.usersService.resolveAssignedToSnapshot(resolvedAssignee || '');
+
                     await this.prisma.approvalTask.create({
                         data: {
                             applicationId,
                             stepId: targetNode.id,
                             assignedTo: resolvedAssignee,
                             assignedToDisplay: targetNode.data?.assigneeDisplay || null,
+                            assignedToInfo: assignedToInfo as any,
                             status: 'PENDING',
                         },
                     });
@@ -585,11 +610,15 @@ export class WorkflowEngineService {
             data: { status: 'COMPLETED' },
         });
 
+        // 実行者情報のスナップショットを取得
+        const actorInfo = await this.usersService.getUserSnapshotByUsername(input.actorId);
+
         // 履歴を記録
         await this.prisma.approvalHistory.create({
             data: {
                 applicationId: task.applicationId,
                 actorId: input.actorId,
+                actorInfo: actorInfo as any,
                 action: input.action,
                 comment: input.comment,
                 stepId: task.stepId,
@@ -904,8 +933,9 @@ export class WorkflowEngineService {
     private replaceVariables(text: string, data: any): string {
         if (!text) return '';
         return text.replace(/\{\{(.+?)\}\}/g, (_, key) => {
-            const val = data?.[key.trim()];
-            return val !== undefined ? String(val) : '';
+            const path = key.trim();
+            const value = this.getValueByPath(data, path);
+            return value !== undefined ? String(value) : '';
         });
     }
 
@@ -1245,17 +1275,17 @@ export class WorkflowEngineService {
 
         // 宛先ユーザーのリストを解決
         const assignments = assignee.split(',').map(s => s.trim());
-        const recipients: string[] = [];
+        const recipients: { email: string; user: any }[] = [];
 
         for (const assignment of assignments) {
             if (assignment.startsWith('user:')) {
                 const userId = assignment.substring(5);
-                const user = await this.getUserFromKeycloak(userId);
-                if (user?.email) {
-                    recipients.push(user.email);
+                const userSnapshot = await this.usersService.getUserSnapshotByUsername(userId);
+                if (userSnapshot?.email) {
+                    recipients.push({ email: userSnapshot.email, user: userSnapshot });
                 }
             } else if (assignment.startsWith('group:')) {
-                // グループのメンバー全員に送信は今回は省略（必要なら実装）
+                // グループのメンバー全員に送信は今回は省略
                 console.log(`[WorkflowEngine] Email to group not supported yet: ${assignment}`);
             } else if (assignment.startsWith('role:')) {
                 // ロールのメンバーも同様省略
@@ -1268,27 +1298,47 @@ export class WorkflowEngineService {
             return;
         }
 
-        // テンプレート変数の置換
-        const data = {
-            ...application.inputData,
-            application,
-            applicationDefinition: application.applicationDefinition,
-            assignee: assignee // TODO: 表示名に変換できればベター
-        };
+        // ユニークな宛先に送信 (emailで重複排除)
+        const uniqueRecipients = Array.from(new Map(recipients.map(item => [item.email, item])).values());
 
-        const subject = this.replaceVariables(
-            subjectTemplate || '【Flow Craft】承認依頼: {{applicationDefinition.name}}',
-            data
-        );
-        const body = this.replaceVariables(
-            bodyTemplate || '{{assignee}} 様\n\n申請が届いています。\n確認をお願いします。',
-            data
-        );
+        for (const { email, user } of uniqueRecipients) {
+            // 変数コンテキストの準備
+            // User requested: username, first name, last name, mail address, department
+            const assigneeName = user.lastName && user.firstName 
+                ? `${user.lastName} ${user.firstName}` 
+                : user.username;
 
-        // 重複を除外して送信
-        const uniqueRecipients = [...new Set(recipients)];
-        for (const to of uniqueRecipients) {
-            await this.mailService.sendEmail(to, subject, body);
+            const data = {
+                ...application.inputData,
+                application,
+                applicationDefinition: application.applicationDefinition,
+                // Assignee variables
+                assignee: assigneeName, // Default to full name for {{assignee}}
+                assigneeName: assigneeName,
+                assigneeUsername: user.username,
+                assigneeFirstName: user.firstName,
+                assigneeLastName: user.lastName,
+                assigneeEmail: user.email,
+                assigneeDepartment: user.department,
+                // Legacy
+                assigneeId: user.username, 
+            };
+
+            // console.log('[WorkflowEngine] sendNotificationEmail data context keys:', Object.keys(data));
+            // console.log('[WorkflowEngine] sendNotificationEmail applicationDefinition:', JSON.stringify(data.applicationDefinition, null, 2));
+
+            const subject = this.replaceVariables(
+                subjectTemplate || '【Flow Craft】承認依頼: {{applicationDefinition.name}}',
+                data
+            );
+            // console.log(`[WorkflowEngine] Resolved Subject: ${subject}`);
+
+            const body = this.replaceVariables(
+                bodyTemplate || '{{assignee}} 様\n\n申請が届いています。\n確認をお願いします。',
+                data
+            );
+
+            await this.mailService.sendEmail(email, subject, body);
         }
     }
 }

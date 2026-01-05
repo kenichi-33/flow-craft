@@ -58,6 +58,8 @@ export default function ApprovalNode({ id, data }: { id: string; data: any }) {
     const [assigneeRole, setAssigneeRole] = useState(data.assigneeRole || 'wf_approver');
     const [assigneeGroup, setAssigneeGroup] = useState(data.assigneeGroup || '');
     const [assigneeGroupDisplay, setAssigneeGroupDisplay] = useState(data.assigneeGroupDisplay || '');  // 部署名表示用
+    const [assigneeUserDisplay, setAssigneeUserDisplay] = useState(data.assigneeDisplay || ''); // ユーザー表示名用
+
     const [assigneeUser, setAssigneeUser] = useState(data.assigneeUser || '');
     const [availableGroups, setAvailableGroups] = useState<{ value: string; label: string; name: string }[]>([]);
     const [loadingGroups, setLoadingGroups] = useState(false);
@@ -182,7 +184,17 @@ export default function ApprovalNode({ id, data }: { id: string; data: any }) {
                 // assigneeGroupDisplayに保存された部署名を使用、なければlabelから取得
                 return assigneeGroupDisplay || availableGroups.find(g => g.value === assigneeGroup)?.name || assigneeGroup;
             case 'specific':
-                return assigneeUser || '指定ユーザー';
+                if (assigneeUser) {
+                    // Stateに保存された表示名を優先
+                    if (assigneeUserDisplay) return assigneeUserDisplay;
+                    // 保存前で選択肢にあればそれを使う
+                    const found = userOptions.find(u => u.username === assigneeUser);
+                    if (found) return found.displayName;
+                    // 元データにあればそれを使う
+                    if (data.assigneeDisplay && data.assigneeUser === assigneeUser) return data.assigneeDisplay;
+                    return assigneeUser;
+                }
+                return '指定ユーザー';
             case 'applicant_manager':
                 return '申請者の上長';
             default:
@@ -390,8 +402,11 @@ export default function ApprovalNode({ id, data }: { id: string; data: any }) {
                                 onChange={(_, newValue) => {
                                     if (typeof newValue === 'string') {
                                         setAssigneeUser(newValue);
+                                        setAssigneeUserDisplay(newValue); // Manual entry, just use the string
                                     } else if (newValue) {
                                         setAssigneeUser(newValue.username);
+                                        // ユーザー選択時に表示名も更新する
+                                        setAssigneeUserDisplay(newValue.displayName || newValue.username); 
                                     }
                                 }}
                                 inputValue={userSearchInput}
@@ -456,7 +471,14 @@ export default function ApprovalNode({ id, data }: { id: string; data: any }) {
                                     fullWidth
                                     multiline
                                     rows={8}
-                                    helperText="申請データは {{fieldName}} で参照可能"
+                                    helperText={
+                                        <>
+                                            申請データ: {"{{fieldName}}"}<br />
+                                            アプリ名: {"{{applicationDefinition.name}}"}<br />
+                                            担当者: {"{{assignee}}"} (氏名)<br />
+                                            詳細変数: {"{{assigneeName}}"}, {"{{assigneeDepartment}}"}, {"{{assigneeEmail}}"}
+                                        </>
+                                    }
                                 />
                             </>
                         )}

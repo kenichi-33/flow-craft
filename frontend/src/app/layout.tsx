@@ -1,12 +1,16 @@
-'use client';
-
 import { Inter } from "next/font/google";
-import ThemeRegistryProvider from "@/lib/ThemeRegistryProvider";
-import Providers from "@/lib/QueryProvider";
-import AppLayout from "@/components/AppLayout";
-import { AuthProvider } from "@/providers/AuthProvider";
+import GlobalProviders from "@/components/GlobalProviders";
+import type { Metadata } from 'next';
 
 const inter = Inter({ subsets: ["latin"] });
+
+export const metadata: Metadata = {
+  title: 'Flow Craft',
+  description: 'Workflow System',
+  icons: {
+    icon: '/favicon.svg',
+  },
+};
 
 export default function RootLayout({
   children,
@@ -15,21 +19,10 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <head>
-        <title>Flow Craft</title>
-        <meta name="description" content="Workflow System" />
-        <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
-      </head>
-      <body className={inter.className}>
-        <AuthProvider>
-          <Providers>
-            <ThemeRegistryProvider>
-              <AppLayout>
-                {children}
-              </AppLayout>
-            </ThemeRegistryProvider>
-          </Providers>
-        </AuthProvider>
+      <body className={inter.className} suppressHydrationWarning={true}>
+        <GlobalProviders>
+          {children}
+        </GlobalProviders>
       </body>
     </html>
   );

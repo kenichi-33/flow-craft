@@ -31,6 +31,7 @@ import { Avatar, Chip, Menu, MenuItem, Tooltip, CircularProgress } from '@mui/ma
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/providers/AuthProvider';
+import { UserDisplay } from './UserDisplay';
 
 const drawerWidth = 240;
 
@@ -39,6 +40,7 @@ const Main = styled('main', { shouldForwardProp: (prop) => prop !== 'open' })<{
 }>(({ theme, open }) => ({
     flexGrow: 1,
     padding: theme.spacing(3),
+    minWidth: 0, // Prevent flex item overflow
     transition: theme.transitions.create('margin', {
         easing: theme.transitions.easing.sharp,
         duration: theme.transitions.duration.leavingScreen,
@@ -151,7 +153,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
     return (
         <Box sx={{ display: 'flex' }}>
-            <CssBaseline />
+
             <AppBar position="fixed" open={open}>
                 <Toolbar>
                     <IconButton
@@ -185,13 +187,19 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                             <Tooltip title={user.email}>
                                 <IconButton onClick={handleMenuOpen} size="small">
                                     <Avatar sx={{ width: 32, height: 32, bgcolor: '#667eea' }}>
-                                        {user.username?.[0]?.toUpperCase()}
+                                        {user.firstName?.[0]?.toUpperCase() || user.username?.[0]?.toUpperCase()}
                                     </Avatar>
                                 </IconButton>
                             </Tooltip>
-                            <Typography variant="body2" sx={{ display: { xs: 'none', sm: 'block' } }}>
-                                {user.username}
-                            </Typography>
+                            <Box sx={{ display: { xs: 'none', sm: 'block' } }}>
+                                <UserDisplay 
+                                    user={{
+                                        ...user,
+                                        department: user.groups?.[0] // Simple mapping for header
+                                    }} 
+                                    fallback={user.username} 
+                                />
+                            </Box>
                             <Tooltip title="ログアウト">
                                 <IconButton onClick={handleLogout} size="small" color="inherit">
                                     <LogoutIcon fontSize="small" />

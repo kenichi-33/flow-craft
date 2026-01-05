@@ -11,6 +11,8 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
         const keycloakUrl = configService.get<string>('KEYCLOAK_URL') || 'http://localhost:8081';
         const realm = configService.get<string>('KEYCLOAK_REALM') || 'workflow';
 
+        const issuerUrl = configService.get<string>('KEYCLOAK_ISSUER_URL') || keycloakUrl;
+
         super({
             jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
             ignoreExpiration: false,
@@ -21,7 +23,7 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
                 jwksRequestsPerMinute: 5,
                 jwksUri: `${keycloakUrl}/realms/${realm}/protocol/openid-connect/certs`,
             }),
-            issuer: `${keycloakUrl}/realms/${realm}`,
+            issuer: `${issuerUrl}/realms/${realm}`,
         });
     }
 

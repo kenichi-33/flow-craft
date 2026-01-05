@@ -15,11 +15,13 @@ import FilterListIcon from '@mui/icons-material/FilterList';
 import ClearIcon from '@mui/icons-material/Clear';
 import SearchIcon from '@mui/icons-material/Search';
 import DataTable, { Column, FetchParams, PaginatedResponse } from '@/components/DataTable';
+import { UserDisplay } from '@/components/UserDisplay';
 
 interface Application {
     id: string;
     applicationNumber: number;
     applicantId: string;
+    applicantInfo?: any;
     status: string;
     currentNodeId?: string;
     createdAt: string;
@@ -136,6 +138,7 @@ export default function ApplicationsListPage() {
             id: 'applicantId',
             label: '申請者',
             minWidth: 120,
+            format: (value, row) => <UserDisplay user={row.applicantInfo} fallback={value} />,
         },
         {
             id: 'appName',

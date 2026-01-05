@@ -3,7 +3,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { CreateApplicationDto } from './dto/create-application.dto';
 import { Prisma } from '@prisma/client';
 import { ConfigService } from '@nestjs/config';
-import axios from 'axios';
+import { UsersService } from '../users/users.service';
 
 export interface FindAllOptions {
     page?: number;
@@ -21,109 +21,21 @@ export interface FindAllOptions {
 
 @Injectable()
 export class ApplicationsService {
-    private keycloakUrl: string;
-    private realm: string;
-
     constructor(
         private prisma: PrismaService,
         private configService: ConfigService,
-    ) {
-        this.keycloakUrl = this.configService.get('KEYCLOAK_URL') || 'http://localhost:8081';
-        this.realm = this.configService.get('KEYCLOAK_REALM') || 'workflow';
-    }
+        private usersService: UsersService,
+    ) {}
 
-    private async getAdminToken(): Promise<string> {
-        const response = await axios.post(
-            `${this.keycloakUrl}/realms/master/protocol/openid-connect/token`,
-            new URLSearchParams({
-                grant_type: 'password',
-                client_id: 'admin-cli',
-                username: 'admin',
-                password: 'admin',
-            }),
-            { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }
-        );
-        return response.data.access_token;
-    }
+    async create(createApplicationDto: CreateApplicationDto) {
+        const applicantInfo = await this.usersService.getUserSnapshotByUsername(createApplicationDto.applicantId);
 
-    private async getDepartmentsMap(): Promise<Record<string, string>> {
-        try {
-            const token = await this.getAdminToken();
-            const response = await axios.get(`${this.keycloakUrl}/admin/realms/${this.realm}/groups`, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
-            
-            const deptMap: Record<string, string> = {};
-            
-            const processGroups = async (groups: any[], parentToken: string) => {
-                for (const group of groups) {
-                    // グループ詳細を取得してcode属性を取得
-                    const detailResponse = await axios.get(
-                        `${this.keycloakUrl}/admin/realms/${this.realm}/groups/${group.id}`,
-                        { headers: { Authorization: `Bearer ${parentToken}` } }
-                    );
-                    const code = detailResponse.data.attributes?.code?.[0];
-                    if (code) {
-                        deptMap[code] = group.name;
-                    }
-                    deptMap[group.path] = group.name;
-                    
-                    // サブグループを再帰的に処理
-                    if (group.subGroupCount > 0) {
-                        const childrenResponse = await axios.get(
-                            `${this.keycloakUrl}/admin/realms/${this.realm}/groups/${group.id}/children`,
-                            { headers: { Authorization: `Bearer ${parentToken}` } }
-                        );
-                        await processGroups(childrenResponse.data, parentToken);
-                    }
-                }
-            };
-            
-            await processGroups(response.data, token);
-            return deptMap;
-        } catch (error) {
-            console.error('Failed to get departments map:', error);
-            return {};
-        }
-    }
-
-    private resolveAssignedToDisplay(assignedTo: string, deptMap: Record<string, string>): string {
-        if (!assignedTo) return '';
-        
-        const assignments = assignedTo.split(',').map(s => s.trim());
-        const displays = assignments.map(a => {
-            if (a.startsWith('user:')) {
-                return a.substring(5);
-            }
-            if (a.startsWith('role:')) {
-                const role = a.substring(5);
-                const roleMap: Record<string, string> = {
-                    'wf_admin': '管理者',
-                    'wf_manager': 'マネージャー',
-                    'wf_approver': '承認者',
-                    'wf_user': 'ユーザー',
-                };
-                return roleMap[role] || role;
-            }
-            if (a.startsWith('group:')) {
-                const code = a.substring(6);
-                return deptMap[code] || code;
-            }
-            if (a === 'applicant_manager') {
-                return '申請者の上長';
-            }
-            return a;
-        });
-        
-        return displays.join(', ');
-    }
-
-    create(createApplicationDto: CreateApplicationDto) {
         return this.prisma.application.create({
             data: {
                 formDefinitionId: createApplicationDto.formDefinitionId,
                 flowDefinitionId: createApplicationDto.flowDefinitionId,
                 applicantId: createApplicationDto.applicantId,
+                applicantInfo: applicantInfo as any, // Json type workaround
                 inputData: (createApplicationDto.inputData || {}) as Prisma.InputJsonValue,
                 status: 'DRAFT',
             },
@@ -269,17 +181,7 @@ export class ApplicationsService {
         });
         if (!application) throw new NotFoundException(`Application with ID ${id} not found`);
         
-        // タスクにassignedToDisplayを付与
-        const deptMap = await this.getDepartmentsMap();
-        const tasksWithDisplay = application.tasks.map(task => ({
-            ...task,
-            assignedToDisplay: this.resolveAssignedToDisplay(task.assignedTo || '', deptMap),
-        }));
-        
-        return {
-            ...application,
-            tasks: tasksWithDisplay,
-        };
+        return application;
     }
 
     async update(id: string, updateData: { inputData: any }) {

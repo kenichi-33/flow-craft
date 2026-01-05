@@ -14,17 +14,20 @@ import ClearIcon from '@mui/icons-material/Clear';
 import SearchIcon from '@mui/icons-material/Search';
 import PersonIcon from '@mui/icons-material/Person';
 import DataTable, { Column, FetchParams, PaginatedResponse } from '@/components/DataTable';
+import { UserDisplay } from '@/components/UserDisplay';
 
 interface Task {
     id: string;
     status: string;
     stepId: string;
     assignedTo?: string;
+    assignedToInfo?: any;
     createdAt: string;
     application: {
         id: string;
         applicationNumber: number;
         applicantId: string;
+        applicantInfo?: any;
         applicationDefinition?: {
             name: string;
         };
@@ -179,22 +182,13 @@ export default function TasksListPage() {
             id: 'applicantId',
             label: '申請者',
             minWidth: 100,
-            format: (_, row) => row.application?.applicantId,
+            format: (_, row) => <UserDisplay user={row.application?.applicantInfo} fallback={row.application?.applicantId} />,
         },
         {
             id: 'assignedTo',
             label: '担当者',
             minWidth: 140,
-            format: (value) => (
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                    <Avatar sx={{ width: 24, height: 24, bgcolor: '#667eea', fontSize: '0.7rem' }}>
-                        <PersonIcon sx={{ fontSize: 14 }} />
-                    </Avatar>
-                    <Typography variant="body2" sx={{ fontSize: '0.85rem' }}>
-                        {formatAssignedTo(value)}
-                    </Typography>
-                </Box>
-            ),
+            format: (_, row) => <UserDisplay user={row.assignedToInfo} fallback={formatAssignedTo(row.assignedTo)} />,
         },
         {
             id: 'stepId',

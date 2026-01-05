@@ -30,6 +30,7 @@ import Link from 'next/link';
 import FlowVisualization from '@/components/flow-designer/FlowVisualization';
 import ApplicationFormViewer from '@/components/ApplicationFormViewer';
 import ApprovalHistory from '@/components/ApprovalHistory';
+import { UserDisplay } from '@/components/UserDisplay';
 
 interface ApprovalHistoryItem {
     id: string;
@@ -45,11 +46,13 @@ interface TaskDetail {
     status: string;
     stepId: string;
     assignedTo?: string;
+    assignedToInfo?: any; // スナップショット追加
     createdAt: string;
     application: {
         id: string;
         applicationNumber: number;
         applicantId: string;
+        applicantInfo?: any; // スナップショット追加
         inputData: any;
         currentNodeId: string | null;
         applicationDefinition?: {
@@ -189,16 +192,16 @@ export default function TaskDetailPage() {
                 </Avatar>
                 <Box>
                     <Typography variant="body2" color="text.secondary">担当者</Typography>
-                    <Typography variant="body1" fontWeight={600}>
-                        {formatAssignedTo(task.assignedTo)}
-                    </Typography>
+                    <Box sx={{ fontWeight: 600 }}>
+                        <UserDisplay user={task.assignedToInfo} fallback={formatAssignedTo(task.assignedTo)} />
+                    </Box>
                 </Box>
                 <Divider orientation="vertical" flexItem sx={{ mx: 2 }} />
                 <Box>
                     <Typography variant="body2" color="text.secondary">申請者</Typography>
-                    <Typography variant="body1" fontWeight={600}>
-                        {task.application?.applicantId}
-                    </Typography>
+                    <Box sx={{ fontWeight: 600 }}>
+                        <UserDisplay user={task.application?.applicantInfo} fallback={task.application?.applicantId} />
+                    </Box>
                 </Box>
                 <Divider orientation="vertical" flexItem sx={{ mx: 2 }} />
                 <Box>
