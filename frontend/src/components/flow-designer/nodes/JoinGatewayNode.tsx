@@ -64,11 +64,11 @@ export default function JoinGatewayNode({ id, data }: { id: string; data: any })
                 {/* Input Handle */}
                 <Handle
                     type="target"
-                    position={Position.Top}
+                    position={Position.Left}
                     id="input"
                     style={{
-                        top: 0,
                         left: 0,
+                        top: 0,
                         transform: 'translate(-50%, -50%)',
                         background: '#fbc02d',
                         width: 8,
@@ -79,11 +79,11 @@ export default function JoinGatewayNode({ id, data }: { id: string; data: any })
                 {/* Output Handle */}
                 <Handle
                     type="source"
-                    position={Position.Bottom}
+                    position={Position.Right}
                     id="output"
                     style={{
-                        bottom: 0,
                         right: 0,
+                        bottom: 0,
                         transform: 'translate(50%, 50%)',
                         background: '#fbc02d',
                         width: 8,

@@ -5,14 +5,11 @@ import { Box, Typography, Chip } from '@mui/material';
 import ReactFlow, { MarkerType, Background, Handle, Position, Controls } from 'reactflow';
 import 'reactflow/dist/style.css';
 
-// 共通のハンドル設定
+// 共通のハンドル設定（BPMN標準の左→右接続）
 const CommonHandles = () => (
     <>
         <Handle type="target" position={Position.Left} id="input" style={{ opacity: 0, pointerEvents: 'none' }} />
-        <Handle type="target" position={Position.Top} id="top-input" style={{ opacity: 0, pointerEvents: 'none' }} />
-        <Handle type="source" position={Position.Right} style={{ opacity: 0, pointerEvents: 'none' }} />
-        <Handle type="source" position={Position.Right} id="output" style={{ opacity: 0, top: '70%', pointerEvents: 'none' }} />
-        <Handle type="source" position={Position.Bottom} style={{ opacity: 0, pointerEvents: 'none' }} />
+        <Handle type="source" position={Position.Right} id="output" style={{ opacity: 0, pointerEvents: 'none' }} />
         <Handle type="source" position={Position.Right} id="yes" style={{ opacity: 0, top: '30%', pointerEvents: 'none' }} />
         <Handle type="source" position={Position.Right} id="no" style={{ opacity: 0, top: '70%', pointerEvents: 'none' }} />
     </>

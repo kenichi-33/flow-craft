@@ -130,13 +130,13 @@ export default function BranchNode({ id, data }: { id: string; data: any }) {
                 {/* Handles */}
                 <Handle
                     type="target"
-                    position={Position.Top}
+                    position={Position.Left}
                     style={{
                         background: '#e65100',
                         width: 10,
                         height: 10,
                         border: '2px solid white',
-                        top: -5,
+                        left: -5,
                     }}
                 />
                 <Handle

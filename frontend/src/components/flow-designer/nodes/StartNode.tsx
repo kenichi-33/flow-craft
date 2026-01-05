@@ -32,7 +32,7 @@ export default function StartNode({ data }: { data: any }) {
             </Typography>
             <Handle
                 type="source"
-                position={Position.Bottom}
+                position={Position.Right}
                 style={{
                     background: '#2e7d32',
                     width: 10,

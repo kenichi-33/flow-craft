@@ -234,7 +234,7 @@ export default function ApprovalNode({ id, data }: { id: string; data: any }) {
             >
                 <Handle
                     type="target"
-                    position={Position.Top}
+                    position={Position.Left}
                     style={{
                         background: '#1565c0',
                         width: 10,
@@ -279,7 +279,7 @@ export default function ApprovalNode({ id, data }: { id: string; data: any }) {
 
                 <Handle
                     type="source"
-                    position={Position.Bottom}
+                    position={Position.Right}
                     style={{
                         background: '#1565c0',
                         width: 10,

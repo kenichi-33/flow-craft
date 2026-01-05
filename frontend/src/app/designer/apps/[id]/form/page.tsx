@@ -3,8 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import {
     Box, Button, TextField, Paper, Typography, Grid, IconButton, Alert,
-    FormControl, FormLabel, RadioGroup, FormControlLabel, Radio,
-    Checkbox, Select, MenuItem, InputLabel, FormGroup, Chip, Divider,
+    Select, MenuItem, Chip, Divider, Radio, RadioGroup, FormControl, FormControlLabel, Checkbox,
     Dialog, DialogTitle, DialogContent, DialogActions
 } from '@mui/material';
 import VisibilityIcon from '@mui/icons-material/Visibility';
@@ -17,7 +16,8 @@ import 'react-resizable/css/styles.css';
 
 import ToolboxItem from '@/components/form-designer/ToolboxItem';
 import DynamicFormRenderer from '@/components/application/DynamicFormRenderer';
-import FieldSettingsDialog from '@/components/form-designer/FieldSettingsDialog';
+import PropertyPanel from '@/components/form-designer/PropertyPanel';
+
 import TextFieldsIcon from '@mui/icons-material/TextFields';
 import NumbersIcon from '@mui/icons-material/Numbers';
 import CheckBoxIcon from '@mui/icons-material/CheckBox';
@@ -26,20 +26,29 @@ import ListIcon from '@mui/icons-material/List';
 import RadioButtonCheckedIcon from '@mui/icons-material/RadioButtonChecked';
 import CalendarTodayIcon from '@mui/icons-material/CalendarToday';
 import DeleteIcon from '@mui/icons-material/Delete';
-import EditIcon from '@mui/icons-material/Edit';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
-import SettingsIcon from '@mui/icons-material/Settings';
 import HorizontalRuleIcon from '@mui/icons-material/HorizontalRule';
 import TitleIcon from '@mui/icons-material/Title';
 import Link from 'next/link';
 
+interface Option {
+    label: string;
+    value: string;
+}
+
 interface FormField {
     id: string;
-    type: 'text' | 'number' | 'checkbox' | 'textarea' | 'select' | 'radio' | 'date' | 'divider' | 'label';
+    type: string;
     label: string;
-    options?: string[];
+    options?: Option[] | string[];
     required?: boolean;
+    readOnly?: boolean;
+    includeTime?: boolean;
+    textAlign?: 'left' | 'center' | 'right';
+    verticalAlign?: 'top' | 'center' | 'bottom';
 }
+
+import AccountTreeIcon from '@mui/icons-material/AccountTree'; // Using AccountTree or similar for Group/Section
 
 const TOOLBOX_ITEMS = [
     { type: 'text', label: 'テキスト', icon: <TextFieldsIcon /> },
@@ -49,11 +58,10 @@ const TOOLBOX_ITEMS = [
     { type: 'radio', label: 'ラジオ', icon: <RadioButtonCheckedIcon /> },
     { type: 'checkbox', label: 'チェックボックス', icon: <CheckBoxIcon /> },
     { type: 'date', label: '日付', icon: <CalendarTodayIcon /> },
+    { type: 'group', label: 'グループ', icon: <AccountTreeIcon /> },
     { type: 'divider', label: '区切り線', icon: <HorizontalRuleIcon /> },
     { type: 'label', label: '見出し', icon: <TitleIcon /> },
 ];
-
-
 
 // Custom styled components
 const inputStyle = {
@@ -61,81 +69,26 @@ const inputStyle = {
         bgcolor: '#f8f9fa',
         borderRadius: 3,
         border: '1px solid #e2e8f0',
-        transition: 'all 0.2s ease-in-out',
-        '&:hover': {
-            bgcolor: '#fff',
-            borderColor: '#bkc',
-            boxShadow: '0 2px 8px rgba(0,0,0,0.05)',
-        },
-        '&.Mui-focused': {
-            bgcolor: '#fff',
-            borderColor: '#3a1c71',
-            boxShadow: '0 0 0 3px rgba(58, 28, 113, 0.1)',
-        }
+        transition: 'all 0.2s',
+        pointerEvents: 'none' // Disable interaction in designer
     },
-    '& .MuiInputBase-input': {
-        padding: '12px 16px',
-    },
-    '& .MuiInputLabel-root': {
-        transform: 'translate(14px, 12px) scale(1)',
-        '&.Mui-focused, &.MuiFormLabel-filled': {
-            transform: 'translate(14px, -9px) scale(0.75)',
-            fontWeight: 'bold',
-            color: '#3a1c71',
-        }
-    }
+    '& .MuiInputBase-input': { padding: '10px 14px' }
 };
 
-const selectionCardStyle = {
-    flex: 1,
-    minWidth: '150px',
-    m: 0.5,
-    p: 1.5,
-    borderRadius: 3,
-    border: '1px solid #edf2f7',
-    transition: 'all 0.2s',
-    bgcolor: '#f8f9fa',
-    '&:hover': {
-        bgcolor: '#fff',
-        borderColor: '#cbd5e0',
-        transform: 'translateY(-1px)',
-        boxShadow: '0 4px 12px rgba(0,0,0,0.05)'
-    },
-    '&:has(.Mui-checked)': {
-        bgcolor: '#f0f5ff',
-        borderColor: '#3a1c71',
-        boxShadow: '0 4px 12px rgba(58, 28, 113, 0.1)'
-    }
-};
-
-// WYSIWYG Preview Component
-// WYSIWYG Preview Component
-function FieldPreview({ field, onUpdateLabel, onDelete, onUpdateOptions, onUpdateId, existingIds, onUpdateRequired }: {
+// Simplified Preview Component
+function FieldPreview({ field, isSelected, onClick, onDelete }: {
     field: FormField;
-    onUpdateLabel: (label: string) => void;
-    onDelete: () => void;
-    onUpdateOptions: (options: string[]) => void;
-    onUpdateId: (newId: string) => void;
-    onUpdateRequired: (required: boolean) => void;
-    existingIds: string[];
+    isSelected: boolean;
+    onClick: () => void;
+    onDelete: (e: React.MouseEvent) => void;
 }) {
-    const [settingsOpen, setSettingsOpen] = useState(false);
-
     // Get icon based on type
     const getIcon = () => {
         const item = TOOLBOX_ITEMS.find(i => i.type === field.type);
         return item ? item.icon : <TextIcon />;
     };
 
-    const handleSettingsSave = (id: string, updates: Partial<FormField>) => {
-        if (updates.label !== undefined) onUpdateLabel(updates.label);
-        if (updates.id !== undefined && updates.id !== field.id) onUpdateId(updates.id);
-        if (updates.options !== undefined) onUpdateOptions(updates.options);
-        if (updates.required !== undefined) onUpdateRequired(updates.required);
-    };
-
     const renderPreview = () => {
-        // Reduced preview - minimal interactivity here, focusing on layout
         switch (field.type) {
             case 'text':
             case 'number':
@@ -144,8 +97,9 @@ function FieldPreview({ field, onUpdateLabel, onDelete, onUpdateOptions, onUpdat
                     <TextField
                         fullWidth
                         disabled
+                        variant="standard"
                         size="small"
-                        placeholder={field.label}
+                        placeholder={field.type === 'date' && field.includeTime ? 'YYYY/MM/DD HH:mm' : field.label}
                         InputProps={{ disableUnderline: true }}
                         sx={inputStyle}
                     />
@@ -155,6 +109,7 @@ function FieldPreview({ field, onUpdateLabel, onDelete, onUpdateOptions, onUpdat
                     <TextField
                         fullWidth
                         disabled
+                        variant="standard"
                         multiline
                         rows={2}
                         placeholder={field.label}
@@ -164,148 +119,262 @@ function FieldPreview({ field, onUpdateLabel, onDelete, onUpdateOptions, onUpdat
                 );
             case 'select':
                 return (
-                    <Select
-                        fullWidth
-                        disabled
-                        size="small"
-                        value=""
-                        displayEmpty
-                        disableUnderline
-                        sx={inputStyle}
-                    >
-                        <MenuItem value="">{field.label}</MenuItem>
-                    </Select>
+                    <TextField select fullWidth disabled size="small" value="" sx={{ bgcolor: '#f8f9fa' }}>
+                        {field.options && (field.options as any[]).map((opt: any, i: number) => {
+                             const label = typeof opt === 'string' ? opt : opt.label;
+                             const val = typeof opt === 'string' ? opt : opt.value;
+                             return <MenuItem key={i} value={val}>{label}</MenuItem>;
+                        })}
+                    </TextField>
                 );
             case 'radio':
+                return (
+                    <FormControl component="fieldset">
+                        <RadioGroup row sx={{ gap: 1 }}>
+                            {field.options && (field.options as any[]).map((opt: any, i: number) => {
+                                const label = typeof opt === 'string' ? opt : opt.label;
+                                return (
+                                    <FormControlLabel 
+                                        key={i} 
+                                        value={typeof opt === 'string' ? opt : opt.value} 
+                                        control={<Radio size="small" disabled />} 
+                                        label={<Typography variant="body2">{label}</Typography>} 
+                                    />
+                                );
+                            })}
+                            {(!field.options || field.options.length === 0) && <Typography variant="caption" color="text.secondary">選択肢を追加してください</Typography>}
+                        </RadioGroup>
+                    </FormControl>
+                );
             case 'checkbox':
                 return (
-                    <Box sx={{ p: 1, bgcolor: '#f8f9fa', borderRadius: 2, border: '1px solid #e2e8f0' }}>
-                        <Typography variant="caption" color="text.secondary">選択肢プレビュー...</Typography>
-                    </Box>
+                    <FormControl component="fieldset">
+                         <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                            {field.options && (field.options as any[]).map((opt: any, i: number) => {
+                                const label = typeof opt === 'string' ? opt : opt.label;
+                                return (
+                                    <FormControlLabel 
+                                        key={i} 
+                                        control={<Checkbox size="small" disabled />} 
+                                        label={<Typography variant="body2">{label}</Typography>} 
+                                    />
+                                );
+                            })}
+                            {(!field.options || field.options.length === 0) && <Typography variant="caption" color="text.secondary">選択肢を追加してください</Typography>}
+                        </Box>
+                    </FormControl>
                 );
             case 'divider':
                  return <Divider sx={{ borderColor: '#333', borderBottomWidth: 2, my: 1 }} />;
             case 'label':
-                return <Typography variant="h6" sx={{ fontWeight: 'bold' }}>{field.label}</Typography>
+                // Label component fix: consistently show the label value
+                return <Typography variant="h6" sx={{ fontWeight: 'bold' }}>{field.label || '見出し'}</Typography>
             default:
                 return null;
         }
     };
 
+    // Label component override to remove card style
+    if (field.type === 'label') {
+        return (
+            <Paper
+                elevation={0}
+                onClick={onClick}
+                sx={{
+                    p: 1,
+                    height: '100%',
+                    bgcolor: isSelected ? 'action.selected' : 'transparent',
+                    border: isSelected ? '2px solid' : '1px dashed transparent',
+                    borderColor: isSelected ? 'primary.main' : 'transparent',
+                    borderRadius: 1,
+                    display: 'flex',
+                    alignItems: (field as any).verticalAlign === 'top' ? 'flex-start' : (field as any).verticalAlign === 'bottom' ? 'flex-end' : 'center',
+                    justifyContent: (field as any).textAlign === 'center' ? 'center' : (field as any).textAlign === 'right' ? 'flex-end' : 'flex-start',
+                    position: 'relative',
+                    cursor: 'pointer',
+                    '&:hover': { border: '1px dashed #ccc' }
+                }}
+            >
+                 <Typography variant="h6" sx={{ fontWeight: 'bold', width: '100%', textAlign: (field as any).textAlign || 'left' }}>
+                     {field.label || '見出し'}
+                 </Typography>
+                 
+                 {isSelected && (
+                    <IconButton
+                        size="small"
+                        onClick={onDelete}
+                        sx={{
+                            position: 'absolute',
+                            right: 0,
+                            top: -10,
+                            bgcolor: 'white',
+                            border: '1px solid #ddd',
+                             '&:hover': { bgcolor: 'error.50', color: 'error.main' }
+                        }}
+                    >
+                        <DeleteIcon fontSize="small" />
+                    </IconButton>
+                 )}
+            </Paper>
+        );
+    }
+
     if (field.type === 'divider') {
         return (
             <Paper
                 elevation={0}
+                onClick={onClick}
                 sx={{
                     p: 1,
                     height: '100%',
-                    bgcolor: 'transparent',
-                    border: '1px dashed #ccc',
+                    bgcolor: isSelected ? 'action.selected' : 'transparent',
+                    border: isSelected ? '2px solid' : '1px dashed #ccc',
+                    borderColor: isSelected ? 'primary.main' : '#ccc',
                     borderRadius: 1,
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
                     position: 'relative',
+                    cursor: 'pointer',
                     '&:hover .actions': { opacity: 1 }
                 }}
             >
                 <Box sx={{ width: '100%' }}><Divider sx={{ borderColor: '#333', borderBottomWidth: 2 }} /></Box>
-                 <Box className="actions" sx={{ position: 'absolute', right: 8, top: -12, opacity: 0, transition: 'opacity 0.2s', bgcolor: 'white', border: '1px solid #ddd', borderRadius: 4, display: 'flex' }}>
-                    <IconButton size="small" onClick={onDelete} color="error"><DeleteIcon fontSize="small" /></IconButton>
+                 {isSelected && (
+                    <Box className="actions" sx={{ position: 'absolute', right: 8, top: -12, bgcolor: 'white', border: '1px solid #ddd', borderRadius: 4, display: 'flex' }}>
+                        <IconButton size="small" onClick={onDelete} color="error"><DeleteIcon fontSize="small" /></IconButton>
+                    </Box>
+                 )}
+            </Paper>
+        );
+    }
+
+    if (field.type === 'group') {
+        return (
+            <Paper
+                elevation={0}
+                onClick={onClick}
+                sx={{
+                    p: 0,
+                    height: '100%',
+                    bgcolor: isSelected ? '#e8f4fc' : '#f8fafc',
+                    border: isSelected ? '2px solid' : '2px dashed',
+                    borderColor: isSelected ? 'primary.main' : '#90caf9',
+                    borderRadius: 2,
+                    position: 'relative',
+                    cursor: 'pointer',
+                    overflow: 'hidden',
+                    '&:hover': {
+                        borderColor: isSelected ? 'primary.main' : 'primary.light',
+                    },
+                }}
+            >
+                {/* Group Header */}
+                <Box sx={{ 
+                    bgcolor: '#e3f2fd', 
+                    px: 2, 
+                    py: 1, 
+                    borderBottom: '1px solid #90caf9',
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    gap: 1 
+                }}>
+                    <AccountTreeIcon color="primary" fontSize="small" />
+                    <Typography variant="subtitle2" sx={{ fontWeight: 'bold', color: 'primary.main' }}>
+                        {field.label || 'セクション'}
+                    </Typography>
                 </Box>
+                
+                {/* Group Content Area */}
+                <Box sx={{ 
+                    p: 2, 
+                    minHeight: 60, 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    justifyContent: 'center',
+                    bgcolor: 'rgba(255,255,255,0.5)'
+                }}>
+                    <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic' }}>
+                        このセクション以降のフィールドがグループ化されます
+                    </Typography>
+                </Box>
+
+                {isSelected && (
+                    <IconButton
+                        size="small"
+                        onClick={onDelete}
+                        sx={{
+                            position: 'absolute',
+                            top: 4,
+                            right: 4,
+                            bgcolor: 'white',
+                            border: '1px solid #ddd',
+                            '&:hover': { bgcolor: 'error.50', color: 'error.main' }
+                        }}
+                    >
+                        <DeleteIcon fontSize="small" />
+                    </IconButton>
+                )}
             </Paper>
         );
     }
 
     return (
-        <>
-            <Paper
-                elevation={0}
-                sx={{
-                    p: 2,
-                    height: '100%',
-                    bgcolor: 'white',
-                    border: '1px solid',
-                    borderColor: 'divider',
-                    borderRadius: 3,
-                    position: 'relative',
-                    overflow: 'hidden',
-                    transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    '&:hover': {
-                        borderColor: 'primary.main',
-                        boxShadow: '0 4px 20px rgba(0,0,0,0.08)',
-                        transform: 'translateY(-2px)',
-                        '& .field-actions': { opacity: 1 }
-                    },
-                }}
-            >
-                {/* Simplified Header */}
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-                    <Box sx={{ color: 'primary.main', display: 'flex' }}>{getIcon()}</Box>
-                    <Box sx={{ flex: 1, overflow: 'hidden' }}>
-                        <Typography variant="subtitle2" noWrap sx={{ fontWeight: 600 }}>{field.label}</Typography>
-                        <Typography variant="caption" color="text.secondary" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                            {field.type} <span style={{ opacity: 0.5 }}>|</span> ID: {field.id}
-                            {field.required && <Chip label="必須" size="small" color="error" sx={{ height: 16, fontSize: '0.6rem' }} />}
-                        </Typography>
-                    </Box>
+        <Paper
+            elevation={0}
+            onClick={onClick}
+            sx={{
+                p: 1.5,
+                height: '100%',
+                bgcolor: 'white',
+                border: isSelected ? '2px solid' : '1px solid',
+                borderColor: isSelected ? 'primary.main' : 'divider',
+                borderRadius: 2,
+                position: 'relative',
+                overflow: 'hidden',
+                transition: 'all 0.1s',
+                display: 'flex',
+                flexDirection: 'column',
+                cursor: 'pointer',
+                boxShadow: isSelected ? '0 0 0 4px rgba(25, 118, 210, 0.1)' : 'none',
+                '&:hover': {
+                    borderColor: isSelected ? 'primary.main' : 'primary.light',
+                },
+            }}
+        >
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                <Box sx={{ color: isSelected ? 'primary.main' : 'text.secondary', display: 'flex' }}>
+                    {React.cloneElement(getIcon() as any, { fontSize: 'small' })}
                 </Box>
+                <Typography variant="subtitle2" noWrap sx={{ fontWeight: 600, fontSize: '0.85rem' }}>{field.label}</Typography>
+                {field.required && <Chip label="必須" size="small" color="error" sx={{ height: 16, fontSize: '0.6rem' }} />}
+            </Box>
 
-                {/* Simplified Content Preview */}
-                <Box sx={{ flex: 1, pointerEvents: 'none', opacity: 0.7 }}>
-                    {renderPreview()}
-                </Box>
+            <Box sx={{ flex: 1, opacity: 0.8 }}>
+                {renderPreview()}
+            </Box>
 
-                {/* Floating Actions */}
-                <Box 
-                    className="field-actions" 
-                    sx={{ 
-                        position: 'absolute', 
-                        top: 8, 
-                        right: 8, 
-                        opacity: 0, 
-                        transition: 'opacity 0.2s',
-                        display: 'flex',
-                        gap: 0.5,
-                        bgcolor: 'background.paper',
-                        borderRadius: 1,
-                        boxShadow: 1
+            {isSelected && (
+                <IconButton
+                    size="small"
+                    onClick={onDelete}
+                    sx={{
+                        position: 'absolute',
+                        top: 4,
+                        right: 4,
+                        bgcolor: 'error.50',
+                        color: 'error.main',
+                        '&:hover': { bgcolor: 'error.100' }
                     }}
                 >
-                    <IconButton
-                        size="small"
-                        onClick={() => setSettingsOpen(true)}
-                        color="primary"
-                        sx={{ bgcolor: 'primary.50', '&:hover': { bgcolor: 'primary.100' } }}
-                    >
-                        <SettingsIcon fontSize="small" />
-                    </IconButton>
-                    <IconButton
-                        size="small"
-                        onClick={onDelete}
-                        color="error"
-                        sx={{ bgcolor: 'error.50', '&:hover': { bgcolor: 'error.100' } }}
-                    >
-                        <DeleteIcon fontSize="small" />
-                    </IconButton>
-                </Box>
-            </Paper>
-
-            <FieldSettingsDialog 
-                open={settingsOpen}
-                onClose={() => setSettingsOpen(false)}
-                onSave={handleSettingsSave}
-                field={field}
-                existingIds={existingIds}
-            />
-        </>
+                    <DeleteIcon fontSize="small" />
+                </IconButton>
+            )}
+        </Paper>
     );
 }
 
 export default function AppFormEditorPage() {
-    const router = useRouter();
     const params = useParams();
     const queryClient = useQueryClient();
     const appId = params.id as string;
@@ -314,6 +383,7 @@ export default function AppFormEditorPage() {
     const [fields, setFields] = useState<FormField[]>([]);
     const [layout, setLayout] = useState<any[]>([]);
     const [counter, setCounter] = useState(0);
+    const [selectedFieldId, setSelectedFieldId] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [success, setSuccess] = useState<string | null>(null);
     const [previewOpen, setPreviewOpen] = useState(false);
@@ -323,14 +393,12 @@ export default function AppFormEditorPage() {
         initialWidth: 800,
     });
 
-    // Get app details
     const { data: app } = useQuery({
         queryKey: ['apps', appId],
         queryFn: () => api.get(`/application-definitions/${appId}`),
         enabled: !!appId,
     });
 
-    // Load existing form if any
     useEffect(() => {
         if ((app as any)?.formDefinition) {
             setFormName((app as any).formDefinition.name || '');
@@ -340,13 +408,17 @@ export default function AppFormEditorPage() {
                 id,
                 type: prop.type || 'text',
                 label: prop.title || id,
-                options: prop.options,
-                required: (schema.required || []).includes(id)
+                options: prop.options, // This might be string[] or Option[]
+                required: (schema.required || []).includes(id),
+                readOnly: prop.readOnly,
+                includeTime: prop.includeTime,
+                textAlign: prop.textAlign,
+                verticalAlign: prop.verticalAlign
             }));
             setFields(existingFields);
             setLayout(schema['x-layout'] || []);
 
-            // 既存のfield_N形式のIDから最大番号を取得してカウンター初期化
+            // Initial counter setup
             const maxFieldNum = Object.keys(props).reduce((max, id) => {
                 const match = id.match(/^field_(\d+)/);
                 if (match) {
@@ -363,7 +435,6 @@ export default function AppFormEditorPage() {
     const saveMutation = useMutation({
         mutationFn: async (formData: { name: string; schema: any }) => {
             let formDefId = (app as any)?.formDefinitionId;
-
             if (formDefId) {
                 await api.put(`/forms/${formDefId}`, formData);
             } else {
@@ -389,31 +460,25 @@ export default function AppFormEditorPage() {
             const data = dragEvent.dataTransfer?.getData('text/plain');
             if (data) {
                 const { type, label } = JSON.parse(data);
-                // タイムスタンプを含めて一意性を確保
                 const newId = `field_${counter}_${Date.now()}`;
                 setCounter(c => c + 1);
 
                 const defaultOptions = ['select', 'radio', 'checkbox'].includes(type)
-                    ? ['選択肢1', '選択肢2', '選択肢3']
+                    ? [{ label: '選択肢1', value: 'opt1' }, { label: '選択肢2', value: 'opt2' }]
                     : undefined;
 
-                setFields(prev => [...prev, { id: newId, type, label, options: defaultOptions }]);
+                const newField = { id: newId, type, label, options: defaultOptions };
+                setFields(prev => [...prev, newField]);
+                setSelectedFieldId(newId); // Select the new field immediately
 
                 const droppedItem = layoutArr.find((l: any) => l.i === '__dropping_elem__');
-                // Different heights for different types
                 let newHeight = 2;
-                let newWidth = 6; // Default half width (allows 2 per row)
+                let newWidth = 6;
 
-                if (['textarea', 'radio', 'checkbox'].includes(type)) {
-                    newHeight = 3;
-                }
-                if (type === 'divider') {
+                if (['textarea', 'radio', 'checkbox', 'group'].includes(type)) newHeight = 3;
+                if (['divider', 'label'].includes(type)) {
                     newHeight = 1;
-                    newWidth = 12; // Full width for divider
-                }
-                if (type === 'label') {
-                    newHeight = 1;
-                    newWidth = 12; // Full width for label
+                    newWidth = 12;
                 }
 
                 setLayout(prev => [...prev, {
@@ -429,24 +494,14 @@ export default function AppFormEditorPage() {
         }
     };
 
-    const handleLayoutChange = (newLayout: any[]) => {
-        setLayout(newLayout);
-    };
-
     const handleRemoveField = (id: string) => {
         setFields(fields.filter(f => f.id !== id));
         setLayout(layout.filter((l: any) => l.i !== id));
+        if (selectedFieldId === id) setSelectedFieldId(null);
     };
 
     const handleUpdateField = (id: string, updates: Partial<FormField>) => {
         setFields(fields.map(f => f.id === id ? { ...f, ...updates } : f));
-    };
-
-    const handleUpdateFieldId = (oldId: string, newId: string) => {
-        // Update fields array
-        setFields(fields.map(f => f.id === oldId ? { ...f, id: newId } : f));
-        // Update layout to use new ID
-        setLayout(layout.map((l: any) => l.i === oldId ? { ...l, i: newId } : l));
     };
 
     const handleSave = () => {
@@ -463,7 +518,11 @@ export default function AppFormEditorPage() {
                 [field.id]: {
                     type: field.type,
                     title: field.label,
-                    options: field.options
+                    options: field.options,
+                    readOnly: field.readOnly,
+                    includeTime: field.includeTime,
+                    textAlign: (field as any).textAlign,
+                    verticalAlign: (field as any).verticalAlign
                 }
             }), {}),
             "x-layout": layout,
@@ -473,156 +532,153 @@ export default function AppFormEditorPage() {
         saveMutation.mutate({ name: formName, schema });
     };
 
+    const selectedField = fields.find(f => f.id === selectedFieldId) || null;
+
     return (
-        <Box sx={{ p: 3 }}>
-            <Box sx={{ mb: 3, display: 'flex', alignItems: 'center', gap: 2 }}>
-                <Button startIcon={<ArrowBackIcon />} component={Link} href={`/designer/apps/${appId}`}>
-                    アプリに戻る
-                </Button>
-                <Typography variant="h5">フォーム編集: {(app as any)?.name}</Typography>
-            </Box>
+        <Box sx={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 64px)', overflow: 'hidden' }}>
+            {/* Header Toolbar */}
+            <Paper elevation={0} sx={{ 
+                p: 2, 
+                borderBottom: '1px solid #e0e0e0',
+                display: 'flex', 
+                alignItems: 'center', 
+                justifyContent: 'space-between',
+                zIndex: 10
+            }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                    <Button startIcon={<ArrowBackIcon />} component={Link} href={`/designer/apps/${appId}`} size="small">
+                        戻る
+                    </Button>
+                    <TextField
+                        value={formName}
+                        onChange={(e) => setFormName(e.target.value)}
+                        placeholder="フォーム名"
+                        variant="standard"
+                        InputProps={{ disableUnderline: true, style: { fontSize: '1.1rem', fontWeight: 600 } }}
+                    />
+                </Box>
+                <Box sx={{ display: 'flex', gap: 1 }}>
+                    <Button
+                        variant="outlined"
+                        startIcon={<VisibilityIcon />}
+                        onClick={() => setPreviewOpen(true)}
+                        size="small"
+                    >
+                        プレビュー
+                    </Button>
+                    <Button 
+                        variant="contained" 
+                        onClick={handleSave} 
+                        disabled={saveMutation.isPending} 
+                        size="small"
+                    >
+                        保存
+                    </Button>
+                </Box>
+            </Paper>
 
-            {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
-            {success && <Alert severity="success" sx={{ mb: 2 }}>{success}</Alert>}
 
-            <TextField
-                label="フォーム名"
-                value={formName}
-                onChange={(e) => setFormName(e.target.value)}
-                fullWidth
-                sx={{ mb: 2, maxWidth: 400 }}
-            />
-
-            <Grid container spacing={2}>
-                <Grid size={3}>
-                    <Paper sx={{ p: 2, position: 'sticky', top: 80 }}>
-                        <Typography variant="h6" gutterBottom>ツールボックス</Typography>
-                        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 2 }}>
-                            ドラッグしてキャンバスにドロップ。横並びも可能。
-                        </Typography>
-                        <Divider sx={{ mb: 2 }} />
-                        {TOOLBOX_ITEMS.map((item) => (
-                            <ToolboxItem key={item.type} type={item.type} label={item.label} icon={item.icon} />
-                        ))}
-                    </Paper>
+            {/* Main Editor Area (3-Column Layout) */}
+            <Grid container sx={{ flex: 1, overflow: 'hidden' }}>
+                {/* Left: Toolbox (20%) */}
+                <Grid size={2.4} sx={{ borderRight: '1px solid #e0e0e0', bgcolor: '#fafafa', p: 2, overflowY: 'auto' }}>
+                    <Typography variant="caption" fontWeight="bold" color="text.secondary" sx={{ mb: 1.5, display: 'block' }}>
+                        コンポーネント
+                    </Typography>
+                    {TOOLBOX_ITEMS.map((item) => (
+                        <ToolboxItem key={item.type} type={item.type} label={item.label} icon={item.icon} />
+                    ))}
                 </Grid>
 
-                <Grid size={9}>
-                    <Paper sx={{ 
-                        p: 3, 
-                        minHeight: 600, 
-                        bgcolor: '#fafafa',
+                {/* Center: Canvas (60%) */}
+                <Grid size={7.2} sx={{ bgcolor: '#f4f6f8', p: 3, overflowY: 'auto', position: 'relative', height: '100%' }}>
+                    {/* Background Pattern */}
+                    <Box sx={{ 
+                        position: 'absolute', inset: 0, zIndex: 0,
                         backgroundImage: 'radial-gradient(#e0e0e0 1px, transparent 1px)',
                         backgroundSize: '20px 20px',
-                        borderRadius: 3,
-                        boxShadow: 'inset 0 0 20px rgba(0,0,0,0.02)'
-                    }}>
-                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-                            <Typography variant="h6">プレビューキャンバス</Typography>
-                            <Box sx={{ display: 'flex', gap: 1 }}>
-                                <Chip label={`${fields.length} フィールド`} size="small" />
-                                <Chip label="12列グリッド" size="small" variant="outlined" />
-                            </Box>
-                        </Box>
-                        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 2 }}>
-                            ドラッグで移動、角をドラッグでリサイズ。幅を半分にすると横並びに配置できます。
+                        pointerEvents: 'none'
+                    }} />
+                    
+                    <div ref={containerRef} style={{ width: '100%', position: 'relative', zIndex: 1 }}>
+                        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1, textAlign: 'center' }}>
+                            キャンバス (12列グリッド)
                         </Typography>
-                        <Divider sx={{ mb: 2 }} />
-                        <div ref={containerRef} style={{ width: '100%' }}>
-                            {mounted && (
-                                <ReactGridLayout
-                                    className="layout"
-                                    style={{ 
-                                        minHeight: '500px', 
-                                        background: 'transparent', // Transparent to show dots
-                                        borderRadius: 8 
-                                    }}
-                                    layout={layout}
-                                    gridConfig={{ cols: 12, rowHeight: 80 }}
-                                    width={width}
-                                    onDrop={onDrop}
-                                    onDragStop={(newLayout: any) => setLayout(newLayout)}
-                                    onResizeStop={(newLayout: any) => setLayout(newLayout)}
-                                    dropConfig={{ enabled: true, defaultItem: { w: 6, h: 2 } }}
-                                    dragConfig={{ enabled: true }}
-                                    resizeConfig={{ enabled: true }}
-                                    droppingItem={{ i: "__dropping_elem__", x: 0, y: 0, w: 6, h: 2 }}
-                                >
-                                    {fields.map((field) => (
-                                        <div key={field.id}>
-                                            <FieldPreview
-                                                field={field}
-                                                onUpdateLabel={(label) => handleUpdateField(field.id, { label })}
-                                                onDelete={() => handleRemoveField(field.id)}
-                                                onUpdateOptions={(options) => handleUpdateField(field.id, { options })}
-                                                onUpdateId={(newId) => handleUpdateFieldId(field.id, newId)}
-                                                onUpdateRequired={(required) => handleUpdateField(field.id, { required })}
-                                                existingIds={fields.map(f => f.id)}
-                                            />
-                                        </div>
-                                    ))}
-                                </ReactGridLayout>
-                            )}
-                        </div>
-                    </Paper>
+                        {mounted && (
+                            <ReactGridLayout
+                                className="layout"
+                                style={{ minHeight: '600px' }}
+                                layout={layout}
+                                gridConfig={{ cols: 12, rowHeight: 80 }}
+                                width={width}
+                                onDrop={onDrop}
+                                onDragStop={(newLayout: any) => setLayout(newLayout)}
+                                onResizeStop={(newLayout: any) => setLayout(newLayout)}
+                                dropConfig={{ enabled: true, defaultItem: { w: 6, h: 2 } }}
+                                dragConfig={{ enabled: true }}
+                                resizeConfig={{ enabled: true }}
+                                droppingItem={{ i: "__dropping_elem__", x: 0, y: 0, w: 6, h: 2 }}
+                            >
+                                {fields.map((field) => (
+                                    <div key={field.id} onClick={(e) => { e.stopPropagation(); setSelectedFieldId(field.id); }}>
+                                        <FieldPreview
+                                            field={field}
+                                            isSelected={selectedFieldId === field.id}
+                                            onClick={() => setSelectedFieldId(field.id)}
+                                            onDelete={(e) => { e.stopPropagation(); handleRemoveField(field.id); }}
+                                        />
+                                    </div>
+                                ))}
+                            </ReactGridLayout>
+                        )}
+                    </div>
+                </Grid>
+
+                {/* Right: Property Panel (20-25%) */}
+                <Grid size={2.4} sx={{ borderLeft: '1px solid #e0e0e0', bgcolor: 'white', overflowY: 'auto' }}>
+                    <PropertyPanel
+                        field={selectedField}
+                        onUpdate={handleUpdateField}
+                        existingIds={fields.map(f => f.id)}
+                    />
                 </Grid>
             </Grid>
 
-            <Box sx={{ mt: 3, display: 'flex', justifyContent: 'flex-end', gap: 2 }}>
-                <Button
-                    variant="outlined"
-                    startIcon={<VisibilityIcon />}
-                    onClick={() => setPreviewOpen(true)}
-                    size="large"
-                >
-                    プレビュー
-                </Button>
-                <Button variant="contained" onClick={handleSave} disabled={saveMutation.isPending} size="large">
-                    {saveMutation.isPending ? '保存中...' : 'フォームを保存'}
-                </Button>
-            </Box>
 
-            {/* プレビューモーダル */}
-            <Dialog
-                open={previewOpen}
-                onClose={() => setPreviewOpen(false)}
-                maxWidth="md"
-                fullWidth
-            >
-                <DialogTitle>
-                    申請フォーム プレビュー
-                    <Typography variant="caption" sx={{ display: 'block', color: 'text.secondary' }}>
-                        実際の申請画面と同じ見た目でフォームを確認できます
-                    </Typography>
-                </DialogTitle>
+            {/* Error/Success Messages */}
+            {(error || success) && (
+                <Box sx={{ position: 'fixed', bottom: 20, left: '50%', transform: 'translateX(-50%)', zIndex: 2000 }}>
+                    {error && <Alert severity="error" onClose={() => setError(null)}>{error}</Alert>}
+                    {success && <Alert severity="success" onClose={() => setSuccess(null)}>{success}</Alert>}
+                </Box>
+            )}
+
+            {/* Preview Modal */}
+            <Dialog open={previewOpen} onClose={() => setPreviewOpen(false)} maxWidth="md" fullWidth>
+                <DialogTitle>プレビュー</DialogTitle>
                 <DialogContent dividers>
                     <Box sx={{ p: 2 }}>
-                        {fields.length === 0 ? (
-                            <Typography color="text.secondary" textAlign="center">
-                                フィールドがまだ追加されていません。<br />
-                                ツールボックスからフィールドをドラッグして追加してください。
-                            </Typography>
-                        ) : (
-                            <Box>
-                                <DynamicFormRenderer
-                                    schema={{
-                                        type: 'object',
-                                        properties: fields.reduce((acc, field) => ({
-                                            ...acc,
-                                            [field.id]: {
-                                                type: field.type,
-                                                title: field.label,
-                                                options: field.options
-                                            }
-                                        }), {}),
-                                        "x-layout": layout
-                                    }}
-                                    onSubmit={(data) => {
-                                        alert('プレビューモード: 送信データ\\n' + JSON.stringify(data, null, 2));
-                                    }}
-                                />
-                            </Box>
-                        )}
+                        <DynamicFormRenderer
+                            schema={{
+                                type: 'object',
+                                properties: fields.reduce((acc, field) => ({
+                                    ...acc,
+                                    [field.id]: {
+                                        type: field.type,
+                                        title: field.label,
+                                        options: field.options,
+                                        readOnly: field.readOnly,
+                                        includeTime: field.includeTime,
+                                        textAlign: field.textAlign,
+                                        verticalAlign: field.verticalAlign
+                                    }
+                                }), {}),
+                                "x-layout": layout,
+                                required: fields.filter(f => f.required).map(f => f.id)
+                            }}
+                            layouts={{ lg: layout }}
+                            onSubmit={(data) => alert('送信データ:\n' + JSON.stringify(data, null, 2))}
+                        />
                     </Box>
                 </DialogContent>
                 <DialogActions>

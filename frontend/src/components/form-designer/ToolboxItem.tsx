@@ -24,45 +24,39 @@ export default function ToolboxItem({ type, label, icon, id }: ToolboxItemProps)
             onDragStart={handleDragStart}
             elevation={0}
             sx={{
-                p: 1.5,
-                mb: 1.5,
+                p: 1,
+                mb: 1,
                 display: 'flex',
                 alignItems: 'center',
                 cursor: 'grab',
-                borderRadius: 2,
+                borderRadius: 1.5,
                 border: '1px solid',
                 borderColor: 'divider',
-                transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                transition: 'all 0.2s',
                 '&:hover': { 
                     bgcolor: 'action.hover',
                     borderColor: 'primary.main',
-                    transform: 'translateY(-2px)',
-                    boxShadow: '0 4px 12px rgba(0,0,0,0.08)'
-                },
-                '&:active': {
-                    cursor: 'grabbing',
-                    transform: 'translateY(0)',
-                    boxShadow: 'none'
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.05)'
                 },
                 position: 'relative',
                 userSelect: 'none',
             }}
         >
             <Box sx={{ 
-                mr: 2, 
+                mr: 1.5, 
                 display: 'flex', 
                 alignItems: 'center', 
                 justifyContent: 'center',
                 color: 'primary.main',
-                bgcolor: 'primary.light', // or alpha color
-                p: 1,
-                borderRadius: 1.5,
-                width: 40,
-                height: 40
+                bgcolor: 'primary.50',
+                p: 0.5,
+                borderRadius: 1,
+                width: 32,
+                height: 32
             }}>
-                {icon || <DragIndicatorIcon />}
+                {icon ? React.cloneElement(icon as any, { fontSize: 'small' }) : <DragIndicatorIcon fontSize="small" />}
             </Box>
-            <Typography variant="subtitle2" fontWeight="bold">{label}</Typography>
+            <Typography variant="caption" fontWeight="bold" sx={{ fontSize: '0.75rem' }}>{label}</Typography>
             
             <DragIndicatorIcon 
                 sx={{ 

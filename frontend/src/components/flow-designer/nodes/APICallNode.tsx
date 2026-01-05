@@ -185,7 +185,7 @@ export default function APICallNode({ id, data }: { id: string; data: any }) {
             >
                 <Handle
                     type="target"
-                    position={Position.Top}
+                    position={Position.Left}
                     style={{
                         background: '#4527a0',
                         width: 10,
@@ -227,7 +227,7 @@ export default function APICallNode({ id, data }: { id: string; data: any }) {
 
                 <Handle
                     type="source"
-                    position={Position.Bottom}
+                    position={Position.Right}
                     style={{
                         background: '#4527a0',
                         width: 10,

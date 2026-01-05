@@ -2,13 +2,14 @@
 
 import React from 'react';
 import { useForm } from 'react-hook-form';
-import { Box, Button, TextField, Checkbox, FormControlLabel, Typography, Paper, MenuItem, Radio, RadioGroup, FormControl, FormLabel } from '@mui/material';
+import { Box, Button, TextField, Checkbox, FormControlLabel, Typography, Paper, MenuItem, Radio, RadioGroup, FormControl, FormLabel, Divider, Chip } from '@mui/material';
 import { ResponsiveGridLayout, useContainerWidth } from 'react-grid-layout';
 import 'react-grid-layout/css/styles.css';
 
 
 interface DynamicFormRendererProps {
     schema: any;
+    layouts?: any;
     onSubmit?: (data: any) => void;
     renderActions?: (methods: any) => React.ReactNode;
 }
@@ -77,7 +78,7 @@ const selectionCardStyle = {
     }
 };
 
-export default function DynamicFormRenderer({ schema, onSubmit, renderActions }: DynamicFormRendererProps) {
+export default function DynamicFormRenderer({ schema, layouts, onSubmit, renderActions }: DynamicFormRendererProps) {
     const methods = useForm();
     const { register, handleSubmit, formState: { errors }, getValues } = methods;
     const { width, containerRef, mounted } = useContainerWidth({ initialWidth: 800 });
@@ -91,9 +92,11 @@ export default function DynamicFormRenderer({ schema, onSubmit, renderActions }:
         ...config,
     }));
 
-    // Retrieve layout from schema or generate default
-    const layout = schema['x-layout'] || fields.map((f, i) => ({ i: f.id, x: 0, y: i * 2, w: 12, h: 2 }));
-    const layouts = { lg: layout, md: layout, sm: layout, xs: layout, xxs: layout };
+    // Retrieve layout from props.layouts, schema, or generate default
+    const propsLayout = layouts?.lg || layouts?.[Object.keys(layouts || {})[0]];
+    const schemaLayout = schema['x-layout'];
+    const layout = propsLayout || schemaLayout || fields.map((f, i) => ({ i: f.id, x: 0, y: i * 2, w: 12, h: 2 }));
+    const effectiveLayouts = layouts || { lg: layout, md: layout, sm: layout, xs: layout, xxs: layout };
 
     // Sort fields by layout position (y then x) for correct tab order and rendering
     const sortedFields = [...fields].sort((a, b) => {
@@ -126,102 +129,224 @@ export default function DynamicFormRenderer({ schema, onSubmit, renderActions }:
 
                 <div ref={containerRef}>
                     {mounted && (
-                        <ResponsiveGridLayout
-                            className="layout"
-                            layouts={layouts}
-                            width={width}
-                            breakpoints={{ lg: 1200, md: 800, sm: 600, xs: 480, xxs: 0 }}
-                            cols={{ lg: 12, md: 12, sm: 12, xs: 1, xxs: 1 }} 
-                            rowHeight={60}
-                            dragConfig={{ enabled: false }}
-                            resizeConfig={{ enabled: false }}
-                            dropConfig={{ enabled: false }}
-                            margin={[24, 24]}
-                        >
-                            {sortedFields.map((field, index) => (
-                                <div key={field.id}>
-                                    <Box 
+                        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                            {(() => {
+                                // Group fields into sections
+                                const sections: any[] = [];
+                                let currentSection: any = { type: 'default', fields: [] };
+
+                                sortedFields.forEach(field => {
+                                    if (field.type === 'group') {
+                                        if (currentSection.fields.length > 0) {
+                                            sections.push(currentSection);
+                                        }
+                                        currentSection = { type: 'group', title: field.title || field.label, fields: [] };
+                                    } else {
+                                        currentSection.fields.push(field);
+                                    }
+                                });
+                                if (currentSection.fields.length > 0 || currentSection.type === 'group') {
+                                    sections.push(currentSection);
+                                }
+
+                                return sections.map((section, secIndex) => (
+                                    <Paper 
+                                        key={secIndex} 
+                                        elevation={section.type === 'group' ? 1 : 0} 
                                         sx={{ 
-                                            ...itemAnimation,
-                                            animationDelay: `${index * 0.05}s`,
-                                            height: '100%',
-                                            display: 'flex',
-                                            flexDirection: 'column',
-                                            justifyContent: field.type === 'radio' || field.type === 'checkbox' ? 'flex-start' : 'center'
+                                            mb: 3, 
+                                            p: section.type === 'group' ? 3 : 0, 
+                                            bgcolor: section.type === 'group' ? 'rgba(255,255,255,0.6)' : 'transparent', 
+                                            borderRadius: 4,
+                                            border: section.type === 'group' ? '1px solid rgba(255,255,255,0.8)' : 'none'
                                         }}
                                     >
-                                        {/* Text Types */}
-                                        {(field.type === 'text' || field.type === 'number' || field.type === 'textarea' || field.type === 'date') && (
-                                            <TextField
-                                                fullWidth
-                                                variant="standard"
-                                                multiline={field.type === 'textarea'}
-                                                rows={field.type === 'textarea' ? 4 : 1}
-                                                type={field.type === 'date' ? 'date' : field.type === 'number' ? 'number' : 'text'}
-                                                label={field.title}
-                                                InputLabelProps={{ shrink: true }}
-                                                {...register(field.id, { required: true })}
-                                                error={!!errors[field.id]}
-                                                helperText={errors[field.id] ? 'This field is required' : ''}
-                                                InputProps={{ disableUnderline: true }}
-                                                sx={inputStyle}
-                                            />
+                                        {section.type === 'group' && (
+                                            <Typography variant="h6" sx={{ mb: 2, fontWeight: 'bold', color: '#1a365d' }}>
+                                                {section.title}
+                                            </Typography>
                                         )}
+                                        
+                                        <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(12, 1fr)', gap: 3 }}>
+                                            {section.fields.map((field: any, index: number) => {
+                                                const isReadOnly = field.readOnly;
+                                                // Check required status
+                                                const isRequired = field.required === true || (schema.required && schema.required.includes(field.id));
+                                                
+                                                // Calculate grid span and position from layout
+                                                // Try to find layout for current field
+                                                let span = 12;
+                                                let xPos = 0;
+                                                let rowHeight = 2; // default rows
+                                                if (effectiveLayouts && effectiveLayouts.lg) {
+                                                    const l = effectiveLayouts.lg.find((l: any) => l.i === field.id);
+                                                    if (l) {
+                                                        span = l.w;
+                                                        xPos = l.x || 0;
+                                                        rowHeight = l.h || 2;
+                                                    }
+                                                }
+                                                // Calculate actual height (each row ~ 80px based on designer rowHeight)
+                                                const itemHeight = rowHeight * 80;
+                                                
+                                                // gridColumn: start / span width
+                                                // CSS Grid columns are 1-indexed, so add 1 to xPos
+                                                const gridColumnValue = xPos > 0 ? `${xPos + 1} / span ${span}` : `span ${span}`;
+                                                
+                                                return (
+                                                    <Box 
+                                                        key={field.id} 
+                                                        sx={{ 
+                                                            gridColumn: gridColumnValue,
+                                                            minHeight: itemHeight,
+                                                            ...itemAnimation,
+                                                            animationDelay: `${index * 0.05}s`,
+                                                            display: 'flex',
+                                                            flexDirection: 'column',
+                                                        }}
+                                                    >
+                                                        {/* Divider */}
+                                                        {field.type === 'divider' && <Divider sx={{ my: 1 }} />}
 
-                                        {/* Select Type */}
-                                        {field.type === 'select' && (
-                                            <TextField
-                                                select
-                                                fullWidth
-                                                variant="standard"
-                                                label={field.title}
-                                                InputLabelProps={{ shrink: true }}
-                                                {...register(field.id, { required: true })}
-                                                error={!!errors[field.id]}
-                                                defaultValue=""
-                                                InputProps={{ disableUnderline: true }}
-                                                sx={inputStyle}
-                                            >
-                                                {field.options?.map((opt: string) => (
-                                                    <MenuItem key={opt} value={opt} sx={{ borderRadius: 2, m: 0.5 }}>
-                                                        {opt}
-                                                    </MenuItem>
-                                                ))}
-                                            </TextField>
-                                        )}
+                                                        {/* Label (Heading) */}
+                                                        {field.type === 'label' && (
+                                                            <Box sx={{ 
+                                                                display: 'flex', 
+                                                                alignItems: field.verticalAlign === 'top' ? 'flex-start' : field.verticalAlign === 'bottom' ? 'flex-end' : 'center',
+                                                                justifyContent: field.textAlign === 'center' ? 'center' : field.textAlign === 'right' ? 'flex-end' : 'flex-start',
+                                                                height: '100%',
+                                                                minHeight: 50,
+                                                            }}>
+                                                                <Typography variant="h6" sx={{ fontWeight: 'bold', color: '#1a365d' }}>
+                                                                    {field.title || field.label}
+                                                                </Typography>
+                                                            </Box>
+                                                        )}
 
-                                        {/* Radio Group */}
-                                        {field.type === 'radio' && (
-                                            <FormControl component="fieldset" error={!!errors[field.id]} fullWidth>
-                                                <FormLabel component="legend" sx={{ mb: 1.5, fontWeight: 'bold', fontSize: '0.9rem', color: '#4a5568' }}>{field.title}</FormLabel>
-                                                <RadioGroup row sx={{ display: 'flex', flexWrap: 'wrap', mx: -0.5 }}>
-                                                    {field.options?.map((opt: string) => (
-                                                        <FormControlLabel
-                                                            key={opt}
-                                                            value={opt}
-                                                            control={<Radio {...register(field.id)} sx={{ '&.Mui-checked': { color: '#3a1c71' } }} />}
-                                                            label={opt}
-                                                            sx={selectionCardStyle}
-                                                        />
-                                                    ))}
-                                                </RadioGroup>
-                                            </FormControl>
-                                        )}
+                                                        {/* Inputs */}
+                                                        {/* Text/Number/Date/TextArea */}
+                                                        {(['text', 'number', 'textarea', 'date'].includes(field.type)) && (
+                                                            <TextField
+                                                                fullWidth
+                                                                variant="standard"
+                                                                multiline={field.type === 'textarea'}
+                                                                rows={field.type === 'textarea' ? 4 : 1}
+                                                                type={field.type === 'date' ? (field.includeTime ? 'datetime-local' : 'date') : field.type}
+                                                                label={field.title}
+                                                                InputLabelProps={{ shrink: true, required: isRequired }}
+                                                                {...register(field.id, { required: isRequired })}
+                                                                error={!!errors[field.id]}
+                                                                helperText={errors[field.id] ? '必須項目です' : ''}
+                                                                InputProps={{ 
+                                                                    disableUnderline: true,
+                                                                    readOnly: isReadOnly,
+                                                                }}
+                                                                disabled={isReadOnly}
+                                                                sx={inputStyle}
+                                                            />
+                                                        )}
 
-                                        {/* Checkbox Group (Assuming single logical grouping or multiple items if array) */}
-                                        {field.type === 'checkbox' && (
-                                            <Box sx={{ ...selectionCardStyle, display: 'inline-flex', alignItems: 'center', width: 'auto', flex: 'none', pr: 3 }}>
-                                                <FormControlLabel
-                                                    control={<Checkbox {...register(field.id)} sx={{ '&.Mui-checked': { color: '#3a1c71' } }} />}
-                                                    label={<Typography fontWeight="500">{field.title}</Typography>}
-                                                    sx={{ m: 0 }}
-                                                />
-                                            </Box>
-                                        )}
-                                    </Box>
-                                </div>
-                            ))}
-                        </ResponsiveGridLayout>
+                                                        {/* Select */}
+                                                        {field.type === 'select' && (
+                                                            <TextField
+                                                                select
+                                                                fullWidth
+                                                                variant="standard"
+                                                                label={field.title}
+                                                                InputLabelProps={{ shrink: true, required: isRequired }}
+                                                                {...register(field.id, { required: isRequired })}
+                                                                error={!!errors[field.id]}
+                                                                defaultValue=""
+                                                                InputProps={{ disableUnderline: true, readOnly: isReadOnly }}
+                                                                disabled={isReadOnly}
+                                                                sx={inputStyle}
+                                                            >
+                                                                {field.options?.map((opt: any) => {
+                                                                    const val = typeof opt === 'string' ? opt : opt.value;
+                                                                    const lbl = typeof opt === 'string' ? opt : opt.label;
+                                                                    return (
+                                                                        <MenuItem key={val} value={val} sx={{ borderRadius: 2, m: 0.5 }}>
+                                                                            {lbl}
+                                                                        </MenuItem>
+                                                                    );
+                                                                })}
+                                                            </TextField>
+                                                        )}
+
+                                                        {/* Radio Group */}
+                                                        {field.type === 'radio' && (
+                                                            <FormControl component="fieldset" error={!!errors[field.id]} fullWidth disabled={isReadOnly}>
+                                                                <FormLabel component="legend" required={isRequired} sx={{ mb: 1.5, fontWeight: 'bold', fontSize: '0.9rem', color: '#4a5568' }}>{field.title}</FormLabel>
+                                                                <RadioGroup row sx={{ display: 'flex', flexWrap: 'wrap', mx: -0.5 }}>
+                                                                    {field.options?.map((opt: any) => {
+                                                                        const val = typeof opt === 'string' ? opt : opt.value;
+                                                                        const lbl = typeof opt === 'string' ? opt : opt.label;
+                                                                        return (
+                                                                            <FormControlLabel
+                                                                                key={val}
+                                                                                value={val}
+                                                                                control={<Radio {...register(field.id, { required: isRequired })} sx={{ '&.Mui-checked': { color: '#3a1c71' } }} />}
+                                                                                label={lbl}
+                                                                                sx={selectionCardStyle}
+                                                                            />
+                                                                        );
+                                                                    })}
+                                                                </RadioGroup>
+                                                            </FormControl>
+                                                        )}
+
+                                                        {/* Checkbox Group */}
+                                                        {field.type === 'checkbox' && (
+                                                            <FormControl component="fieldset" error={!!errors[field.id]} fullWidth disabled={isReadOnly}>
+                                                                <FormLabel component="legend" required={isRequired} sx={{ mb: 1.5, fontWeight: 'bold', fontSize: '0.9rem', color: '#4a5568' }}>{field.title}</FormLabel>
+                                                                <Box sx={{ display: 'flex', flexWrap: 'wrap', mx: -0.5 }}>
+                                                                    {/* For checkboxes in RHF, if multiple have same name, they are an array. But simple binding needs care.
+                                                                        We'll iterate options and just register independently for now, expecting RHF to handle array if same name. 
+                                                                        OR using Controller is safer. But sticking to register for simplicity if it works. 
+                                                                        If standard register check is buggy for array, we might need a better solution. 
+                                                                        For now, mapped checkboxes with value and same name usually work in HTML forms. */}
+                                                                    {field.options && field.options.length > 0 ? (
+                                                                        field.options.map((opt: any) => {
+                                                                            const val = typeof opt === 'string' ? opt : opt.value;
+                                                                            const lbl = typeof opt === 'string' ? opt : opt.label;
+                                                                            return (
+                                                                                <FormControlLabel
+                                                                                    key={val}
+                                                                                    control={
+                                                                                        <Checkbox 
+                                                                                            value={val} 
+                                                                                            {...register(field.id)}
+                                                                                            sx={{ '&.Mui-checked': { color: '#3a1c71' } }}
+                                                                                        />
+                                                                                    }
+                                                                                    label={lbl}
+                                                                                    sx={selectionCardStyle}
+                                                                                />
+                                                                            );
+                                                                        })
+                                                                    ) : (
+                                                                         <FormControlLabel
+                                                                            control={
+                                                                                <Checkbox 
+                                                                                    {...register(field.id, { required: isRequired })}
+                                                                                    sx={{ '&.Mui-checked': { color: '#3a1c71' } }}
+                                                                                />
+                                                                            }
+                                                                            label={field.title || field.label}
+                                                                            sx={selectionCardStyle}
+                                                                        />
+                                                                    )}
+                                                                </Box>
+                                                            </FormControl>
+                                                        )}
+                                                    </Box>
+                                                );
+                                            })}
+                                        </Box>
+                                    </Paper>
+                                ));
+                            })()}
+                        </Box>
                     )}
                 </div>
 

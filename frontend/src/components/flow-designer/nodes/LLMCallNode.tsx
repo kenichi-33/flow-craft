@@ -64,7 +64,7 @@ export default function LLMCallNode({ id, data }: { id: string; data: any }) {
             >
                 <Handle
                     type="target"
-                    position={Position.Top}
+                    position={Position.Left}
                     style={{
                         background: '#00695c',
                         width: 10,
@@ -106,7 +106,7 @@ export default function LLMCallNode({ id, data }: { id: string; data: any }) {
 
                 <Handle
                     type="source"
-                    position={Position.Bottom}
+                    position={Position.Right}
                     style={{
                         background: '#00695c',
                         width: 10,

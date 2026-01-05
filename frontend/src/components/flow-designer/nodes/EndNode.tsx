@@ -22,7 +22,7 @@ export default function EndNode({ data }: { data: any }) {
         >
             <Handle
                 type="target"
-                position={Position.Top}
+                position={Position.Left}
                 style={{
                     background: '#c62828',
                     width: 10,
