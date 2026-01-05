@@ -381,6 +381,11 @@ export default function FlowVisualization({
                 edges={displayEdges}
                 nodeTypes={nodeTypesMemo}
                 fitView
+                fitViewOptions={{ 
+                    padding: 0.2,
+                    maxZoom: 1,
+                    minZoom: 0.3,
+                }}
                 nodesDraggable={false}
                 nodesConnectable={false}
                 elementsSelectable={false}

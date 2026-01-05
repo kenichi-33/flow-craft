@@ -12,6 +12,8 @@ interface DynamicFormRendererProps {
     layouts?: any;
     onSubmit?: (data: any) => void;
     renderActions?: (methods: any) => React.ReactNode;
+    readOnly?: boolean;
+    initialData?: any;
 }
 
 // ... styles remain same ...
@@ -78,8 +80,10 @@ const selectionCardStyle = {
     }
 };
 
-export default function DynamicFormRenderer({ schema, layouts, onSubmit, renderActions }: DynamicFormRendererProps) {
-    const methods = useForm();
+export default function DynamicFormRenderer({ schema, layouts, onSubmit, renderActions, readOnly = false, initialData = {} }: DynamicFormRendererProps) {
+    const methods = useForm({
+        defaultValues: initialData
+    });
     const { register, handleSubmit, formState: { errors }, getValues } = methods;
     const { width, containerRef, mounted } = useContainerWidth({ initialWidth: 800 });
 
@@ -169,9 +173,9 @@ export default function DynamicFormRenderer({ schema, layouts, onSubmit, renderA
                                         
                                         <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(12, 1fr)', gap: 3 }}>
                                             {section.fields.map((field: any, index: number) => {
-                                                const isReadOnly = field.readOnly;
+                                                const isReadOnly = readOnly || field.readOnly;
                                                 // Check required status
-                                                const isRequired = field.required === true || (schema.required && schema.required.includes(field.id));
+                                                const isRequired = !readOnly && (field.required === true || (schema.required && schema.required.includes(field.id)));
                                                 
                                                 // Calculate grid span and position from layout
                                                 // Try to find layout for current field
@@ -351,7 +355,7 @@ export default function DynamicFormRenderer({ schema, layouts, onSubmit, renderA
                 </div>
 
                 <Box sx={{ mt: 6, display: 'flex', justifyContent: 'center' }}>
-                    {renderActions ? renderActions(methods) : (
+                    {renderActions ? renderActions(methods) : (!readOnly && (
                         <Button 
                             type="submit" 
                             variant="contained" 
@@ -377,7 +381,7 @@ export default function DynamicFormRenderer({ schema, layouts, onSubmit, renderA
                         >
                             Submit Application
                         </Button>
-                    )}
+                    ))}
                 </Box>
             </Paper>
         </form>

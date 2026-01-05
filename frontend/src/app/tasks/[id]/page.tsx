@@ -28,7 +28,7 @@ import PersonIcon from '@mui/icons-material/Person';
 import ErrorIcon from '@mui/icons-material/Error';
 import Link from 'next/link';
 import FlowVisualization from '@/components/flow-designer/FlowVisualization';
-import ApplicationFormViewer from '@/components/ApplicationFormViewer';
+import DynamicFormRenderer from '@/components/application/DynamicFormRenderer';
 import ApprovalHistory from '@/components/ApprovalHistory';
 import { UserDisplay } from '@/components/UserDisplay';
 
@@ -239,9 +239,10 @@ export default function TaskDetailPage() {
 
             {/* 2. 申請内容 - 共通コンポーネント使用 */}
             <Box sx={{ mb: 3 }}>
-                <ApplicationFormViewer
+                <DynamicFormRenderer
                     schema={schema}
-                    inputData={task.application?.inputData}
+                    initialData={task.application?.inputData}
+                    readOnly={true}
                 />
             </Box>
 

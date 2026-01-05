@@ -25,7 +25,7 @@ import ReplayIcon from '@mui/icons-material/Replay';
 import Link from 'next/link';
 import FlowVisualization from '@/components/flow-designer/FlowVisualization';
 import 'reactflow/dist/style.css';
-import ApplicationFormViewer from '@/components/ApplicationFormViewer';
+import DynamicFormRenderer from '@/components/application/DynamicFormRenderer';
 import ApprovalHistory from '@/components/ApprovalHistory';
 import TaskList from '@/components/TaskList';
 import { UserDisplay } from '@/components/UserDisplay';
@@ -383,9 +383,10 @@ export default function ApplicationDetailPage() {
 
             {/* 2. 申請内容 (共通コンポーネント使用) */}
             <Box sx={{ mb: 3 }}>
-                <ApplicationFormViewer
+                <DynamicFormRenderer
                     schema={application.formDefinition?.schema}
-                    inputData={application.inputData}
+                    initialData={application.inputData}
+                    readOnly={true}
                 />
             </Box>
 

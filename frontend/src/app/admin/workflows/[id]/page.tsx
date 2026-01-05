@@ -20,7 +20,7 @@ import { useParams } from 'next/navigation';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import Link from 'next/link';
 import FlowVisualization from '@/components/flow-designer/FlowVisualization';
-import ApplicationFormViewer from '@/components/ApplicationFormViewer';
+import DynamicFormRenderer from '@/components/application/DynamicFormRenderer';
 
 interface ApplicationDetail {
     id: string;
@@ -148,11 +148,12 @@ export default function WorkflowDetailPage() {
                 />
             </Paper>
 
-            {/* 申請内容 */}
+
             <Box sx={{ mb: 3 }}>
-                <ApplicationFormViewer
+                <DynamicFormRenderer
                     schema={application.formDefinition?.schema}
-                    inputData={application.inputData}
+                    initialData={application.inputData}
+                    readOnly={true}
                 />
             </Box>
 
