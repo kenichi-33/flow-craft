@@ -1,4 +1,5 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, OnModuleInit, Logger } from '@nestjs/common';
+import { QueueService } from '../queue/queue.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { Prisma } from '@prisma/client';
 import axios from 'axios';
@@ -7,7 +8,9 @@ import { MailService } from '../notifications/mail.service';
 import { UsersService } from '../users/users.service';
 
 @Injectable()
-export class WorkflowEngineService {
+export class WorkflowEngineService implements OnModuleInit {
+    private readonly logger = new Logger(WorkflowEngineService.name);
+    private readonly COMPONENT_NAME = 'WorkflowEngine';
     private readonly keycloakUrl = process.env.KEYCLOAK_URL || 'http://localhost:8080';
     private readonly realm = process.env.KEYCLOAK_REALM || 'workflow';
     private readonly clientId = process.env.KEYCLOAK_ADMIN_CLIENT_ID || 'admin-cli';
@@ -17,7 +20,18 @@ export class WorkflowEngineService {
         private prisma: PrismaService,
         private mailService: MailService,
         private usersService: UsersService,
+        private queueService: QueueService,
     ) { }
+
+    async onModuleInit() {
+        await this.queueService.registerHandler('WORKFLOW_NODE_PROCESS', this.handleNodeProcessingJob.bind(this));
+        this.logger.log('Registered WORKFLOW_NODE_PROCESS handler');
+    }
+
+    async handleNodeProcessingJob(job: { applicationId: string }) {
+        this.logger.log(`Processing workflow node for application ${job.applicationId}`);
+        await this.processNode(job.applicationId);
+    }
 
     /**
      * ワークフローを開始する
@@ -218,9 +232,17 @@ export class WorkflowEngineService {
     }
 
     /**
-     * 次のノードへ進む
+     * 次のノードへ進む (非同期ジョブ登録)
      */
     async advanceToNextNode(applicationId: string) {
+        await this.queueService.enqueue('WORKFLOW_NODE_PROCESS', { applicationId });
+        this.logger.log(`Enqueued processing for application ${applicationId}`);
+    }
+
+    /**
+     * ノード処理の実装 (Workerから呼ばれる)
+     */
+    private async processNode(applicationId: string) {
         const application = await this.prisma.application.findUnique({
             where: { id: applicationId },
             include: {

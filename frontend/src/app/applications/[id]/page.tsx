@@ -395,6 +395,7 @@ export default function ApplicationDetailPage() {
                 <SectionPaper title="タスク一覧">
                     <TaskList
                         tasks={application.tasks || []}
+                        serviceTasks={application.serviceTasks || []}
                         flowNodes={application.flowDefinition?.nodes}
                         flowEdges={application.flowDefinition?.edges}
                         applicationInfo={{

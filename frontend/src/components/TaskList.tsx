@@ -34,6 +34,7 @@ interface Task {
 
 interface TaskListProps {
     tasks: Task[];
+    serviceTasks?: any[]; // ServiceTask型を詳細定義するのが理想だが一旦any[]で
     flowNodes?: any[];
     flowEdges?: any[];
     applicationInfo?: {
@@ -174,7 +175,7 @@ const formatDateTime = (dateString: string | undefined) => {
     });
 };
 
-export default function TaskList({ tasks, flowNodes, flowEdges, applicationInfo, title = 'タスク一覧', showHeader = true, departmentsMap }: TaskListProps) {
+export default function TaskList({ tasks, serviceTasks, flowNodes, flowEdges, applicationInfo, title = 'タスク一覧', showHeader = true, departmentsMap }: TaskListProps) {
     // フロー定義と既存タスクをマージして全ステップを表示
     const allSteps = useMemo(() => {
         if (!flowNodes || flowNodes.length === 0) {
@@ -188,7 +189,7 @@ export default function TaskList({ tasks, flowNodes, flowEdges, applicationInfo,
 
         // ゲートウェイ以外のノードを取得（開始・完了・承認ノードなど）
         const gatewayTypes = ['parallel', 'join', 'branch', 'swimlane'];
-        const approvalNodes = flowNodes.filter(node => !gatewayTypes.includes(node.type));
+        const displayNodes = flowNodes.filter(node => !gatewayTypes.includes(node.type));
 
         // ノードの順序を決定（edgesから）
         const getNodeOrder = (nodeId: string, nodeType: string): number => {
@@ -223,8 +224,9 @@ export default function TaskList({ tasks, flowNodes, flowEdges, applicationInfo,
         };
 
         // 各ノードに対してタスク情報をマージ
-        const steps = approvalNodes.map(node => {
+        const steps = displayNodes.map(node => {
             const task = tasks.find(t => t.stepId === node.id);
+            const serviceTask = serviceTasks?.find(t => t.stepId === node.id);
             
             // 開始ノードの場合、申請者と申請日時を表示
             if (node.type === 'start') {
@@ -259,7 +261,26 @@ export default function TaskList({ tasks, flowNodes, flowEdges, applicationInfo,
                     order: getNodeOrder(node.id, node.type),
                 };
             }
+
+            // サービスタスクの場合
+            if (['apiCall', 'llmCall'].includes(node.type)) {
+                return {
+                    id: serviceTask?.id || `pending-service-${node.id}`,
+                    stepId: node.id,
+                    stepName: node.data?.label || (node.type === 'apiCall' ? 'API実行' : 'AI処理'),
+                    assignedTo: 'system', // システム処理
+                    assignedToDisplay: 'システム',
+                    status: serviceTask?.status || 'WAITING',
+                    createdAt: serviceTask?.createdAt || '',
+                    updatedAt: serviceTask?.updatedAt || undefined, // serviceTasksにはupdatedAtがない場合があるが仮定
+                    completedAt: undefined,
+                    nodeData: node.data,
+                    nodeType: node.type,
+                    order: getNodeOrder(node.id, node.type),
+                };
+            }
             
+            // 承認タスクの場合
             return {
                 id: task?.id || `pending-${node.id}`,
                 stepId: node.id,
@@ -281,7 +302,7 @@ export default function TaskList({ tasks, flowNodes, flowEdges, applicationInfo,
         steps.sort((a, b) => a.order - b.order);
         
         return steps;
-    }, [tasks, flowNodes, flowEdges, applicationInfo]);
+    }, [tasks, serviceTasks, flowNodes, flowEdges, applicationInfo]);
 
     if (allSteps.length === 0) {
         return (

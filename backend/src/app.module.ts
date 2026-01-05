@@ -16,6 +16,7 @@ import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './auth/auth.module';
 import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
 import { RolesGuard } from './auth/guards/roles.guard';
+import { QueueModule } from './modules/queue/queue.module';
 
 @Module({
   imports: [
@@ -31,6 +32,7 @@ import { RolesGuard } from './auth/guards/roles.guard';
     UsersModule,
     PrismaModule,
     NotificationsModule,
+    QueueModule,
   ],
   controllers: [AppController],
   providers: [
