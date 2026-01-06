@@ -17,6 +17,9 @@ import {
     Card,
     CardContent,
     CardActions,
+    Grid,
+    Snackbar,
+    Autocomplete,
 } from '@mui/material';
 import { useRouter, useParams } from 'next/navigation';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
@@ -30,6 +33,7 @@ interface ApplicationDefinition {
     id: string;
     name: string;
     description?: string;
+    tags?: string[];
     status: 'DRAFT' | 'ACTIVE' | 'ARCHIVED';
     version: number;
     publishedAt: string | null;
@@ -65,6 +69,7 @@ export default function AppDetailPage() {
     const [tabValue, setTabValue] = useState(0);
     const [name, setName] = useState('');
     const [description, setDescription] = useState('');
+    const [tags, setTags] = useState<string[]>([]);
     const [status, setStatus] = useState<'DRAFT' | 'ACTIVE' | 'ARCHIVED'>('DRAFT');
     const [error, setError] = useState<string | null>(null);
     const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -79,6 +84,7 @@ export default function AppDetailPage() {
         if (app) {
             setName(app.name);
             setDescription(app.description || '');
+            setTags(app.tags || []);
             setStatus(app.status);
         }
     }, [app]);
@@ -96,13 +102,13 @@ export default function AppDetailPage() {
     });
 
     const handleSaveBasicInfo = () => {
-        setError(null);
-        if (!name.trim()) {
+        if (!name) {
             setError('アプリ名は必須です');
             return;
         }
-        updateMutation.mutate({ name: name.trim(), description: description.trim() || undefined, status });
+        updateMutation.mutate({ name, description, tags });
     };
+
 
     const publishMutation = useMutation({
         mutationFn: () => api.post(`/application-definitions/${id}/publish`, {}),
@@ -134,175 +140,140 @@ export default function AppDetailPage() {
     }
 
     return (
-        <Box sx={{ p: 3 }}>
-            <Box sx={{ mb: 3, display: 'flex', alignItems: 'center', gap: 2 }}>
-                <Button
-                    startIcon={<ArrowBackIcon />}
-                    component={Link}
-                    href="/designer/apps"
-                >
-                    一覧に戻る
-                </Button>
-                <Typography variant="h4" sx={{ flexGrow: 1 }}>{app.name}</Typography>
-                <Chip
-                    label={`v${app.version}`}
-                    variant="outlined"
-                    size="small"
-                    component={Link}
-                    href={`/designer/apps/${id}/versions`}
-                    clickable
-                />
-                <Chip
-                    label={status === 'ACTIVE' ? '公開中' : status === 'DRAFT' ? '下書き' : 'アーカイブ'}
-                    color={getStatusColor(status) as any}
-                />
-                <Button
-                    variant="contained"
-                    color="success"
-                    startIcon={<PublishIcon />}
-                    onClick={() => publishMutation.mutate()}
-                    disabled={publishMutation.isPending || !app.formDefinition || !app.flowDefinition}
-                    title="フォーム/フローの設定をバージョンとして保存し、申請可能にします"
-                >
-                    {publishMutation.isPending ? '公開中...' : '新バージョン公開'}
-                </Button>
-            </Box>
+        <Box sx={{ maxWidth: 800, mx: 'auto' }}>
+            <Typography variant="h5" gutterBottom fontWeight="bold" sx={{ mb: 3 }}>
+                概観設定 (Overview)
+            </Typography>
 
-            <Alert severity="info" sx={{ mb: 2 }}>
-                <strong>バージョン管理:</strong> フォーム/フローを編集後「保存」で下書き更新。
-                「新バージョン公開」でバージョン番号が上がり、申請可能になります。
-                バージョンをクリックで履歴確認・切り戻しができます。
-            </Alert>
-
-            {app.publishedAt && (
-                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 2 }}>
-                    最終公開: {new Date(app.publishedAt).toLocaleString('ja-JP')}
-                </Typography>
-            )}
-
-            {successMessage && <Alert severity="success" sx={{ mb: 2 }}>{successMessage}</Alert>}
-            {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
-
-            <Paper sx={{ mb: 3 }}>
-                <Tabs value={tabValue} onChange={(_, v) => setTabValue(v)}>
-                    <Tab label="基本情報" />
-                    <Tab label="フォーム設定" />
-                    <Tab label="フロー設定" />
-                </Tabs>
-            </Paper>
-
-            <TabPanel value={tabValue} index={0}>
-                <Paper sx={{ p: 3, maxWidth: 600 }}>
-                    <Typography variant="h6" gutterBottom>基本情報</Typography>
-                    <TextField
-                        label="アプリ名"
-                        value={name}
-                        onChange={(e) => setName(e.target.value)}
-                        fullWidth
-                        required
-                        sx={{ mb: 2 }}
-                    />
-                    <TextField
-                        label="説明"
-                        value={description}
-                        onChange={(e) => setDescription(e.target.value)}
-                        fullWidth
-                        multiline
-                        rows={3}
-                        sx={{ mb: 2 }}
-                    />
-                    <TextField
-                        select
-                        label="ステータス"
-                        value={status}
-                        onChange={(e) => setStatus(e.target.value as any)}
-                        fullWidth
-                        SelectProps={{ native: true }}
-                        sx={{ mb: 3 }}
-                    >
-                        <option value="DRAFT">下書き</option>
-                        <option value="ACTIVE">公開中</option>
-                        <option value="ARCHIVED">アーカイブ</option>
-                    </TextField>
-                    <Button
-                        variant="contained"
-                        onClick={handleSaveBasicInfo}
-                        disabled={updateMutation.isPending}
-                    >
-                        保存
-                    </Button>
-                </Paper>
-            </TabPanel>
-
-            <TabPanel value={tabValue} index={1}>
-                <Card sx={{ maxWidth: 600 }}>
-                    <CardContent>
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
-                            <DescriptionIcon color="primary" />
-                            <Typography variant="h6">申請フォーム</Typography>
-                        </Box>
-                        {app.formDefinition ? (
-                            <>
-                                <Typography variant="body1" gutterBottom>
-                                    <strong>{app.formDefinition.name}</strong>
-                                </Typography>
-                                <Typography variant="body2" color="text.secondary">
-                                    フィールド数: {Object.keys(app.formDefinition.schema?.properties || {}).length}
-                                </Typography>
-                            </>
-                        ) : (
-                            <Alert severity="warning">
-                                フォームが設定されていません。「フォームを編集」から設定してください。
-                            </Alert>
-                        )}
-                    </CardContent>
-                    <Divider />
-                    <CardActions>
-                        <Button
-                            startIcon={<EditIcon />}
-                            component={Link}
-                            href={`/designer/apps/${id}/form`}
+            <Grid container spacing={3}>
+                <Grid size={{ xs: 12, md: 8 }}>
+                    {/* 基本情報編集 */}
+                    <Paper sx={{ p: 3, mb: 3 }}>
+                        <Typography variant="h6" gutterBottom>基本情報</Typography>
+                        <TextField
+                            label="アプリ名"
+                            value={name}
+                            onChange={(e) => setName(e.target.value)}
+                            fullWidth
+                            required
+                            sx={{ mb: 2 }}
+                        />
+                        <TextField
+                            label="説明"
+                            value={description}
+                            onChange={(e) => setDescription(e.target.value)}
+                            fullWidth
+                            multiline
+                            rows={3}
+                            sx={{ mb: 2 }}
+                        />
+                        <Autocomplete
+                            multiple
+                            freeSolo
+                            options={[]}
+                            value={tags}
+                            onChange={(event, newValue) => setTags(newValue)}
+                            renderTags={(value: readonly string[], getTagProps) =>
+                                value.map((option: string, index: number) => {
+                                    const { key, ...tagProps } = getTagProps({ index });
+                                    return (
+                                        <Chip variant="outlined" label={option} key={key} {...tagProps} />
+                                    );
+                                })
+                            }
+                            renderInput={(params) => (
+                                <TextField
+                                    {...params}
+                                    variant="outlined"
+                                    label="タグ"
+                                    placeholder="タグを入力してEnter"
+                                    fullWidth
+                                />
+                            )}
+                            sx={{ mb: 2 }}
+                        />
+                        <TextField
+                            select
+                            label="ステータス"
+                            value={status}
+                            onChange={(e) => setStatus(e.target.value as any)}
+                            fullWidth
+                            SelectProps={{ native: true }}
+                            sx={{ mb: 3 }}
+                            helperText="「アーカイブ」にするとメニューから隠れます"
                         >
-                            フォームを編集
-                        </Button>
-                    </CardActions>
-                </Card>
-            </TabPanel>
-
-            <TabPanel value={tabValue} index={2}>
-                <Card sx={{ maxWidth: 600 }}>
-                    <CardContent>
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
-                            <AccountTreeIcon color="primary" />
-                            <Typography variant="h6">承認フロー</Typography>
+                            <option value="DRAFT">下書き (Draft)</option>
+                            <option value="ACTIVE">公開中 (Active)</option>
+                            <option value="ARCHIVED">アーカイブ (Archived)</option>
+                        </TextField>
+                        <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
+                            <Button
+                                variant="contained"
+                                onClick={handleSaveBasicInfo}
+                                disabled={updateMutation.isPending}
+                            >
+                                基本情報を保存
+                            </Button>
                         </Box>
-                        {app.flowDefinition ? (
-                            <>
-                                <Typography variant="body1" gutterBottom>
-                                    <strong>{app.flowDefinition.name}</strong>
-                                </Typography>
-                                <Typography variant="body2" color="text.secondary">
-                                    ノード数: {app.flowDefinition.nodes?.length || 0}
-                                </Typography>
-                            </>
-                        ) : (
-                            <Alert severity="warning">
-                                フローが設定されていません。「フローを編集」から設定してください。
-                            </Alert>
-                        )}
-                    </CardContent>
-                    <Divider />
-                    <CardActions>
-                        <Button
-                            startIcon={<EditIcon />}
-                            component={Link}
-                            href={`/designer/apps/${id}/flow`}
-                        >
-                            フローを編集
-                        </Button>
-                    </CardActions>
-                </Card>
-            </TabPanel>
+                    </Paper>
+                </Grid>
+                
+                <Grid size={{ xs: 12, md: 4 }}>
+                    {/* 構成サマリー */}
+                    <Card sx={{ mb: 2 }}>
+                        <CardContent>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                                <DescriptionIcon color="primary" />
+                                <Typography variant="subtitle1" fontWeight="bold">フォーム</Typography>
+                            </Box>
+                            <Typography variant="body2" color="text.secondary" gutterBottom>
+                                フィールド数: {Object.keys(app.formDefinition?.schema?.properties || {}).length}
+                            </Typography>
+                            <Button 
+                                fullWidth 
+                                variant="outlined" 
+                                size="small" 
+                                component={Link} 
+                                href={`/designer/apps/${id}/form`}
+                            >
+                                編集する
+                            </Button>
+                        </CardContent>
+                    </Card>
+
+                    <Card>
+                        <CardContent>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                                <AccountTreeIcon color="primary" />
+                                <Typography variant="subtitle1" fontWeight="bold">フロー</Typography>
+                            </Box>
+                            <Typography variant="body2" color="text.secondary" gutterBottom>
+                                ノード数: {app.flowDefinition?.nodes?.length || 0}
+                            </Typography>
+                            <Button 
+                                fullWidth 
+                                variant="outlined" 
+                                size="small" 
+                                component={Link} 
+                                href={`/designer/apps/${id}/flow`}
+                            >
+                                編集する
+                            </Button>
+                        </CardContent>
+                    </Card>
+                </Grid>
+            </Grid>
+            
+            <Snackbar open={!!error} autoHideDuration={6000} onClose={() => setError(null)} anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}>
+                <Alert severity="error" onClose={() => setError(null)} variant="filled">
+                    {error}
+                </Alert>
+            </Snackbar>
+            <Snackbar open={!!successMessage} autoHideDuration={3000} onClose={() => setSuccessMessage(null)} anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}>
+                <Alert severity="success" onClose={() => setSuccessMessage(null)} variant="filled">
+                    {successMessage}
+                </Alert>
+            </Snackbar>
         </Box>
     );
 }

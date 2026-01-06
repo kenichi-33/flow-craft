@@ -17,7 +17,7 @@ import ReactFlow, {
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 
-import { Box, Button, TextField, Alert, Typography, Paper, IconButton, Tooltip } from '@mui/material';
+import { Box, Button, TextField, Alert, Typography, Paper, IconButton, Tooltip, Snackbar } from '@mui/material';
 import { useRouter, useParams } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
@@ -562,16 +562,7 @@ function FlowEditorContent({ appId }: { appId: string }) {
     };
 
     return (
-        <Box sx={{ height: 'calc(100vh - 64px)', display: 'flex', flexDirection: 'column' }}>
-            <Box sx={{ p: 2, display: 'flex', gap: 2, alignItems: 'center', flexWrap: 'wrap' }}>
-                <Button startIcon={<ArrowBackIcon />} component={Link} href={`/designer/apps/${appId}`}>
-                    アプリに戻る
-                </Button>
-                <Typography variant="h5" sx={{ flexGrow: 1 }}>フロー編集: {(app as any)?.name}</Typography>
-            </Box>
-
-            {error && <Alert severity="error" sx={{ mx: 2, mb: 1 }}>{error}</Alert>}
-            {success && <Alert severity="success" sx={{ mx: 2, mb: 1 }}>{success}</Alert>}
+        <Box sx={{ height: 'calc(100vh - 120px)', display: 'flex', flexDirection: 'column' }}>
 
             <Box sx={{ display: 'flex', flexGrow: 1, mx: 2, mb: 2, gap: 2 }}>
                 {/* ツールボックス */}
@@ -686,6 +677,17 @@ function FlowEditorContent({ appId }: { appId: string }) {
                     </ReactFlow>
                 </Box>
             </Box>
+
+            <Snackbar open={!!error} autoHideDuration={6000} onClose={() => setError(null)} anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}>
+                <Alert severity="error" onClose={() => setError(null)} variant="filled">
+                    {error}
+                </Alert>
+            </Snackbar>
+            <Snackbar open={!!success} autoHideDuration={3000} onClose={() => setSuccess(null)} anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}>
+                <Alert severity="success" onClose={() => setSuccess(null)} variant="filled">
+                    {success}
+                </Alert>
+            </Snackbar>
         </Box>
     );
 }

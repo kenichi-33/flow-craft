@@ -143,12 +143,20 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         }] : []),
     ];
 
+    // App Studio (デザイナー画面) の場合はグローバルレイアウトを無効化し、
+    // 各画面（layout.tsx）で独自のシェルを提供する（Double Sidebar防止）
+    const isStudioRoute = pathname?.match(/^\/designer\/apps\/[^/]+/) && pathname !== '/designer/apps';
+
     if (isLoading) {
         return (
             <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
                 <CircularProgress />
             </Box>
         );
+    }
+
+    if (isStudioRoute) {
+        return <>{children}</>;
     }
 
     return (

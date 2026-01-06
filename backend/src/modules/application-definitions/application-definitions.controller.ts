@@ -1,4 +1,5 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, Query } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Body, Param, Query, UseGuards, Req } from '@nestjs/common';
+import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { ApplicationDefinitionsService } from './application-definitions.service';
 import { CreateApplicationDefinitionDto } from './dto/create-application-definition.dto';
 import { UpdateApplicationDefinitionDto } from './dto/update-application-definition.dto';
@@ -19,19 +20,30 @@ export class ApplicationDefinitionsController {
         @Query('search') search?: string,
         @Query('sortBy') sortBy?: string,
         @Query('sortOrder') sortOrder?: 'asc' | 'desc',
+        @Query('tags') tags?: string | string[],
     ) {
+        const tagsArray = tags 
+            ? (Array.isArray(tags) ? tags : tags.split(',')) 
+            : undefined;
+
         return this.appDefsService.findAll({
             page: page ? parseInt(page, 10) : undefined,
             limit: limit ? parseInt(limit, 10) : undefined,
             search,
             sortBy,
             sortOrder,
+            tags: tagsArray,
         });
     }
 
     @Get('active')
     findActive() {
         return this.appDefsService.findActive();
+    }
+
+    @Get(':id/published')
+    findPublished(@Param('id') id: string) {
+        return this.appDefsService.findPublished(id);
     }
 
     @Get(':id')
@@ -45,8 +57,10 @@ export class ApplicationDefinitionsController {
     }
 
     @Post(':id/publish')
-    publish(@Param('id') id: string) {
-        return this.appDefsService.publish(id);
+    @UseGuards(JwtAuthGuard)
+    publish(@Param('id') id: string, @Req() req: any) {
+        const username = req.user?.username || 'Unknown';
+        return this.appDefsService.publish(id, username);
     }
 
     @Get(':id/versions')

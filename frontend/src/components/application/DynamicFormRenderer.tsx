@@ -3,7 +3,7 @@
 import React from 'react';
 import { useForm } from 'react-hook-form';
 import { Box, Button, TextField, Checkbox, FormControlLabel, Typography, Paper, MenuItem, Radio, RadioGroup, FormControl, FormLabel, Divider, Chip } from '@mui/material';
-import { ResponsiveGridLayout, useContainerWidth } from 'react-grid-layout';
+import { ResponsiveGridLayout } from 'react-grid-layout';
 import 'react-grid-layout/css/styles.css';
 
 
@@ -80,12 +80,32 @@ const selectionCardStyle = {
     }
 };
 
+
+import { useState, useEffect, useRef } from 'react';
+
+const useWidth = () => {
+    const ref = useRef<HTMLDivElement>(null);
+    const [width, setWidth] = useState(1200);
+
+    useEffect(() => {
+        if (!ref.current) return;
+        const resizeObserver = new ResizeObserver((entries) => {
+            for (const entry of entries) setWidth(entry.contentRect.width);
+        });
+        resizeObserver.observe(ref.current);
+        setWidth(ref.current.offsetWidth);
+        return () => resizeObserver.disconnect();
+    }, []);
+    return { ref, width };
+};
+
 export default function DynamicFormRenderer({ schema, layouts, onSubmit, renderActions, readOnly = false, initialData = {} }: DynamicFormRendererProps) {
     const methods = useForm({
         defaultValues: initialData
     });
     const { register, handleSubmit, formState: { errors }, getValues } = methods;
-    const { width, containerRef, mounted } = useContainerWidth({ initialWidth: 800 });
+    const { width, ref: containerRef } = useWidth();
+    const mounted = true;
 
     if (!schema || !schema.properties) {
         return <Typography>Invalid Form Schema</Typography>;
@@ -127,6 +147,7 @@ export default function DynamicFormRenderer({ schema, layouts, onSubmit, renderA
                     backdropFilter: 'blur(30px)',
                     boxShadow: '0 20px 60px 0 rgba(31, 38, 135, 0.1)',
                     border: '1px solid rgba(255, 255, 255, 0.5)',
+                    width: '100%',
                 }}
             >
 
@@ -171,7 +192,7 @@ export default function DynamicFormRenderer({ schema, layouts, onSubmit, renderA
                                             </Typography>
                                         )}
                                         
-                                        <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(12, 1fr)', gap: 3 }}>
+                                        <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(12, 1fr)', gap: 3, width: '100%' }}>
                                             {section.fields.map((field: any, index: number) => {
                                                 const isReadOnly = readOnly || field.readOnly;
                                                 // Check required status
@@ -207,6 +228,7 @@ export default function DynamicFormRenderer({ schema, layouts, onSubmit, renderA
                                                             animationDelay: `${index * 0.05}s`,
                                                             display: 'flex',
                                                             flexDirection: 'column',
+                                                            justifyContent: 'center'
                                                         }}
                                                     >
                                                         {/* Divider */}
@@ -244,6 +266,9 @@ export default function DynamicFormRenderer({ schema, layouts, onSubmit, renderA
                                                                 InputProps={{ 
                                                                     disableUnderline: true,
                                                                     readOnly: isReadOnly,
+                                                                }}
+                                                                inputProps={{
+                                                                    style: { textAlign: field.textAlign }
                                                                 }}
                                                                 disabled={isReadOnly}
                                                                 sx={inputStyle}

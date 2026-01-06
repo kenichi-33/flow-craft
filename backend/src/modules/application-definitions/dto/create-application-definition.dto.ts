@@ -15,4 +15,8 @@ export class CreateApplicationDefinitionDto {
     @IsOptional()
     @IsString()
     flowDefinitionId?: string;
+
+    @IsOptional()
+    @IsString({ each: true })
+    tags?: string[];
 }

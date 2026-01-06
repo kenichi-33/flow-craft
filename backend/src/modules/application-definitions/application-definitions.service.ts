@@ -10,6 +10,7 @@ export interface FindAllOptions {
     search?: string;
     sortBy?: string;
     sortOrder?: 'asc' | 'desc';
+    tags?: string[];
 }
 
 @Injectable()
@@ -140,6 +141,56 @@ export class ApplicationDefinitionsService {
                 flowDefinition: true,
             },
         });
+    }
+
+    /**
+     * Find the latest published version of an application definition.
+     * Used for starting new applications to ensure draft changes don't leak.
+     */
+    async findPublished(id: string) {
+        // Find the latest published version
+        const latestVersion = await this.prisma.appVersion.findFirst({
+            where: { applicationDefinitionId: id },
+            orderBy: { version: 'desc' },
+            include: {
+                applicationDefinition: true,
+            },
+        });
+
+        if (!latestVersion) {
+            // Fallback: If the app is marked ACTIVE but has no versions (legacy data?), return the current definition.
+            // Otherwise, throw NotFound.
+            const appDef = await this.prisma.applicationDefinition.findUnique({
+                where: { id },
+                include: { formDefinition: true, flowDefinition: true },
+            });
+
+            if (appDef && appDef.status === 'ACTIVE') {
+                 return appDef;
+            }
+
+            throw new NotFoundException(`Published version for ApplicationDefinition ${id} not found`);
+        }
+
+        // Return a structure compatible with the ApplicationDefinition interface expected by the frontend
+        return {
+            id: latestVersion.applicationDefinitionId,
+            name: latestVersion.applicationDefinition.name,
+            description: latestVersion.applicationDefinition.description,
+            status: 'ACTIVE',
+            version: latestVersion.version,
+            formDefinition: {
+                id: 'version-snapshot', // Dummy ID
+                name: 'Version Snapshot',
+                schema: latestVersion.formSchema,
+            },
+            flowDefinition: {
+                id: 'version-snapshot', // Dummy ID
+                name: 'Version Snapshot',
+                nodes: latestVersion.flowNodes,
+                edges: latestVersion.flowEdges,
+            },
+        };
     }
 
     /**

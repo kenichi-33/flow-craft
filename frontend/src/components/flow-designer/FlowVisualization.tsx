@@ -130,6 +130,7 @@ interface FlowVisualizationProps {
     completedStepIds?: Set<string> | string[];
     height?: number;
     showBackground?: boolean;
+    onNodeClick?: (event: React.MouseEvent, node: any) => void;
 }
 
 export default function FlowVisualization({
@@ -139,6 +140,7 @@ export default function FlowVisualization({
     completedStepIds: completedStepIdsInput = [],
     height = 280,
     showBackground = false,
+    onNodeClick,
 }: FlowVisualizationProps) {
     const completedStepIds = completedStepIdsInput instanceof Set 
         ? completedStepIdsInput 
@@ -408,7 +410,8 @@ export default function FlowVisualization({
                 }}
                 nodesDraggable={false}
                 nodesConnectable={false}
-                elementsSelectable={false}
+                elementsSelectable={!!onNodeClick}
+                onNodeClick={onNodeClick}
                 panOnDrag={true}
                 zoomOnScroll={false}
             >

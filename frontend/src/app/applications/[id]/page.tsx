@@ -41,6 +41,9 @@ interface ApplicationDetail {
     inputData: any;
     createdAt: string;
     updatedAt: string;
+    formSchema?: any;
+    flowNodes?: any;
+    flowEdges?: any;
     currentNodeId?: string;
     currentNode?: any;
     applicationDefinition?: {
@@ -390,10 +393,10 @@ export default function ApplicationDetailPage() {
             {/* 1. フロー進捗 */}
             <SectionPaper title="フロー進捗">
                 <Box sx={{ height: 280, bgcolor: '#fafafa', borderRadius: 2 }}>
-                    {application.flowDefinition?.nodes && application.flowDefinition.nodes.length > 0 ? (
+                    {(application.flowNodes || application.flowDefinition?.nodes) ? (
                         <FlowVisualization
-                            nodes={application.flowDefinition.nodes}
-                            edges={application.flowDefinition.edges || []}
+                            nodes={application.flowNodes || application.flowDefinition?.nodes || []}
+                            edges={application.flowEdges || application.flowDefinition?.edges || []}
                             currentNodeId={
                                 (application.tasks?.filter((t: any) => t.status === 'PENDING').length ?? 0) > 0
                                     ? application.tasks!.filter((t: any) => t.status === 'PENDING').map((t: any) => t.stepId)
@@ -413,7 +416,7 @@ export default function ApplicationDetailPage() {
             {/* 2. 申請内容 (共通コンポーネント使用) */}
             <Box sx={{ mb: 3 }}>
                 <DynamicFormRenderer
-                    schema={application.formDefinition?.schema}
+                    schema={application.formSchema || application.formDefinition?.schema}
                     initialData={application.inputData}
                     readOnly={true}
                 />

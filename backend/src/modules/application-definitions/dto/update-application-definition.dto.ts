@@ -21,4 +21,7 @@ export class UpdateApplicationDefinitionDto {
     @IsOptional()
     @IsEnum(AppDefStatus)
     status?: AppDefStatus;
+
+    @IsOptional()
+    tags?: string[];
 }

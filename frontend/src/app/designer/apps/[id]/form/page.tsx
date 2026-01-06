@@ -4,12 +4,12 @@ import React, { useState, useEffect } from 'react';
 import {
     Box, Button, TextField, Paper, Typography, Grid, IconButton, Alert,
     Select, MenuItem, Chip, Divider, Radio, RadioGroup, FormControl, FormControlLabel, Checkbox,
-    Dialog, DialogTitle, DialogContent, DialogActions
+    Dialog, DialogTitle, DialogContent, DialogActions, Snackbar
 } from '@mui/material';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import { useRouter, useParams } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { ReactGridLayout, useContainerWidth } from 'react-grid-layout';
+import { ReactGridLayout } from 'react-grid-layout';
 import { api } from '@/lib/api';
 import 'react-grid-layout/css/styles.css';
 import 'react-resizable/css/styles.css';
@@ -17,6 +17,7 @@ import 'react-resizable/css/styles.css';
 import ToolboxItem from '@/components/form-designer/ToolboxItem';
 import DynamicFormRenderer from '@/components/application/DynamicFormRenderer';
 import PropertyPanel from '@/components/form-designer/PropertyPanel';
+import FieldPreview from '@/components/form-designer/FieldPreview';
 
 import TextFieldsIcon from '@mui/icons-material/TextFields';
 import NumbersIcon from '@mui/icons-material/Numbers';
@@ -75,304 +76,35 @@ const inputStyle = {
     '& .MuiInputBase-input': { padding: '10px 14px' }
 };
 
-// Simplified Preview Component
-function FieldPreview({ field, isSelected, onClick, onDelete }: {
-    field: FormField;
-    isSelected: boolean;
-    onClick: () => void;
-    onDelete: (e: React.MouseEvent) => void;
-}) {
-    // Get icon based on type
-    const getIcon = () => {
-        const item = TOOLBOX_ITEMS.find(i => i.type === field.type);
-        return item ? item.icon : <TextIcon />;
-    };
 
-    const renderPreview = () => {
-        switch (field.type) {
-            case 'text':
-            case 'number':
-            case 'date':
-                return (
-                    <TextField
-                        fullWidth
-                        disabled
-                        variant="standard"
-                        size="small"
-                        placeholder={field.type === 'date' && field.includeTime ? 'YYYY/MM/DD HH:mm' : field.label}
-                        InputProps={{ disableUnderline: true }}
-                        sx={inputStyle}
-                    />
-                );
-            case 'textarea':
-                return (
-                    <TextField
-                        fullWidth
-                        disabled
-                        variant="standard"
-                        multiline
-                        rows={2}
-                        placeholder={field.label}
-                        InputProps={{ disableUnderline: true }}
-                        sx={inputStyle}
-                    />
-                );
-            case 'select':
-                return (
-                    <TextField select fullWidth disabled size="small" value="" sx={{ bgcolor: '#f8f9fa' }}>
-                        {field.options && (field.options as any[]).map((opt: any, i: number) => {
-                             const label = typeof opt === 'string' ? opt : opt.label;
-                             const val = typeof opt === 'string' ? opt : opt.value;
-                             return <MenuItem key={i} value={val}>{label}</MenuItem>;
-                        })}
-                    </TextField>
-                );
-            case 'radio':
-                return (
-                    <FormControl component="fieldset">
-                        <RadioGroup row sx={{ gap: 1 }}>
-                            {field.options && (field.options as any[]).map((opt: any, i: number) => {
-                                const label = typeof opt === 'string' ? opt : opt.label;
-                                return (
-                                    <FormControlLabel 
-                                        key={i} 
-                                        value={typeof opt === 'string' ? opt : opt.value} 
-                                        control={<Radio size="small" disabled />} 
-                                        label={<Typography variant="body2">{label}</Typography>} 
-                                    />
-                                );
-                            })}
-                            {(!field.options || field.options.length === 0) && <Typography variant="caption" color="text.secondary">選択肢を追加してください</Typography>}
-                        </RadioGroup>
-                    </FormControl>
-                );
-            case 'checkbox':
-                return (
-                    <FormControl component="fieldset">
-                         <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-                            {field.options && (field.options as any[]).map((opt: any, i: number) => {
-                                const label = typeof opt === 'string' ? opt : opt.label;
-                                return (
-                                    <FormControlLabel 
-                                        key={i} 
-                                        control={<Checkbox size="small" disabled />} 
-                                        label={<Typography variant="body2">{label}</Typography>} 
-                                    />
-                                );
-                            })}
-                            {(!field.options || field.options.length === 0) && <Typography variant="caption" color="text.secondary">選択肢を追加してください</Typography>}
-                        </Box>
-                    </FormControl>
-                );
-            case 'divider':
-                 return <Divider sx={{ borderColor: '#333', borderBottomWidth: 2, my: 1 }} />;
-            case 'label':
-                // Label component fix: consistently show the label value
-                return <Typography variant="h6" sx={{ fontWeight: 'bold' }}>{field.label || '見出し'}</Typography>
-            default:
-                return null;
-        }
-    };
 
-    // Label component override to remove card style
-    if (field.type === 'label') {
-        return (
-            <Paper
-                elevation={0}
-                onClick={onClick}
-                sx={{
-                    p: 1,
-                    height: '100%',
-                    bgcolor: isSelected ? 'action.selected' : 'transparent',
-                    border: isSelected ? '2px solid' : '1px dashed transparent',
-                    borderColor: isSelected ? 'primary.main' : 'transparent',
-                    borderRadius: 1,
-                    display: 'flex',
-                    alignItems: (field as any).verticalAlign === 'top' ? 'flex-start' : (field as any).verticalAlign === 'bottom' ? 'flex-end' : 'center',
-                    justifyContent: (field as any).textAlign === 'center' ? 'center' : (field as any).textAlign === 'right' ? 'flex-end' : 'flex-start',
-                    position: 'relative',
-                    cursor: 'pointer',
-                    '&:hover': { border: '1px dashed #ccc' }
-                }}
-            >
-                 <Typography variant="h6" sx={{ fontWeight: 'bold', width: '100%', textAlign: (field as any).textAlign || 'left' }}>
-                     {field.label || '見出し'}
-                 </Typography>
-                 
-                 {isSelected && (
-                    <IconButton
-                        size="small"
-                        onClick={onDelete}
-                        sx={{
-                            position: 'absolute',
-                            right: 0,
-                            top: -10,
-                            bgcolor: 'white',
-                            border: '1px solid #ddd',
-                             '&:hover': { bgcolor: 'error.50', color: 'error.main' }
-                        }}
-                    >
-                        <DeleteIcon fontSize="small" />
-                    </IconButton>
-                 )}
-            </Paper>
-        );
-    }
 
-    if (field.type === 'divider') {
-        return (
-            <Paper
-                elevation={0}
-                onClick={onClick}
-                sx={{
-                    p: 1,
-                    height: '100%',
-                    bgcolor: isSelected ? 'action.selected' : 'transparent',
-                    border: isSelected ? '2px solid' : '1px dashed #ccc',
-                    borderColor: isSelected ? 'primary.main' : '#ccc',
-                    borderRadius: 1,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    position: 'relative',
-                    cursor: 'pointer',
-                    '&:hover .actions': { opacity: 1 }
-                }}
-            >
-                <Box sx={{ width: '100%' }}><Divider sx={{ borderColor: '#333', borderBottomWidth: 2 }} /></Box>
-                 {isSelected && (
-                    <Box className="actions" sx={{ position: 'absolute', right: 8, top: -12, bgcolor: 'white', border: '1px solid #ddd', borderRadius: 4, display: 'flex' }}>
-                        <IconButton size="small" onClick={onDelete} color="error"><DeleteIcon fontSize="small" /></IconButton>
-                    </Box>
-                 )}
-            </Paper>
-        );
-    }
+const useWidth = () => {
+    const ref = React.useRef<HTMLDivElement>(null);
+    const [width, setWidth] = useState(1200); // Default width
 
-    if (field.type === 'group') {
-        return (
-            <Paper
-                elevation={0}
-                onClick={onClick}
-                sx={{
-                    p: 0,
-                    height: '100%',
-                    bgcolor: isSelected ? '#e8f4fc' : '#f8fafc',
-                    border: isSelected ? '2px solid' : '2px dashed',
-                    borderColor: isSelected ? 'primary.main' : '#90caf9',
-                    borderRadius: 2,
-                    position: 'relative',
-                    cursor: 'pointer',
-                    overflow: 'hidden',
-                    '&:hover': {
-                        borderColor: isSelected ? 'primary.main' : 'primary.light',
-                    },
-                }}
-            >
-                {/* Group Header */}
-                <Box sx={{ 
-                    bgcolor: '#e3f2fd', 
-                    px: 2, 
-                    py: 1, 
-                    borderBottom: '1px solid #90caf9',
-                    display: 'flex', 
-                    alignItems: 'center', 
-                    gap: 1 
-                }}>
-                    <AccountTreeIcon color="primary" fontSize="small" />
-                    <Typography variant="subtitle2" sx={{ fontWeight: 'bold', color: 'primary.main' }}>
-                        {field.label || 'セクション'}
-                    </Typography>
-                </Box>
-                
-                {/* Group Content Area */}
-                <Box sx={{ 
-                    p: 2, 
-                    minHeight: 60, 
-                    display: 'flex', 
-                    alignItems: 'center', 
-                    justifyContent: 'center',
-                    bgcolor: 'rgba(255,255,255,0.5)'
-                }}>
-                    <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic' }}>
-                        このセクション以降のフィールドがグループ化されます
-                    </Typography>
-                </Box>
+    useEffect(() => {
+        if (!ref.current) return;
+        
+        const resizeObserver = new ResizeObserver((entries) => {
+            for (const entry of entries) {
+                setWidth(entry.contentRect.width);
+            }
+        });
 
-                {isSelected && (
-                    <IconButton
-                        size="small"
-                        onClick={onDelete}
-                        sx={{
-                            position: 'absolute',
-                            top: 4,
-                            right: 4,
-                            bgcolor: 'white',
-                            border: '1px solid #ddd',
-                            '&:hover': { bgcolor: 'error.50', color: 'error.main' }
-                        }}
-                    >
-                        <DeleteIcon fontSize="small" />
-                    </IconButton>
-                )}
-            </Paper>
-        );
-    }
+        resizeObserver.observe(ref.current);
 
-    return (
-        <Paper
-            elevation={0}
-            onClick={onClick}
-            sx={{
-                p: 1.5,
-                height: '100%',
-                bgcolor: 'white',
-                border: isSelected ? '2px solid' : '1px solid',
-                borderColor: isSelected ? 'primary.main' : 'divider',
-                borderRadius: 2,
-                position: 'relative',
-                overflow: 'hidden',
-                transition: 'all 0.1s',
-                display: 'flex',
-                flexDirection: 'column',
-                cursor: 'pointer',
-                boxShadow: isSelected ? '0 0 0 4px rgba(25, 118, 210, 0.1)' : 'none',
-                '&:hover': {
-                    borderColor: isSelected ? 'primary.main' : 'primary.light',
-                },
-            }}
-        >
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-                <Box sx={{ color: isSelected ? 'primary.main' : 'text.secondary', display: 'flex' }}>
-                    {React.cloneElement(getIcon() as any, { fontSize: 'small' })}
-                </Box>
-                <Typography variant="subtitle2" noWrap sx={{ fontWeight: 600, fontSize: '0.85rem' }}>{field.label}</Typography>
-                {field.required && <Chip label="必須" size="small" color="error" sx={{ height: 16, fontSize: '0.6rem' }} />}
-            </Box>
+        // Initial set
+        setWidth(ref.current.offsetWidth);
 
-            <Box sx={{ flex: 1, opacity: 0.8 }}>
-                {renderPreview()}
-            </Box>
+        return () => {
+            resizeObserver.disconnect();
+        };
+    }, []);
 
-            {isSelected && (
-                <IconButton
-                    size="small"
-                    onClick={onDelete}
-                    sx={{
-                        position: 'absolute',
-                        top: 4,
-                        right: 4,
-                        bgcolor: 'error.50',
-                        color: 'error.main',
-                        '&:hover': { bgcolor: 'error.100' }
-                    }}
-                >
-                    <DeleteIcon fontSize="small" />
-                </IconButton>
-            )}
-        </Paper>
-    );
-}
+    return { ref, width };
+};
+
 
 export default function AppFormEditorPage() {
     const params = useParams();
@@ -388,12 +120,14 @@ export default function AppFormEditorPage() {
     const [success, setSuccess] = useState<string | null>(null);
     const [previewOpen, setPreviewOpen] = useState(false);
 
-    const { width, containerRef, mounted } = useContainerWidth({
-        measureBeforeMount: false,
-        initialWidth: 800,
-    });
+
+
+    const { ref: containerRef, width } = useWidth();
+    const mounted = true; // simplifying mounted check as we use client component
 
     const { data: app } = useQuery({
+
+
         queryKey: ['apps', appId],
         queryFn: () => api.get(`/application-definitions/${appId}`),
         enabled: !!appId,
@@ -474,11 +208,16 @@ export default function AppFormEditorPage() {
                 const droppedItem = layoutArr.find((l: any) => l.i === '__dropping_elem__');
                 let newHeight = 2;
                 let newWidth = 6;
+                let isResizable = true;
 
-                if (['textarea', 'radio', 'checkbox', 'group'].includes(type)) newHeight = 3;
-                if (['divider', 'label'].includes(type)) {
-                    newHeight = 1;
+                if (['textarea', 'radio', 'checkbox'].includes(type)) newHeight = 3;
+                if (['divider', 'label', 'group'].includes(type)) {
                     newWidth = 12;
+                    if (type === 'divider' || type === 'label') newHeight = 1;
+                    if (type === 'group') {
+                        newHeight = 1;
+                        isResizable = false;
+                    }
                 }
 
                 setLayout(prev => [...prev, {
@@ -486,7 +225,8 @@ export default function AppFormEditorPage() {
                     x: droppedItem?.x ?? 0,
                     y: droppedItem?.y ?? 0,
                     w: newWidth,
-                    h: newHeight
+                    h: newHeight,
+                    isResizable: isResizable
                 }]);
             }
         } catch (e) {
@@ -535,28 +275,22 @@ export default function AppFormEditorPage() {
     const selectedField = fields.find(f => f.id === selectedFieldId) || null;
 
     return (
-        <Box sx={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 64px)', overflow: 'hidden' }}>
-            {/* Header Toolbar */}
-            <Paper elevation={0} sx={{ 
-                p: 2, 
-                borderBottom: '1px solid #e0e0e0',
+        <Box sx={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 120px)', overflow: 'hidden' }}>
+            {/* Local Actions (Save, Preview) - displayed as a toolbar inside the canvas area */}
+            <Box sx={{ 
+                p: 1, 
+                mb: 1, 
                 display: 'flex', 
                 alignItems: 'center', 
                 justifyContent: 'space-between',
-                zIndex: 10
             }}>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                    <Button startIcon={<ArrowBackIcon />} component={Link} href={`/designer/apps/${appId}`} size="small">
-                        戻る
-                    </Button>
-                    <TextField
-                        value={formName}
-                        onChange={(e) => setFormName(e.target.value)}
-                        placeholder="フォーム名"
-                        variant="standard"
-                        InputProps={{ disableUnderline: true, style: { fontSize: '1.1rem', fontWeight: 600 } }}
-                    />
-                </Box>
+                <TextField
+                    value={formName}
+                    onChange={(e) => setFormName(e.target.value)}
+                    placeholder="フォーム名"
+                    variant="standard"
+                    InputProps={{ disableUnderline: true, style: { fontSize: '1.2rem', fontWeight: 'bold' } }}
+                />
                 <Box sx={{ display: 'flex', gap: 1 }}>
                     <Button
                         variant="outlined"
@@ -572,10 +306,10 @@ export default function AppFormEditorPage() {
                         disabled={saveMutation.isPending} 
                         size="small"
                     >
-                        保存
+                        下書き保存
                     </Button>
                 </Box>
-            </Paper>
+            </Box>
 
 
             {/* Main Editor Area (3-Column Layout) */}
@@ -600,7 +334,7 @@ export default function AppFormEditorPage() {
                         pointerEvents: 'none'
                     }} />
                     
-                    <div ref={containerRef} style={{ width: '100%', position: 'relative', zIndex: 1 }}>
+                    <div ref={containerRef} style={{ width: '100%', position: 'relative', zIndex: 1, minHeight: '600px' }}>
                         <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1, textAlign: 'center' }}>
                             キャンバス (12列グリッド)
                         </Typography>
@@ -614,10 +348,10 @@ export default function AppFormEditorPage() {
                                 onDrop={onDrop}
                                 onDragStop={(newLayout: any) => setLayout(newLayout)}
                                 onResizeStop={(newLayout: any) => setLayout(newLayout)}
-                                dropConfig={{ enabled: true, defaultItem: { w: 6, h: 2 } }}
+                                dropConfig={{ enabled: true, defaultItem: { w: 12, h: 2 } }}
                                 dragConfig={{ enabled: true }}
                                 resizeConfig={{ enabled: true }}
-                                droppingItem={{ i: "__dropping_elem__", x: 0, y: 0, w: 6, h: 2 }}
+                                droppingItem={{ i: "__dropping_elem__", x: 0, y: 0, w: 12, h: 2 }}
                             >
                                 {fields.map((field) => (
                                     <div key={field.id} onClick={(e) => { e.stopPropagation(); setSelectedFieldId(field.id); }}>
@@ -646,12 +380,16 @@ export default function AppFormEditorPage() {
 
 
             {/* Error/Success Messages */}
-            {(error || success) && (
-                <Box sx={{ position: 'fixed', bottom: 20, left: '50%', transform: 'translateX(-50%)', zIndex: 2000 }}>
-                    {error && <Alert severity="error" onClose={() => setError(null)}>{error}</Alert>}
-                    {success && <Alert severity="success" onClose={() => setSuccess(null)}>{success}</Alert>}
-                </Box>
-            )}
+            <Snackbar open={!!error} autoHideDuration={6000} onClose={() => setError(null)} anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}>
+                <Alert severity="error" onClose={() => setError(null)} variant="filled">
+                    {error}
+                </Alert>
+            </Snackbar>
+            <Snackbar open={!!success} autoHideDuration={3000} onClose={() => setSuccess(null)} anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}>
+                <Alert severity="success" onClose={() => setSuccess(null)} variant="filled">
+                    {success}
+                </Alert>
+            </Snackbar>
 
             {/* Preview Modal */}
             <Dialog open={previewOpen} onClose={() => setPreviewOpen(false)} maxWidth="md" fullWidth>

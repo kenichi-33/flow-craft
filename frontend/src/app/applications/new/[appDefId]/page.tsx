@@ -141,8 +141,8 @@ export default function SubmitApplicationPage() {
     const [isSubmitting, setIsSubmitting] = useState(false);
 
     const { data: appDef, isLoading } = useQuery<ApplicationDefinition>({
-        queryKey: ['app-def', appDefId],
-        queryFn: () => api.get(`/application-definitions/${appDefId}`),
+        queryKey: ['app-def-published', appDefId],
+        queryFn: () => api.get(`/application-definitions/${appDefId}/published`),
         enabled: !!appDefId,
     });
 

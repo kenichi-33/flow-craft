@@ -37,33 +37,27 @@ interface PropertyPanelProps {
     field: FormField | null;
     onUpdate: (fieldId: string, updates: Partial<FormField>) => void;
     existingIds: string[];
+    readOnly?: boolean;
 }
 
-export default function PropertyPanel({ field, onUpdate, existingIds }: PropertyPanelProps) {
-    if (!field) {
-        return (
-            <Box sx={{ p: 3, textAlign: 'center', color: 'text.secondary' }}>
-                <Typography variant="body2">
-                    キャンバス上のフィールドを選択すると<br />プロパティ設定が表示されます
-                </Typography>
-            </Box>
-        );
-    }
-
+export default function PropertyPanel({ field, onUpdate, existingIds, readOnly = false }: PropertyPanelProps) {
     // Local state for immediate feedback, synced with field prop
-    const [label, setLabel] = useState(field.label);
-    const [id, setId] = useState(field.id);
+    // Hooks must be called unconditionally
+    const [label, setLabel] = useState(field?.label || '');
+    const [id, setId] = useState(field?.id || '');
     const [idError, setIdError] = useState<string | null>(null);
 
     useEffect(() => {
-        setLabel(field.label);
-        setId(field.id);
-        setIdError(null);
+        if (field) {
+            setLabel(field.label);
+            setId(field.id);
+            setIdError(null);
+        }
     }, [field]);
 
     // Handle string[] -> Option[] conversion for backward compatibility
     const getOptions = (): Option[] => {
-        if (!field.options) return [];
+        if (!field || !field.options) return [];
         if (typeof field.options[0] === 'string') {
             return (field.options as string[]).map(s => ({ label: s, value: s }));
         }
@@ -73,6 +67,7 @@ export default function PropertyPanel({ field, onUpdate, existingIds }: Property
     const options = getOptions();
 
     const handleIdChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (!field) return;
         const newId = e.target.value;
         setId(newId);
         
@@ -94,20 +89,33 @@ export default function PropertyPanel({ field, onUpdate, existingIds }: Property
     };
 
     const handleOptionChange = (index: number, key: 'label' | 'value', val: string) => {
+        if (!field) return;
         const newOptions = [...options];
         newOptions[index] = { ...newOptions[index], [key]: val };
         onUpdate(field.id, { options: newOptions });
     };
 
     const addOption = () => {
+        if (!field) return;
         const newOptions = [...options, { label: `選択肢${options.length + 1}`, value: `option_${options.length + 1}` }];
         onUpdate(field.id, { options: newOptions });
     };
 
     const removeOption = (index: number) => {
+        if (!field) return;
         const newOptions = options.filter((_, i) => i !== index);
         onUpdate(field.id, { options: newOptions });
     };
+
+    if (!field) {
+        return (
+            <Box sx={{ p: 3, textAlign: 'center', color: 'text.secondary' }}>
+                <Typography variant="body2">
+                    キャンバス上のフィールドを選択すると<br />プロパティ設定が表示されます
+                </Typography>
+            </Box>
+        );
+    }
 
     return (
         <Box sx={{ p: 2, height: '100%', overflowY: 'auto' }}>
@@ -127,6 +135,7 @@ export default function PropertyPanel({ field, onUpdate, existingIds }: Property
                             setLabel(e.target.value);
                             onUpdate(field.id, { label: e.target.value });
                         }}
+                        disabled={readOnly}
                         size="small"
                         sx={{ mb: 2 }}
                     />
@@ -136,8 +145,9 @@ export default function PropertyPanel({ field, onUpdate, existingIds }: Property
                         label="フィールドID (英数字)"
                         value={id}
                         onChange={handleIdChange}
+                        disabled={readOnly}
                         error={!!idError}
-                        helperText={idError || '※英数字とアンダースコアのみ使用可能'}
+                        helperText={idError || (readOnly ? '' : '※英数字とアンダースコアのみ使用可能')}
                         size="small"
                     />
                 </Box>
@@ -156,6 +166,7 @@ export default function PropertyPanel({ field, onUpdate, existingIds }: Property
                                     checked={field.readOnly || false}
                                     onChange={(e) => onUpdate(field.id, { readOnly: e.target.checked })}
                                     size="small"
+                                    disabled={readOnly}
                                 />
                             }
                             label="読取専用 (Read Only)"
@@ -170,6 +181,7 @@ export default function PropertyPanel({ field, onUpdate, existingIds }: Property
                                     checked={field.required || false}
                                     onChange={(e) => onUpdate(field.id, { required: e.target.checked })}
                                     size="small"
+                                    disabled={readOnly}
                                 />
                             }
                             label="必須項目"
@@ -184,6 +196,7 @@ export default function PropertyPanel({ field, onUpdate, existingIds }: Property
                                     checked={field.includeTime || false}
                                     onChange={(e) => onUpdate(field.id, { includeTime: e.target.checked })}
                                     size="small"
+                                    disabled={readOnly}
                                 />
                             }
                             label="時間入力を含める"
@@ -191,7 +204,7 @@ export default function PropertyPanel({ field, onUpdate, existingIds }: Property
                     )}
 
                     {/* Heading Alignment Options */}
-                    {field.type === 'label' && (
+                    {['label', 'text', 'textarea', 'number'].includes(field.type) && (
                         <Box sx={{ mt: 2 }}>
                             <Typography variant="caption" color="text.secondary" sx={{ mb: 1, display: 'block' }}>配置設定</Typography>
                             <Grid container spacing={1}>
@@ -204,6 +217,7 @@ export default function PropertyPanel({ field, onUpdate, existingIds }: Property
                                         onChange={(e) => onUpdate(field.id, { textAlign: e.target.value as 'left' | 'center' | 'right' })}
                                         size="small"
                                         SelectProps={{ native: true }}
+                                        disabled={readOnly}
                                     >
                                         <option value="left">左寄せ</option>
                                         <option value="center">中央</option>
@@ -219,6 +233,7 @@ export default function PropertyPanel({ field, onUpdate, existingIds }: Property
                                         onChange={(e) => onUpdate(field.id, { verticalAlign: e.target.value as 'top' | 'center' | 'bottom' })}
                                         size="small"
                                         SelectProps={{ native: true }}
+                                        disabled={readOnly}
                                     >
                                         <option value="top">上寄せ</option>
                                         <option value="center">中央</option>
@@ -237,14 +252,16 @@ export default function PropertyPanel({ field, onUpdate, existingIds }: Property
                         <Box>
                             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
                                 <Typography variant="caption" color="text.secondary">選択肢設定</Typography>
-                                <Button 
-                                    size="small" 
-                                    startIcon={<AddIcon />} 
-                                    onClick={addOption}
-                                    sx={{ fontSize: '0.7rem' }}
-                                >
-                                    追加
-                                </Button>
+                                {!readOnly && (
+                                    <Button 
+                                        size="small" 
+                                        startIcon={<AddIcon />} 
+                                        onClick={addOption}
+                                        sx={{ fontSize: '0.7rem' }}
+                                    >
+                                        追加
+                                    </Button>
+                                )}
                             </Box>
                             
                             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
@@ -260,6 +277,7 @@ export default function PropertyPanel({ field, onUpdate, existingIds }: Property
                                                 variant="standard"
                                                 InputProps={{ style: { fontSize: '0.8rem' } }}
                                                 InputLabelProps={{ style: { fontSize: '0.8rem' } }}
+                                                disabled={readOnly}
                                             />
                                             <TextField
                                                 fullWidth
@@ -271,11 +289,14 @@ export default function PropertyPanel({ field, onUpdate, existingIds }: Property
                                                 InputProps={{ style: { fontSize: '0.8rem', color: '#666' } }}
                                                 InputLabelProps={{ style: { fontSize: '0.8rem' } }}
                                                 sx={{ mt: 0.5 }}
+                                                disabled={readOnly}
                                             />
                                         </Box>
-                                        <IconButton size="small" onClick={() => removeOption(i)} color="default">
-                                            <DeleteIcon fontSize="small" />
-                                        </IconButton>
+                                        {!readOnly && (
+                                            <IconButton size="small" onClick={() => removeOption(i)} color="default">
+                                                <DeleteIcon fontSize="small" />
+                                            </IconButton>
+                                        )}
                                     </Paper>
                                 ))}
                             </Box>
