@@ -340,8 +340,28 @@ export default function FlowVisualization({
 
             const leadsToTarget = sourceCompleted && targetIsCurrent;
 
+            let label = edge.label;
+            // ラベルがなく、ソースハンドルがある場合（分岐など）、ノードの設定やデフォルトから推論
+            if (!label && edge.sourceHandle) {
+                const sourceNode = rawNodes.find((n: any) => n.id === edge.source);
+                if (sourceNode?.type === 'branch') {
+                    if (edge.sourceHandle === 'yes') {
+                        label = sourceNode.data?.yesLabel || 'Yes';
+                    } else if (edge.sourceHandle === 'no') {
+                        label = sourceNode.data?.noLabel || 'No';
+                    }
+                } else {
+                    // その他のノード（デフォルト）
+                    if (edge.sourceHandle === 'yes') label = 'Yes';
+                    if (edge.sourceHandle === 'no') label = 'No';
+                }
+            }
+
             return {
                 ...edge,
+                label, // ラベルを設定
+                labelStyle: { fill: '#333', fontWeight: 700 }, // ラベルの視認性を向上 
+                labelBgStyle: { fill: 'rgba(255, 255, 255, 0.8)' },
                 markerEnd: { type: MarkerType.ArrowClosed, color: isTraversed ? (leadsToTarget ? '#2196f3' : '#4caf50') : '#999' },
                 style: {
                     strokeWidth: isTraversed ? 3 : 2,

@@ -22,6 +22,8 @@ graph TD
     Backend -->|Auth Token Verify| Keycloak
     Backend -->|Data| DB[("PostgreSQL")]
     Backend -->|Email| Mailpit["Mailpit (SMTP Server)"]
+    Backend -->|Enqueue Job| Queue[("Queue (pg-boss/DB)")]
+    Queue -->|Process Job| Backend
     
     subgraph Docker [Docker Compose Network]
         Frontend
@@ -29,6 +31,7 @@ graph TD
         Keycloak
         DB
         Mailpit
+        Queue
     end
 ```
 

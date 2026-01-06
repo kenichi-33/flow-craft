@@ -7,6 +7,7 @@ export interface JwtPayload {
     family_name?: string;
     roles?: string[];
     groups?: string[];
+    groupCodes?: string[];
     employeeId?: string;
     displayName?: string;
     exp?: number;
@@ -22,6 +23,7 @@ export interface AuthUser {
     lastName?: string;
     roles: string[];
     groups: string[];
+    groupCodes: string[];
     employeeId?: string;
     displayName?: string;
 }

@@ -38,7 +38,14 @@ export default function FlowEditorContent() {
     const [edges, setEdges, onEdgesChange] = useEdgesState([]);
 
     const onConnect = useCallback(
-        (params: Connection) => setEdges((eds) => addEdge(params, eds)),
+        (params: Connection) => setEdges((eds) => {
+            let label = '';
+            if (params.sourceHandle === 'yes') label = 'Yes';
+            else if (params.sourceHandle === 'no') label = 'No';
+            
+            // エッジにラベルとスタイルを適用して追加
+            return addEdge({ ...params, label }, eds);
+        }),
         [setEdges],
     );
 

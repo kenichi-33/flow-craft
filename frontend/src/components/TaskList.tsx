@@ -47,6 +47,8 @@ interface TaskListProps {
     showHeader?: boolean;
     // グループcode→名前の変換マップ（オプション）
     departmentsMap?: Record<string, string>;
+    // 承認履歴（完了済みタスクの実行者表示用）
+    history?: any[];
 }
 
 const getStatusChip = (status: string, isStartNode: boolean, applicationStatus?: string) => {
@@ -76,7 +78,31 @@ const getStatusChip = (status: string, isStartNode: boolean, applicationStatus?:
     }
 };
 
-const getAssigneeDisplay = (assignedTo: string | undefined, nodeData?: any, departmentsMap?: Record<string, string>, assignedToDisplay?: string, assignedToInfo?: any) => {
+const getAssigneeDisplay = (
+    assignedTo: string | undefined, 
+    nodeData: any, 
+    departmentsMap?: Record<string, string>, 
+    assignedToDisplay?: string, 
+    assignedToInfo?: any,
+    history?: any[]
+) => {
+    // 完了済みで履歴がある場合は履歴の実行者を表示する
+    if (history && history.length > 0) {
+        // 直近の承認履歴を取得
+        const latestHistory = history[history.length - 1];
+        // console.log('[TaskList] using history:', latestHistory);
+        return (
+            <Box>
+                <UserDisplay user={latestHistory.actorInfo} fallback={latestHistory.actorId} />
+                {assignedTo && assignedTo !== latestHistory.actorId && (
+                    <Typography variant="caption" color="text.secondary" display="block">
+                        (担当: {assignedToDisplay || assignedTo})
+                    </Typography>
+                )}
+            </Box>
+        );
+    }
+
     // スナップショットがあればUserDisplayを使用
     if (assignedToInfo) {
         return <UserDisplay user={assignedToInfo} fallback={assignedToDisplay || assignedTo} />;
@@ -175,7 +201,7 @@ const formatDateTime = (dateString: string | undefined) => {
     });
 };
 
-export default function TaskList({ tasks, serviceTasks, flowNodes, flowEdges, applicationInfo, title = 'タスク一覧', showHeader = true, departmentsMap }: TaskListProps) {
+export default function TaskList({ tasks, serviceTasks, flowNodes, flowEdges, applicationInfo, title = 'タスク一覧', showHeader = true, departmentsMap, history }: TaskListProps) {
     // フロー定義と既存タスクをマージして全ステップを表示
     const allSteps = useMemo(() => {
         if (!flowNodes || flowNodes.length === 0) {
@@ -280,6 +306,9 @@ export default function TaskList({ tasks, serviceTasks, flowNodes, flowEdges, ap
                 };
             }
             
+            // 関連する履歴を抽出
+            const stepHistory = history?.filter(h => h.stepId === node.id) || [];
+
             // 承認タスクの場合
             return {
                 id: task?.id || `pending-${node.id}`,
@@ -295,6 +324,7 @@ export default function TaskList({ tasks, serviceTasks, flowNodes, flowEdges, ap
                 nodeData: node.data,
                 nodeType: node.type,
                 order: getNodeOrder(node.id, node.type),
+                history: stepHistory,
             };
         });
 
@@ -302,7 +332,7 @@ export default function TaskList({ tasks, serviceTasks, flowNodes, flowEdges, ap
         steps.sort((a, b) => a.order - b.order);
         
         return steps;
-    }, [tasks, serviceTasks, flowNodes, flowEdges, applicationInfo]);
+    }, [tasks, serviceTasks, flowNodes, flowEdges, applicationInfo, history]);
 
     if (allSteps.length === 0) {
         return (
@@ -346,7 +376,14 @@ export default function TaskList({ tasks, serviceTasks, flowNodes, flowEdges, ap
                                     </Typography>
                                 </TableCell>
                                 <TableCell>
-                                    {getAssigneeDisplay(step.assignedTo, step.nodeData, departmentsMap, step.assignedToDisplay, (step as any).assignedToInfo)}
+                                    {getAssigneeDisplay(
+                                        step.assignedTo, 
+                                        step.nodeData, 
+                                        departmentsMap, 
+                                        step.assignedToDisplay, 
+                                        (step as any).assignedToInfo,
+                                        (step as any).history
+                                    )}
                                 </TableCell>
                                 <TableCell>
                                     {getStatusChip(

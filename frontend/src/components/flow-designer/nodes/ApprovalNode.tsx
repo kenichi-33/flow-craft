@@ -88,9 +88,9 @@ export default function ApprovalNode({ id, data }: { id: string; data: any }) {
                 .then((response) => {
                     const departments = response as any[];
                     const groups = departments.map(dept => ({
-                        // codeがあればcodeを使用（効率的な比較用）、なければpathを使用
-                        value: dept.code || dept.path,
-                        label: `${dept.name} (${dept.code || dept.path})`,  // 表示用
+                        // deptCodeがあればdeptCodeを使用、なければpathを使用
+                        value: dept.deptCode || dept.path,
+                        label: `${dept.name} (${dept.deptCode || dept.path})`,  // 表示用
                         name: dept.name,  // 部署名（表示用）
                     }));
                     setAvailableGroups(groups);

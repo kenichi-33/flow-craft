@@ -63,20 +63,37 @@ export class WorkflowEngineService implements OnModuleInit {
             throw new BadRequestException('ApplicationDefinition is not active');
         }
 
-        // フロー定義からノードを取得
         const flowDef = appDef.flowDefinition;
         if (!flowDef) {
             throw new BadRequestException('Flow definition not found');
         }
-        const nodes = flowDef.nodes as any[] || [];
-        const edges = flowDef.edges as any[] || [];
 
-        // 開始ノードを見つける
-        const startNode = nodes.find(n => n.type === 'start');
+        // フロー定義からノードを取得
+        // バージョン情報を取得 (Activeな定義＝公開された最新バージョンを使用)
+        // これにより、Saveで更新されたDraftの内容ではなく、Publishされた内容が使用される
+        const publishedVersion = await this.prisma.appVersion.findUnique({
+            where: {
+                applicationDefinitionId_version: {
+                    applicationDefinitionId: appDef.id,
+                    version: appDef.version // ACTIVEの場合は現在のバージョン
+                }
+            }
+        });
+
+        // 定義の解決: 公開バージョンがあればそれを使用、なければ(初回など)Draftを使用
+        // ※ appDef.status === 'ACTIVE' なので基本的にはバージョンがあるはずだが、
+        //   移行措置や直接DB操作の場合に備えてフォールバックする
+        const flowNodes = publishedVersion?.flowNodes ?? flowDef.nodes;
+        const flowEdges = publishedVersion?.flowEdges ?? flowDef.edges;
+        const formSchema = publishedVersion?.formSchema ?? appDef.formDefinition?.schema;
+
+        // 開始ノードを見つける (解決したNodesから)
+        const nodesList = (flowNodes as any[]) || [];
+        const startNode = nodesList.find(n => n.type === 'start');
         if (!startNode) {
             throw new BadRequestException('Flow has no start node');
         }
-
+        
         // 申請者情報のスナップショットを取得
         const applicantInfo = await this.usersService.getUserSnapshotByUsername(input.applicantId);
 
@@ -91,10 +108,10 @@ export class WorkflowEngineService implements OnModuleInit {
                 status: 'IN_PROGRESS',
                 inputData: input.inputData,
                 currentNodeId: startNode.id,
-                // スナップショット: 申請時点のフォーム・フロー定義を保存
-                formSchema: (appDef.formDefinition?.schema ?? undefined) as Prisma.InputJsonValue | undefined,
-                flowNodes: (flowDef.nodes ?? undefined) as Prisma.InputJsonValue | undefined,
-                flowEdges: (flowDef.edges ?? undefined) as Prisma.InputJsonValue | undefined,
+                // スナップショット: 公開バージョンの定義を保存
+                formSchema: (formSchema ?? undefined) as Prisma.InputJsonValue | undefined,
+                flowNodes: (flowNodes ?? undefined) as Prisma.InputJsonValue | undefined,
+                flowEdges: (flowEdges ?? undefined) as Prisma.InputJsonValue | undefined,
             },
         });
 
@@ -1100,9 +1117,21 @@ export class WorkflowEngineService implements OnModuleInit {
                     }
                 }
             }
-            // グループ指定: "group:/path"
+            // グループ指定: "group:/path" または "group:code"
             else if (assignment.startsWith('group:')) {
-                const targetGroup = assignment.substring(6);
+                const targetIdentifier = assignment.substring(6);
+                
+                // ターゲットグループのパスを解決 (deptCodeから)
+                const targetGroup = await this.usersService.findGroupByIdentifier(targetIdentifier);
+                
+                if (!targetGroup) {
+                    console.warn(`[WorkflowEngine] Group with deptCode '${targetIdentifier}' not found`);
+                    // コードが見つからない場合は権限なし（パスとしてのフォールバックはしない）
+                    continue; 
+                }
+
+                const targetPath = targetGroup.path;
+
                 const user = await this.getUserFromKeycloak(userId);
                 if (user) {
                     // Keycloakからユーザーのグループを取得
@@ -1114,7 +1143,7 @@ export class WorkflowEngineService implements OnModuleInit {
                         );
                         const userGroups = groupsResponse.data?.map((g: any) => g.path) || [];
                         // グループパスが一致するか、サブグループかをチェック
-                        if (userGroups.some((g: string) => g === targetGroup || g.startsWith(targetGroup + '/'))) {
+                        if (userGroups.some((g: string) => g === targetPath || g.startsWith(targetPath + '/'))) {
                             return true;
                         }
                     } catch (error) {

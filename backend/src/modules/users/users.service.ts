@@ -63,14 +63,11 @@ export class UsersService {
         }
     }
 
-    private async getDepartmentsMap(): Promise<Record<string, string>> {
-        // デパートメントマップは頻繁に変更されないため、短いTTL等でメモリ保持しても良いが、
-        // 今回はリクエストごとの整合性を重視し、キャッシュなし（または呼出元の判断）とするか、
-        // サービス内の簡易変数キャッシュのみ残す（DB保存時は厳密なリアルタイム性は不要なことが多いため）。
-        // ここではトークン同様、メモリ変数に簡易キャッシュのみ残します。
-        
-        if (this.deptMapCache && this.deptMapCache.expiresAt > Date.now()) {
-            return this.deptMapCache.map;
+    private deptCache: { data: any[]; expiresAt: number } | null = null;
+
+    public async getAllDepartments(): Promise<{ id: string; name: string; path: string; deptCode?: string }[]> {
+        if (this.deptCache && this.deptCache.expiresAt > Date.now()) {
+            return this.deptCache.data;
         }
 
         try {
@@ -79,7 +76,7 @@ export class UsersService {
                 headers: { Authorization: `Bearer ${token}` }
             });
             
-            const deptMap: Record<string, string> = {};
+            const results: { id: string; name: string; path: string; deptCode?: string }[] = [];
             
             const processGroups = async (groups: any[], parentToken: string) => {
                 for (const group of groups) {
@@ -88,13 +85,22 @@ export class UsersService {
                             `${this.keycloakUrl}/admin/realms/${this.realm}/groups/${group.id}`,
                             { headers: { Authorization: `Bearer ${parentToken}` } }
                         );
-                        const code = detailResponse.data.attributes?.code?.[0];
-                        if (code) {
-                            deptMap[code] = group.name;
-                        }
-                        deptMap[group.path] = group.name;
+                        const attrs = detailResponse.data.attributes || {};
+                        const deptCode = attrs.deptCode?.[0];
+                        
+                        results.push({
+                            id: group.id,
+                            name: group.name,
+                            path: group.path,
+                            deptCode: deptCode
+                        });
                     } catch (e) {
                          console.warn(`Failed to fetch group detail for ${group.id}`);
+                         results.push({
+                            id: group.id,
+                            name: group.name,
+                            path: group.path
+                        });
                     }
                     
                     if (group.subGroupCount > 0) {
@@ -113,16 +119,32 @@ export class UsersService {
             
             await processGroups(response.data, token);
 
-            this.deptMapCache = {
-                map: deptMap,
+            this.deptCache = {
+                data: results,
                 expiresAt: Date.now() + 1000 * 60 * 60, // 1時間
             };
 
-            return deptMap;
+            return results;
         } catch (error) {
-            console.error('Failed to get departments map:', error);
-            return this.deptMapCache ? this.deptMapCache.map : {};
+            console.error('Failed to get all departments:', error);
+            return this.deptCache ? this.deptCache.data : [];
         }
+    }
+
+    public async getDepartmentsMap(): Promise<Record<string, string>> {
+        const depts = await this.getAllDepartments();
+        const map: Record<string, string> = {};
+        depts.forEach(d => {
+            if (d.deptCode) map[d.deptCode] = d.name;
+        });
+        return map;
+    }
+
+    public async findGroupByIdentifier(identifier: string): Promise<{ path: string; name: string; deptCode?: string } | null> {
+        const depts = await this.getAllDepartments();
+        // deptCode または path で検索
+        const found = depts.find(d => d.deptCode === identifier);
+        return found || null;
     }
 
     /**

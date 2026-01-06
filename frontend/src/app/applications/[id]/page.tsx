@@ -171,13 +171,17 @@ export default function ApplicationDetailPage() {
             }
             if (a.startsWith('group:')) {
                 const assignedGroup = a.substring(6); // "group:"を除去
-                // ユーザーのグループが割り当てグループに一致またはサブグループか確認
-                const match = user.groups?.some(userGroup => 
+                // ユーザーのグループが割り当てグループに一致またはサブグループか確認 (Path based)
+                const pathMatch = user.groups?.some(userGroup => 
                     userGroup === assignedGroup || 
                     userGroup.startsWith(assignedGroup + '/') ||
                     assignedGroup.startsWith(userGroup + '/')
                 );
-                console.log('[isUserAssignedToTask] group check:', { a, assignedGroup, userGroups: user.groups, match });
+                // コードベースのチェック (Code based)
+                const codeMatch = user.groupCodes?.includes(assignedGroup);
+                
+                const match = pathMatch || codeMatch;
+                console.log('[isUserAssignedToTask] group check:', { a, assignedGroup, userGroups: user.groups, groupCodes: user.groupCodes, match,pathMatch,codeMatch });
                 return match;
             }
             // レガシー形式またはその他
@@ -227,6 +231,28 @@ export default function ApplicationDetailPage() {
             default: return status;
         }
     };
+
+    // 部署マップ取得
+    const { data: departments } = useQuery({
+        queryKey: ['departments'],
+        queryFn: () => api.get<any[]>('/users/departments'),
+        staleTime: 1000 * 60 * 60, // 1時間キャッシュ
+    });
+
+    const departmentsMap = useMemo(() => {
+        if (!departments) return {};
+        const map: Record<string, string> = {};
+        departments.forEach((dept: any) => {
+            if (dept.deptCode) {
+                map[dept.deptCode] = dept.name;
+            }
+            // IDやPathも入れておく
+            // map[dept.id] = dept.name;
+            // map[dept.path] = dept.name;
+        });
+        return map;
+    }, [departments]);
+
 
     if (isLoading) {
         return <Box sx={{ p: 3, textAlign: 'center' }}><Typography>読み込み中...</Typography></Box>;
@@ -310,7 +336,10 @@ export default function ApplicationDetailPage() {
                                     const t = s.trim();
                                     if (t.startsWith('user:')) return t.substring(5);
                                     if (t.startsWith('role:')) return `ロール: ${t.substring(5)}`;
-                                    if (t.startsWith('group:')) return `グループ: ${t.substring(6)}`;
+                                    if (t.startsWith('group:')) {
+                                        const code = t.substring(6);
+                                        return `グループ: ${departmentsMap[code] || code}`;
+                                    }
                                     if (t === 'applicant') return '申請者';
                                     if (t === 'applicant_manager') return '申請者の上長';
                                     return t;
@@ -404,6 +433,8 @@ export default function ApplicationDetailPage() {
                             createdAt: application.createdAt,
                             status: application.status,
                         }}
+                        history={application.history}
+                        departmentsMap={departmentsMap}
                         showHeader={false}
                     />
                 </SectionPaper>

@@ -679,7 +679,7 @@ function FlowEditorContent({ appId }: { appId: string }) {
                                     sx={{ width: 200 }}
                                 />
                                 <Button variant="contained" onClick={handleSave} disabled={saveMutation.isPending}>
-                                    {saveMutation.isPending ? '保存中...' : '保存'}
+                                    {saveMutation.isPending ? '保存中...' : '下書き保存'}
                                 </Button>
                             </Box>
                         </Panel>
