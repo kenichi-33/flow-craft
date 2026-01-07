@@ -9,6 +9,7 @@ import { ApplicationsModule } from './modules/applications/applications.module';
 import { ApplicationDefinitionsModule } from './modules/application-definitions/application-definitions.module';
 import { WorkflowEngineModule } from './modules/workflow-engine/workflow-engine.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
+import { SearchModule } from './modules/search/search.module';
 import { TasksModule } from './modules/tasks/tasks.module';
 import { TeamsModule } from './modules/teams/teams.module';
 import { UsersModule } from './modules/users/users.module';
@@ -33,6 +34,7 @@ import { QueueModule } from './modules/queue/queue.module';
     PrismaModule,
     NotificationsModule,
     QueueModule,
+    SearchModule,
   ],
   controllers: [AppController],
   providers: [

@@ -6,14 +6,14 @@ import {
     AppBar, Toolbar, Typography, IconButton, Chip, Divider, 
     CircularProgress, Tooltip
 } from '@mui/material';
-import { useParams, usePathname, useRouter } from 'next/navigation';
+import { useParams, usePathname } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import Link from 'next/link';
 import DashboardIcon from '@mui/icons-material/Dashboard';
 import DescriptionIcon from '@mui/icons-material/Description';
 import AccountTreeIcon from '@mui/icons-material/AccountTree';
-import ArrowBackIcon from '@mui/icons-material/ArrowBack';
+
 import MenuIcon from '@mui/icons-material/Menu';
 import LockIcon from '@mui/icons-material/Lock';
 
@@ -38,7 +38,7 @@ export default function VersionAppStudioLayout({
     const appId = params?.id as string;
     const versionId = params?.versionId as string;
     const pathname = usePathname();
-    const router = useRouter();
+
     const [mobileOpen, setMobileOpen] = useState(false);
     const [desktopOpen, setDesktopOpen] = useState(true);
 
@@ -139,7 +139,17 @@ export default function VersionAppStudioLayout({
     );
 
     return (
-        <Box sx={{ display: 'flex', minHeight: '100vh' }}>
+        <Box sx={{ 
+            display: 'flex', 
+            minHeight: '100vh',
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            bgcolor: 'background.default',
+            zIndex: 1200, // Above parent layout
+        }}>
             <AppBar
                 position="fixed"
                 sx={{
@@ -163,16 +173,8 @@ export default function VersionAppStudioLayout({
                         <MenuIcon />
                     </IconButton>
 
-                    {/* Desktop Toggle & Back Button */}
-                    <Box sx={{ display: { xs: 'none', sm: 'flex' }, alignItems: 'center', gap: 1, mr: 2 }}>
-                         <Tooltip title="バージョン履歴に戻る">
-                            <IconButton 
-                                onClick={() => router.push(`/designer/apps/${appId}/versions`)} 
-                                edge="start"
-                            >
-                                <ArrowBackIcon />
-                            </IconButton>
-                        </Tooltip>
+                    {/* Desktop Toggle */}
+                    <Box sx={{ display: { xs: 'none', sm: 'flex' }, alignItems: 'center', mr: 2 }}>
                         <Tooltip title={desktopOpen ? "サイドバーを閉じる" : "サイドバーを開く"}>
                             <IconButton onClick={handleDesktopDrawerToggle}>
                                 <MenuIcon />
@@ -219,8 +221,6 @@ export default function VersionAppStudioLayout({
                 variant="permanent"
                 sx={{
                     display: { xs: 'none', sm: 'block' },
-                    width: currentDrawerWidth,
-                    flexShrink: 0,
                     '& .MuiDrawer-paper': { 
                         boxSizing: 'border-box', 
                         width: currentDrawerWidth, 
@@ -239,8 +239,9 @@ export default function VersionAppStudioLayout({
                 sx={{
                     flexGrow: 1,
                     p: 3,
-                    width: { sm: `calc(100% - ${currentDrawerWidth}px)` },
+                    ml: { sm: `${currentDrawerWidth}px` },
                     mt: '64px', // AppBar height
+                    transition: 'margin 0.2s',
                 }}
             >
                 {children}

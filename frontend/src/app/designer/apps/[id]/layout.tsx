@@ -20,6 +20,7 @@ import HistoryIcon from '@mui/icons-material/History';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import MenuIcon from '@mui/icons-material/Menu';
 import PublishIcon from '@mui/icons-material/Publish';
+import SearchIcon from '@mui/icons-material/Search';
 
 const drawerWidth = 240;
 
@@ -90,6 +91,7 @@ export default function AppStudioLayout({
         { text: '概観 (Overview)', icon: <DashboardIcon />, href: `/designer/apps/${id}` },
         { text: 'フォーム定義', icon: <DescriptionIcon />, href: `/designer/apps/${id}/form` },
         { text: 'フロー定義', icon: <AccountTreeIcon />, href: `/designer/apps/${id}/flow` },
+        { text: 'データ検索', icon: <SearchIcon />, href: `/designer/apps/${id}/search` },
         { text: 'バージョン履歴', icon: <HistoryIcon />, href: `/designer/apps/${id}/versions` },
     ];
 

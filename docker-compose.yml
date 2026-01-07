@@ -57,6 +57,19 @@ services:
       MP_SMTP_AUTH_ACCEPT_ANY: 1
       MP_SMTP_AUTH_ALLOW_INSECURE: 1
 
+  elasticsearch:
+    image: elasticsearch:8.11.0
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+    ports:
+      - "9200:9200"
+    profiles:
+      - es
+    volumes:
+      - elasticsearch_data:/usr/share/elasticsearch/data
+
   backend:
     build:
       context: ./backend
@@ -106,3 +119,4 @@ services:
 volumes:
   postgres_data:
   keycloak_db_data:
+  elasticsearch_data:

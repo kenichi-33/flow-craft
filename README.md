@@ -101,10 +101,30 @@ Docker環境があれば、すぐにローカルで動作確認が可能です�
 3. **アクセスの確認**
    - **Frontend**: http://localhost:3000
    - **Backend API**: http://localhost:8080/api
+   - **Backend API**: http://localhost:8080/api
    - **Mailpit**: http://localhost:8025 (メール確認用)
+
+### Elasticsearch Mode (Optional)
+本システムは、デフォルトのPostgreSQL検索モードに加え、大規模データ向けのElasticsearchモードをサポートしています。
+
+1. **Elasticsearchの起動**
+   ```bash
+   docker-compose --profile es up -d
+   ```
+
+2. **バックエンド設定**
+   `backend/.env` (または環境変数) に以下を設定してください。
+   ```env
+   SEARCH_MODE=elasticsearch
+   ELASTICSEARCH_NODE=http://elasticsearch:9200
+   ```
+   ※ Docker環境でバックエンドと通信する場合、ホスト名は `elasticsearch` となります。
+
+3. **反映**
+   バックエンドを再起動すると、新規アプリケーション作成・更新時に自動的にElasticsearchへ同期されます。
 
 ## 📝 ライセンス
 
-Copyright (c) 2026 kenichi-33. All rights reserved.
-無断での複製・改変・再配布を禁じます。
-詳細は [LICENSE](./LICENSE) ファイルをご確認ください。
+Copyright (c) 2026 kenichi-33. All rights reserved.   
+無断での複製・改変・再配布を禁じます。   
+詳細は [LICENSE](./LICENSE) ファイルをご確認ください。   

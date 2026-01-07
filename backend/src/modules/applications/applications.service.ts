@@ -4,6 +4,7 @@ import { CreateApplicationDto } from './dto/create-application.dto';
 import { Prisma } from '@prisma/client';
 import { ConfigService } from '@nestjs/config';
 import { UsersService } from '../users/users.service';
+import { QueueService } from '../queue/queue.service';
 
 export interface FindAllOptions {
     page?: number;
@@ -25,12 +26,13 @@ export class ApplicationsService {
         private prisma: PrismaService,
         private configService: ConfigService,
         private usersService: UsersService,
+        private queueService: QueueService,
     ) {}
 
     async create(createApplicationDto: CreateApplicationDto) {
         const applicantInfo = await this.usersService.getUserSnapshotByUsername(createApplicationDto.applicantId);
 
-        return this.prisma.application.create({
+        const application = await this.prisma.application.create({
             data: {
                 formDefinitionId: createApplicationDto.formDefinitionId,
                 flowDefinitionId: createApplicationDto.flowDefinitionId,
@@ -44,6 +46,11 @@ export class ApplicationsService {
                 flowDefinition: true,
             },
         });
+
+        // Trigger async indexing
+        await this.queueService.enqueue('application-indexing', { applicationId: application.id });
+
+        return application;
     }
 
     async findAll(params: FindAllOptions = {}) {
@@ -193,7 +200,7 @@ export class ApplicationsService {
             throw new NotFoundException(`Application with ID ${id} not found`);
         }
 
-        return this.prisma.application.update({
+        const updatedApplication = await this.prisma.application.update({
             where: { id },
             data: {
                 inputData: updateData.inputData as Prisma.InputJsonValue,
@@ -202,5 +209,10 @@ export class ApplicationsService {
                 applicationDefinition: true,
             },
         });
+
+        // Trigger async indexing
+        await this.queueService.enqueue('application-indexing', { applicationId: id });
+
+        return updatedApplication;
     }
 }
