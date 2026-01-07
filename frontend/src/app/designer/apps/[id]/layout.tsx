@@ -53,10 +53,24 @@ export default function AppStudioLayout({
         staleTime: 0, 
     });
 
+    // Fetch existing versions to calculate correct next version
+    const { data: versions } = useQuery<any[]>({
+        queryKey: ['app-versions', id],
+        queryFn: () => api.get(`/application-definitions/${id}/versions`),
+        enabled: !!id,
+    });
+
+    // Calculate the next version number based on existing versions
+    const currentMaxVersion = versions && versions.length > 0 
+        ? Math.max(...versions.map(v => v.version))
+        : 0;
+    const nextVersion = currentMaxVersion + 1;
+
     const publishMutation = useMutation({
         mutationFn: () => api.post(`/application-definitions/${id}/publish`, {}),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['apps', id] });
+            queryClient.invalidateQueries({ queryKey: ['app-versions', id] });
             setPublishDialogOpen(false);
         },
         onError: (err: any) => {
@@ -299,9 +313,9 @@ export default function AppStudioLayout({
                             borderRadius: 2,
                             border: '1px dashed #e0e0e0'
                         }}>
-                             <Chip label={`現在: v${(app as any)?.version}`} size="small" />
+                             <Chip label={currentMaxVersion > 0 ? `現在: v${currentMaxVersion}` : '初回公開'} size="small" />
                              <Typography variant="h5" color="text.secondary">→</Typography>
-                             <Chip label={`新規: v${((app as any)?.version || 0) + 1}`} color="primary" sx={{ fontWeight: 'bold' }} />
+                             <Chip label={`新規: v${nextVersion}`} color="primary" sx={{ fontWeight: 'bold' }} />
                         </Box>
                         <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 2 }}>
                             ※ 公開後は新規申請にこの設定が適用されます。

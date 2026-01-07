@@ -13,7 +13,7 @@ import AddCircleIcon from '@mui/icons-material/AddCircle';
 import DeleteIcon from '@mui/icons-material/Delete';
 
 // Key-Value Editor Component
-const KeyValueEditor = ({ value, onChange, placeholderKey, placeholderValue }: any) => {
+const KeyValueEditor = ({ value, onChange, placeholderKey, placeholderValue, disabled = false }: any) => {
     const [rows, setRows] = useState<{ key: string, value: string }[]>([]);
 
     useEffect(() => {
@@ -36,6 +36,7 @@ const KeyValueEditor = ({ value, onChange, placeholderKey, placeholderValue }: a
     }, [value]);
 
     const updateRow = (index: number, field: 'key' | 'value', val: string) => {
+        if (disabled) return;
         const newRows = [...rows];
         newRows[index] = { ...newRows[index], [field]: val };
         setRows(newRows);
@@ -43,12 +44,14 @@ const KeyValueEditor = ({ value, onChange, placeholderKey, placeholderValue }: a
     };
 
     const addRow = () => {
+        if (disabled) return;
         const newRows = [...rows, { key: '', value: '' }];
         setRows(newRows);
         emitChange(newRows);
     };
 
     const removeRow = (index: number) => {
+        if (disabled) return;
         const newRows = rows.filter((_, i) => i !== index);
         setRows(newRows);
         emitChange(newRows);
@@ -64,6 +67,11 @@ const KeyValueEditor = ({ value, onChange, placeholderKey, placeholderValue }: a
 
     return (
         <Box>
+            {rows.length === 0 && disabled && (
+                <Typography variant="body2" color="text.secondary" sx={{ py: 1 }}>
+                    設定なし
+                </Typography>
+            )}
             {rows.map((row, index) => (
                 <Box key={index} sx={{ display: 'flex', gap: 1, mb: 1, alignItems: 'center' }}>
                     <TextField
@@ -72,6 +80,7 @@ const KeyValueEditor = ({ value, onChange, placeholderKey, placeholderValue }: a
                         value={row.key}
                         onChange={(e) => updateRow(index, 'key', e.target.value)}
                         sx={{ flex: 1 }}
+                        disabled={disabled}
                     />
                     <TextField
                         size="small"
@@ -79,20 +88,25 @@ const KeyValueEditor = ({ value, onChange, placeholderKey, placeholderValue }: a
                         value={row.value}
                         onChange={(e) => updateRow(index, 'value', e.target.value)}
                         sx={{ flex: 1 }}
+                        disabled={disabled}
                     />
-                    <IconButton size="small" onClick={() => removeRow(index)} color="error">
-                        <DeleteIcon fontSize="small" />
-                    </IconButton>
+                    {!disabled && (
+                        <IconButton size="small" onClick={() => removeRow(index)} color="error">
+                            <DeleteIcon fontSize="small" />
+                        </IconButton>
+                    )}
                 </Box>
             ))}
-            <Button
-                startIcon={<AddCircleIcon />}
-                size="small"
-                onClick={addRow}
-                sx={{ textTransform: 'none' }}
-            >
-                項目を追加
-            </Button>
+            {!disabled && (
+                <Button
+                    startIcon={<AddCircleIcon />}
+                    size="small"
+                    onClick={addRow}
+                    sx={{ textTransform: 'none' }}
+                >
+                    項目を追加
+                </Button>
+            )}
         </Box>
     );
 };
@@ -136,7 +150,14 @@ export default function APICallNode({ id, data }: { id: string; data: any }) {
 
     const { setNodes } = useReactFlow();
 
+    // ReadOnly mode check
+    const isReadOnly = data.readOnly === true;
+
     const handleSave = () => {
+        if (isReadOnly) {
+            setDialogOpen(false);
+            return;
+        }
         setNodes((nds) =>
             nds.map((node) =>
                 node.id === id
@@ -164,6 +185,14 @@ export default function APICallNode({ id, data }: { id: string; data: any }) {
         setTabValue(newValue);
     };
 
+    const parseJson = (str: string) => {
+        try {
+            return JSON.parse(str);
+        } catch {
+            return {};
+        }
+    };
+
     return (
         <>
             <Box
@@ -181,7 +210,9 @@ export default function APICallNode({ id, data }: { id: string; data: any }) {
                     boxShadow: '0 4px 12px rgba(94, 53, 177, 0.4)',
                     border: '2px solid rgba(255,255,255,0.5)',
                     position: 'relative',
+                    cursor: isReadOnly ? 'pointer' : 'default',
                 }}
+                onClick={isReadOnly ? () => setDialogOpen(true) : undefined}
             >
                 <Handle
                     type="target"
@@ -206,14 +237,16 @@ export default function APICallNode({ id, data }: { id: string; data: any }) {
                     >
                         {data.label || 'API呼び出し'}
                     </Typography>
-                    <IconButton
-                        size="small"
-                        onClick={() => setDialogOpen(true)}
-                        onMouseDown={(e) => e.stopPropagation()}
-                        sx={{ color: 'white', p: 0.3 }}
-                    >
-                        <EditIcon sx={{ fontSize: 14 }} />
-                    </IconButton>
+                    {!isReadOnly && (
+                        <IconButton
+                            size="small"
+                            onClick={() => setDialogOpen(true)}
+                            onMouseDown={(e) => e.stopPropagation()}
+                            sx={{ color: 'white', p: 0.3 }}
+                        >
+                            <EditIcon sx={{ fontSize: 14 }} />
+                        </IconButton>
+                    )}
                 </Box>
 
                 {data.url && (
@@ -237,10 +270,12 @@ export default function APICallNode({ id, data }: { id: string; data: any }) {
                 />
             </Box>
 
+            {/* Unified Dialog - uses disabled inputs when readOnly */}
             <Dialog open={dialogOpen} onClose={() => setDialogOpen(false)} maxWidth="md" fullWidth>
-                <DialogTitle>API呼び出し設定</DialogTitle>
+                <DialogTitle>{isReadOnly ? 'API呼び出し設定 (読取専用)' : 'API呼び出し設定'}</DialogTitle>
                 <DialogContent>
-                    {data.formFields && data.formFields.length > 0 && (
+                    {/* Form fields help - only show in edit mode */}
+                    {!isReadOnly && data.formFields && data.formFields.length > 0 && (
                         <Box sx={{ mb: 2, p: 1.5, bgcolor: '#f5f5f5', borderRadius: 1 }}>
                             <Typography variant="caption" color="text.secondary" fontWeight="bold" sx={{ mb: 1, display: 'block' }}>
                                 使用可能なフォーム項目 (クリックしてIDをコピー)
@@ -272,10 +307,11 @@ export default function APICallNode({ id, data }: { id: string; data: any }) {
                                 onChange={(e) => setLabel(e.target.value)}
                                 fullWidth
                                 size="small"
+                                disabled={isReadOnly}
                             />
                         </Grid>
                         <Grid size={{ xs: 12, sm: 2 }}>
-                            <FormControl fullWidth size="small">
+                            <FormControl fullWidth size="small" disabled={isReadOnly}>
                                 <InputLabel>メソッド</InputLabel>
                                 <Select
                                     value={method}
@@ -298,6 +334,7 @@ export default function APICallNode({ id, data }: { id: string; data: any }) {
                                 fullWidth
                                 size="small"
                                 placeholder="https://api.example.com/endpoint"
+                                disabled={isReadOnly}
                             />
                         </Grid>
                     </Grid>
@@ -310,6 +347,7 @@ export default function APICallNode({ id, data }: { id: string; data: any }) {
                         onChange={setHeaders}
                         placeholderKey="Header-Name"
                         placeholderValue="Value ({{field}})"
+                        disabled={isReadOnly}
                     />
 
                     <Divider sx={{ my: 3 }} />
@@ -327,10 +365,13 @@ export default function APICallNode({ id, data }: { id: string; data: any }) {
                             onChange={setBody}
                             placeholderKey="Field Name"
                             placeholderValue="Value ({{formField}})"
+                            disabled={isReadOnly}
                         />
-                        <Typography variant="caption" color="text.secondary">
-                            ※ フォームの入力値を埋め込む場合は <code>{`{{フィールドID}}`}</code> と記述してください
-                        </Typography>
+                        {!isReadOnly && (
+                            <Typography variant="caption" color="text.secondary">
+                                ※ フォームの入力値を埋め込む場合は <code>{`{{フィールドID}}`}</code> と記述してください
+                            </Typography>
+                        )}
                     </CustomTabPanel>
                     <CustomTabPanel value={tabValue} index={1}>
                         <TextField
@@ -341,6 +382,7 @@ export default function APICallNode({ id, data }: { id: string; data: any }) {
                             multiline
                             rows={6}
                             placeholder='{"key": "{{formField}}"}'
+                            disabled={isReadOnly}
                         />
                     </CustomTabPanel>
 
@@ -357,10 +399,11 @@ export default function APICallNode({ id, data }: { id: string; data: any }) {
                                 size="small"
                                 placeholder="200,201,204"
                                 helperText="カンマ区切りで複数指定可"
+                                disabled={isReadOnly}
                             />
                         </Grid>
                         <Grid size={{ xs: 12, sm: 6 }}>
-                            <FormControl fullWidth size="small">
+                            <FormControl fullWidth size="small" disabled={isReadOnly}>
                                 <InputLabel>エラー時の動作</InputLabel>
                                 <Select
                                     value={errorBehavior}
@@ -377,24 +420,33 @@ export default function APICallNode({ id, data }: { id: string; data: any }) {
                     <Divider sx={{ my: 3 }} />
 
                     <Typography variant="subtitle2" gutterBottom>レスポンスマッピング (JSONパス → フォームID)</Typography>
-                    <Typography variant="caption" color="text.secondary" sx={{ mb: 2, display: 'block' }}>
-                        APIレスポンスから値を抽出し、フォーム項目を自動更新します。
-                        <br />
-                        Key: レスポンスJSONのパス (例: <code>data.user.id</code>)
-                        <br />
-                        Value: 反映先のフォーム項目ID (例: <code>userId</code>)
-                    </Typography>
+                    {!isReadOnly && (
+                        <Typography variant="caption" color="text.secondary" sx={{ mb: 2, display: 'block' }}>
+                            APIレスポンスから値を抽出し、フォーム項目を自動更新します。
+                            <br />
+                            Key: レスポンスJSONのパス (例: <code>data.user.id</code>)
+                            <br />
+                            Value: 反映先のフォーム項目ID (例: <code>userId</code>)
+                        </Typography>
+                    )}
                     <KeyValueEditor
                         value={responseMapping}
                         onChange={setResponseMapping}
                         placeholderKey="Response JSON Path"
                         placeholderValue="Form Field ID"
+                        disabled={isReadOnly}
                     />
 
                 </DialogContent>
                 <DialogActions>
-                    <Button onClick={() => setDialogOpen(false)}>キャンセル</Button>
-                    <Button variant="contained" onClick={handleSave}>保存</Button>
+                    {isReadOnly ? (
+                        <Button onClick={() => setDialogOpen(false)} variant="contained">閉じる</Button>
+                    ) : (
+                        <>
+                            <Button onClick={() => setDialogOpen(false)}>キャンセル</Button>
+                            <Button variant="contained" onClick={handleSave}>保存</Button>
+                        </>
+                    )}
                 </DialogActions>
             </Dialog>
         </>

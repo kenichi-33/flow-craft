@@ -76,13 +76,16 @@ export default function ApprovalNode({ id, data }: { id: string; data: any }) {
     const [tabValue, setTabValue] = useState(0);
     const { setNodes } = useReactFlow();
 
+    // ReadOnly mode check
+    const isReadOnly = data.readOnly === true;
+
     const handleTabChange = (event: React.SyntheticEvent, newValue: number) => {
         setTabValue(newValue);
     };
 
-    // ダイアログが開いたときに部署一覧を取得
+    // ダイアログが開いたときに部署一覧を取得 (only in edit mode)
     useEffect(() => {
-        if (dialogOpen && availableGroups.length === 0) {
+        if (dialogOpen && !isReadOnly && availableGroups.length === 0) {
             setLoadingGroups(true);
             api.get('/users/departments')
                 .then((response) => {
@@ -97,15 +100,15 @@ export default function ApprovalNode({ id, data }: { id: string; data: any }) {
                 })
                 .catch((err) => {
                     console.error('Failed to fetch departments:', err);
-                    alert('部署一覧の取得に失敗しました。ネットワーク接続を確認してください。');
                     setAvailableGroups([]);
                 })
                 .finally(() => setLoadingGroups(false));
         }
-    }, [dialogOpen, availableGroups.length]);
+    }, [dialogOpen, availableGroups.length, isReadOnly]);
 
-    // ユーザー検索（debounce付き）
+    // ユーザー検索（debounce付き）- only in edit mode
     useEffect(() => {
+        if (isReadOnly) return;
         if (userSearchInput.length < 2) {
             setUserOptions([]);
             return;
@@ -129,9 +132,13 @@ export default function ApprovalNode({ id, data }: { id: string; data: any }) {
         }, 300);
 
         return () => clearTimeout(timer);
-    }, [userSearchInput]);
+    }, [userSearchInput, isReadOnly]);
 
     const handleSave = () => {
+        if (isReadOnly) {
+            setDialogOpen(false);
+            return;
+        }
         setNodes((nds) =>
             nds.map((node) =>
                 node.id === id
@@ -213,6 +220,16 @@ export default function ApprovalNode({ id, data }: { id: string; data: any }) {
         }
     };
 
+    const getAssigneeTypeLabel = () => {
+        switch (data.assigneeType || assigneeType) {
+            case 'role': return 'ロール指定';
+            case 'group': return '部署指定';
+            case 'specific': return 'ユーザー指定';
+            case 'applicant_manager': return '申請者の上長';
+            default: return '-';
+        }
+    };
+
     return (
         <>
             <Box
@@ -230,7 +247,9 @@ export default function ApprovalNode({ id, data }: { id: string; data: any }) {
                     boxShadow: '0 4px 12px rgba(25, 118, 210, 0.4)',
                     border: '2px solid rgba(255,255,255,0.5)',
                     position: 'relative',
+                    cursor: isReadOnly ? 'pointer' : 'default',
                 }}
+                onClick={isReadOnly ? () => setDialogOpen(true) : undefined}
             >
                 <Handle
                     type="target"
@@ -255,14 +274,16 @@ export default function ApprovalNode({ id, data }: { id: string; data: any }) {
                     >
                         {data.label || '承認'}
                     </Typography>
-                    <IconButton
-                        size="small"
-                        onClick={() => setDialogOpen(true)}
-                        onMouseDown={(e) => e.stopPropagation()}
-                        sx={{ color: 'white', p: 0.3 }}
-                    >
-                        <EditIcon sx={{ fontSize: 14 }} />
-                    </IconButton>
+                    {!isReadOnly && (
+                        <IconButton
+                            size="small"
+                            onClick={() => setDialogOpen(true)}
+                            onMouseDown={(e) => e.stopPropagation()}
+                            sx={{ color: 'white', p: 0.3 }}
+                        >
+                            <EditIcon sx={{ fontSize: 14 }} />
+                        </IconButton>
+                    )}
                 </Box>
 
                 {(data.assignee || data.assigneeType) && (
@@ -289,8 +310,9 @@ export default function ApprovalNode({ id, data }: { id: string; data: any }) {
                 />
             </Box>
 
+            {/* Unified Dialog - uses disabled inputs when readOnly */}
             <Dialog open={dialogOpen} onClose={() => setDialogOpen(false)} maxWidth="sm" fullWidth>
-                <DialogTitle>承認ステップの設定</DialogTitle>
+                <DialogTitle>{isReadOnly ? '承認ステップ設定 (読取専用)' : '承認ステップの設定'}</DialogTitle>
                 <DialogContent>
                     <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
                         <Tabs value={tabValue} onChange={handleTabChange} aria-label="approval node settings">
@@ -308,9 +330,10 @@ export default function ApprovalNode({ id, data }: { id: string; data: any }) {
                             fullWidth
                             sx={{ mt: 1 }}
                             placeholder="例: 部長承認、経理確認"
+                            disabled={isReadOnly}
                         />
 
-                        <FormControl fullWidth sx={{ mt: 3 }}>
+                        <FormControl fullWidth sx={{ mt: 3 }} disabled={isReadOnly}>
                             <InputLabel>担当者の指定方法</InputLabel>
                             <Select
                                 value={assigneeType}
@@ -331,7 +354,7 @@ export default function ApprovalNode({ id, data }: { id: string; data: any }) {
                         </FormControl>
 
                         {assigneeType === 'role' && (
-                            <FormControl fullWidth sx={{ mt: 2 }}>
+                            <FormControl fullWidth sx={{ mt: 2 }} disabled={isReadOnly}>
                                 <InputLabel>必要なロール</InputLabel>
                                 <Select
                                     value={assigneeRole}
@@ -349,7 +372,7 @@ export default function ApprovalNode({ id, data }: { id: string; data: any }) {
                         )}
 
                         {assigneeType === 'group' && (
-                            <FormControl fullWidth sx={{ mt: 2 }}>
+                            <FormControl fullWidth sx={{ mt: 2 }} disabled={isReadOnly || loadingGroups}>
                                 <InputLabel>担当部署</InputLabel>
                                 <Select
                                     value={assigneeGroup}
@@ -357,11 +380,9 @@ export default function ApprovalNode({ id, data }: { id: string; data: any }) {
                                     onChange={(e) => {
                                         const value = e.target.value;
                                         setAssigneeGroup(value);
-                                        // 選択されたグループのnameを取得して表示用に保存
                                         const selectedGroup = availableGroups.find(g => g.value === value);
                                         setAssigneeGroupDisplay(selectedGroup?.name || '');
                                     }}
-                                    disabled={loadingGroups}
                                 >
                                     {loadingGroups ? (
                                         <MenuItem disabled>
@@ -384,6 +405,7 @@ export default function ApprovalNode({ id, data }: { id: string; data: any }) {
                         {assigneeType === 'specific' && (
                             <Autocomplete
                                 freeSolo
+                                disabled={isReadOnly}
                                 options={userOptions}
                                 getOptionLabel={(option) => 
                                     typeof option === 'string' ? option : option.username
@@ -402,10 +424,9 @@ export default function ApprovalNode({ id, data }: { id: string; data: any }) {
                                 onChange={(_, newValue) => {
                                     if (typeof newValue === 'string') {
                                         setAssigneeUser(newValue);
-                                        setAssigneeUserDisplay(newValue); // Manual entry, just use the string
+                                        setAssigneeUserDisplay(newValue);
                                     } else if (newValue) {
                                         setAssigneeUser(newValue.username);
-                                        // ユーザー選択時に表示名も更新する
                                         setAssigneeUserDisplay(newValue.displayName || newValue.username); 
                                     }
                                 }}
@@ -447,6 +468,7 @@ export default function ApprovalNode({ id, data }: { id: string; data: any }) {
                                 <Switch
                                     checked={notificationEnabled}
                                     onChange={(e) => setNotificationEnabled(e.target.checked)}
+                                    disabled={isReadOnly}
                                 />
                             }
                             label="担当者にメール通知を送信する"
@@ -463,6 +485,7 @@ export default function ApprovalNode({ id, data }: { id: string; data: any }) {
                                     size="small"
                                     sx={{ mb: 2 }}
                                     helperText="変数: {{applicationDefinition.name}}, {{assignee}} など"
+                                    disabled={isReadOnly}
                                 />
                                 <TextField
                                     label="本文テンプレート"
@@ -471,6 +494,7 @@ export default function ApprovalNode({ id, data }: { id: string; data: any }) {
                                     fullWidth
                                     multiline
                                     rows={8}
+                                    disabled={isReadOnly}
                                     helperText={
                                         <>
                                             申請データ: {"{{fieldName}}"}<br />
@@ -491,10 +515,17 @@ export default function ApprovalNode({ id, data }: { id: string; data: any }) {
 
                 </DialogContent>
                 <DialogActions>
-                    <Button onClick={() => setDialogOpen(false)}>キャンセル</Button>
-                    <Button variant="contained" onClick={handleSave}>保存</Button>
+                    {isReadOnly ? (
+                        <Button onClick={() => setDialogOpen(false)} variant="contained">閉じる</Button>
+                    ) : (
+                        <>
+                            <Button onClick={() => setDialogOpen(false)}>キャンセル</Button>
+                            <Button variant="contained" onClick={handleSave}>保存</Button>
+                        </>
+                    )}
                 </DialogActions>
             </Dialog>
         </>
     );
 }
+

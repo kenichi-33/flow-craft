@@ -20,6 +20,7 @@ interface SwimLaneNodeProps {
         color?: string;
         width?: number;
         height?: number;
+        readOnly?: boolean;
     };
 }
 
@@ -34,8 +35,10 @@ export default function SwimLaneNode({ id, data, selected }: SwimLaneNodeProps) 
     const [height, setHeight] = useState(data.height || 200);
 
     const { setNodes } = useReactFlow();
+    const isReadOnly = data.readOnly === true;
 
     const handleSave = () => {
+        if (isReadOnly) return;
         setNodes((nds) =>
             nds.map((node) =>
                 node.id === id
@@ -73,13 +76,15 @@ export default function SwimLaneNode({ id, data, selected }: SwimLaneNodeProps) 
 
     return (
         <>
-            {/* リサイズハンドル */}
-            <NodeResizer
-                color="#90caf9"
-                isVisible={selected}
-                minWidth={300}
-                minHeight={100}
-            />
+            {/* リサイズハンドル - readOnlyの場合は非表示 */}
+            {!isReadOnly && (
+                <NodeResizer
+                    color="#90caf9"
+                    isVisible={selected}
+                    minWidth={300}
+                    minHeight={100}
+                />
+            )}
             <Box
                 sx={{
                     width: '100%',
@@ -89,7 +94,9 @@ export default function SwimLaneNode({ id, data, selected }: SwimLaneNodeProps) 
                     borderRadius: 1,
                     position: 'relative',
                     zIndex: -10,
+                    cursor: isReadOnly ? 'pointer' : 'default',
                 }}
+                onClick={isReadOnly ? () => setDialogOpen(true) : undefined}
             >
                 {/* レーンヘッダー（左側） */}
                 <Box
@@ -132,26 +139,29 @@ export default function SwimLaneNode({ id, data, selected }: SwimLaneNodeProps) 
                     )}
                 </Box>
 
-                {/* 編集ボタン */}
-                <IconButton
-                    size="small"
-                    onClick={() => setDialogOpen(true)}
-                    onMouseDown={(e) => e.stopPropagation()}
-                    sx={{
-                        position: 'absolute',
-                        top: 5,
-                        right: 5,
-                        bgcolor: 'white',
-                        boxShadow: 1,
-                        '&:hover': { bgcolor: '#f5f5f5' },
-                    }}
-                >
-                    <EditIcon sx={{ fontSize: 14 }} />
-                </IconButton>
+                {/* 編集ボタン - readOnlyの場合は非表示 */}
+                {!isReadOnly && (
+                    <IconButton
+                        size="small"
+                        onClick={() => setDialogOpen(true)}
+                        onMouseDown={(e) => e.stopPropagation()}
+                        sx={{
+                            position: 'absolute',
+                            top: 5,
+                            right: 5,
+                            bgcolor: 'white',
+                            boxShadow: 1,
+                            '&:hover': { bgcolor: '#f5f5f5' },
+                        }}
+                    >
+                        <EditIcon sx={{ fontSize: 14 }} />
+                    </IconButton>
+                )}
             </Box>
 
+            {/* Unified Dialog */}
             <Dialog open={dialogOpen} onClose={() => setDialogOpen(false)} maxWidth="sm" fullWidth>
-                <DialogTitle>スイムレーン設定</DialogTitle>
+                <DialogTitle>{isReadOnly ? 'スイムレーン設定 (読取専用)' : 'スイムレーン設定'}</DialogTitle>
                 <DialogContent>
                     <TextField
                         label="レーン名"
@@ -160,9 +170,10 @@ export default function SwimLaneNode({ id, data, selected }: SwimLaneNodeProps) 
                         fullWidth
                         size="small"
                         sx={{ mt: 2, mb: 2 }}
+                        disabled={isReadOnly}
                     />
 
-                    <FormControl fullWidth size="small" sx={{ mb: 2 }}>
+                    <FormControl fullWidth size="small" sx={{ mb: 2 }} disabled={isReadOnly}>
                         <InputLabel>担当者タイプ</InputLabel>
                         <Select
                             value={assigneeType}
@@ -183,9 +194,10 @@ export default function SwimLaneNode({ id, data, selected }: SwimLaneNodeProps) 
                         size="small"
                         placeholder={assigneeType === 'role' ? '例: 承認者' : assigneeType === 'department' ? '例: 経理部' : '例: user@example.com'}
                         sx={{ mb: 2 }}
+                        disabled={isReadOnly}
                     />
 
-                    <FormControl fullWidth size="small" sx={{ mb: 2 }}>
+                    <FormControl fullWidth size="small" sx={{ mb: 2 }} disabled={isReadOnly}>
                         <InputLabel>レーン色</InputLabel>
                         <Select
                             value={color}
@@ -211,6 +223,7 @@ export default function SwimLaneNode({ id, data, selected }: SwimLaneNodeProps) 
                             onChange={(e) => setWidth(Number(e.target.value))}
                             size="small"
                             sx={{ flex: 1 }}
+                            disabled={isReadOnly}
                         />
                         <TextField
                             label="高さ (px)"
@@ -219,12 +232,19 @@ export default function SwimLaneNode({ id, data, selected }: SwimLaneNodeProps) 
                             onChange={(e) => setHeight(Number(e.target.value))}
                             size="small"
                             sx={{ flex: 1 }}
+                            disabled={isReadOnly}
                         />
                     </Box>
                 </DialogContent>
                 <DialogActions>
-                    <Button onClick={() => setDialogOpen(false)}>キャンセル</Button>
-                    <Button variant="contained" onClick={handleSave}>保存</Button>
+                    {isReadOnly ? (
+                        <Button onClick={() => setDialogOpen(false)} variant="contained">閉じる</Button>
+                    ) : (
+                        <>
+                            <Button onClick={() => setDialogOpen(false)}>キャンセル</Button>
+                            <Button variant="contained" onClick={handleSave}>保存</Button>
+                        </>
+                    )}
                 </DialogActions>
             </Dialog>
         </>

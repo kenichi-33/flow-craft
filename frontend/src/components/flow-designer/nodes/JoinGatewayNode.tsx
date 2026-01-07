@@ -14,7 +14,10 @@ export default function JoinGatewayNode({ id, data }: { id: string; data: any })
     const [label, setLabel] = useState(data.label || '合流');
     const { setNodes } = useReactFlow();
 
+    const isReadOnly = data.readOnly === true;
+
     const handleSave = () => {
+        if (isReadOnly) return;
         setNodes((nds) =>
             nds.map((node) =>
                 node.id === id
@@ -109,8 +112,9 @@ export default function JoinGatewayNode({ id, data }: { id: string; data: any })
                 {data.label || '合流'}
             </Typography>
 
+            {/* Unified Dialog */}
             <Dialog open={dialogOpen} onClose={() => setDialogOpen(false)}>
-                <DialogTitle>合流ゲートウェイ設定</DialogTitle>
+                <DialogTitle>{isReadOnly ? '合流ゲートウェイ設定 (読取専用)' : '合流ゲートウェイ設定'}</DialogTitle>
                 <DialogContent>
                     <TextField
                         autoFocus
@@ -119,11 +123,18 @@ export default function JoinGatewayNode({ id, data }: { id: string; data: any })
                         fullWidth
                         value={label}
                         onChange={(e) => setLabel(e.target.value)}
+                        disabled={isReadOnly}
                     />
                 </DialogContent>
                 <DialogActions>
-                    <Button onClick={() => setDialogOpen(false)}>キャンセル</Button>
-                    <Button onClick={handleSave} variant="contained">保存</Button>
+                    {isReadOnly ? (
+                        <Button onClick={() => setDialogOpen(false)} variant="contained">閉じる</Button>
+                    ) : (
+                        <>
+                            <Button onClick={() => setDialogOpen(false)}>キャンセル</Button>
+                            <Button onClick={handleSave} variant="contained">保存</Button>
+                        </>
+                    )}
                 </DialogActions>
             </Dialog>
         </>

@@ -43,14 +43,18 @@ interface PropertyPanelProps {
 export default function PropertyPanel({ field, onUpdate, existingIds, readOnly = false }: PropertyPanelProps) {
     // Local state for immediate feedback, synced with field prop
     // Hooks must be called unconditionally
-    const [label, setLabel] = useState(field?.label || '');
-    const [id, setId] = useState(field?.id || '');
+    const [label, setLabel] = useState(field?.label ?? '');
+    const [id, setId] = useState(field?.id ?? '');
     const [idError, setIdError] = useState<string | null>(null);
 
     useEffect(() => {
         if (field) {
-            setLabel(field.label);
-            setId(field.id);
+            setLabel(field.label ?? '');
+            setId(field.id ?? '');
+            setIdError(null);
+        } else {
+            setLabel('');
+            setId('');
             setIdError(null);
         }
     }, [field]);

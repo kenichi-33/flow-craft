@@ -2,7 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateApplicationDefinitionDto } from './dto/create-application-definition.dto';
 import { UpdateApplicationDefinitionDto } from './dto/update-application-definition.dto';
-import { Prisma } from '@prisma/client';
+import { Prisma, AppDefStatus } from '@prisma/client';
 
 export interface FindAllOptions {
     page?: number;
@@ -134,7 +134,7 @@ export class ApplicationDefinitionsService {
 
     async findActive() {
         return this.prisma.applicationDefinition.findMany({
-            where: { status: 'ACTIVE' },
+            where: { status: AppDefStatus.ACTIVE },
             orderBy: { createdAt: 'desc' },
             include: {
                 formDefinition: true,
@@ -165,7 +165,7 @@ export class ApplicationDefinitionsService {
                 include: { formDefinition: true, flowDefinition: true },
             });
 
-            if (appDef && appDef.status === 'ACTIVE') {
+            if (appDef && appDef.status === AppDefStatus.ACTIVE) {
                  return appDef;
             }
 
@@ -209,7 +209,15 @@ export class ApplicationDefinitionsService {
             throw new NotFoundException(`ApplicationDefinition with ID ${id} not found`);
         }
 
-        const newVersion = appDef.version + 1;
+        // Get the highest existing version number for this app
+        const latestVersion = await this.prisma.appVersion.findFirst({
+            where: { applicationDefinitionId: id },
+            orderBy: { version: 'desc' },
+            select: { version: true },
+        });
+
+        // New version is max existing + 1, or 1 if no versions exist yet
+        const newVersion = latestVersion ? latestVersion.version + 1 : 1;
 
         // Create version snapshot
         await this.prisma.appVersion.create({
@@ -228,7 +236,7 @@ export class ApplicationDefinitionsService {
             where: { id },
             data: {
                 version: newVersion,
-                status: 'ACTIVE',
+                status: AppDefStatus.ACTIVE,
                 publishedAt: new Date(),
             },
             include: {

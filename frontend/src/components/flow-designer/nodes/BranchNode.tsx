@@ -19,9 +19,11 @@ export default function BranchNode({ id, data }: { id: string; data: any }) {
     const [noLabel, setNoLabel] = useState(data.noLabel || 'いいえ');
     const { setNodes } = useReactFlow();
 
+    const isReadOnly = data.readOnly === true;
     const formFields = data.formFields || [];
 
     const handleSave = () => {
+        if (isReadOnly) return;
         setNodes((nds) =>
             nds.map((node) =>
                 node.id === id
@@ -110,22 +112,24 @@ export default function BranchNode({ id, data }: { id: string; data: any }) {
                     </Typography>
                 </Box>
 
-                {/* Edit button */}
-                <IconButton
-                    size="small"
-                    onClick={() => setDialogOpen(true)}
-                    sx={{
-                        position: 'absolute',
-                        top: -8,
-                        right: -8,
-                        bgcolor: 'white',
-                        boxShadow: 1,
-                        p: 0.3,
-                        '&:hover': { bgcolor: 'grey.100' },
-                    }}
-                >
-                    <EditIcon sx={{ fontSize: 12 }} />
-                </IconButton>
+                {/* Edit button - hide in readOnly mode */}
+                {!isReadOnly && (
+                    <IconButton
+                        size="small"
+                        onClick={() => setDialogOpen(true)}
+                        sx={{
+                            position: 'absolute',
+                            top: -8,
+                            right: -8,
+                            bgcolor: 'white',
+                            boxShadow: 1,
+                            p: 0.3,
+                            '&:hover': { bgcolor: 'grey.100' },
+                        }}
+                    >
+                        <EditIcon sx={{ fontSize: 12 }} />
+                    </IconButton>
+                )}
 
                 {/* Handles */}
                 <Handle
@@ -195,15 +199,15 @@ export default function BranchNode({ id, data }: { id: string; data: any }) {
                 </Typography>
             </Box>
 
-            {/* Settings Dialog */}
+            {/* Unified Settings Dialog */}
             <Dialog open={dialogOpen} onClose={() => setDialogOpen(false)} maxWidth="sm" fullWidth>
-                <DialogTitle>分岐条件の設定</DialogTitle>
+                <DialogTitle>{isReadOnly ? '分岐条件の設定 (読取専用)' : '分岐条件の設定'}</DialogTitle>
                 <DialogContent>
                     <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
                         フォームの値に基づいて分岐を設定します
                     </Typography>
 
-                    <FormControl fullWidth sx={{ mb: 2 }}>
+                    <FormControl fullWidth sx={{ mb: 2 }} disabled={isReadOnly}>
                         <InputLabel>条件フィールド</InputLabel>
                         <Select
                             value={conditionField}
@@ -222,7 +226,7 @@ export default function BranchNode({ id, data }: { id: string; data: any }) {
                     </FormControl>
 
                     <Box sx={{ display: 'flex', gap: 2, mb: 2 }}>
-                        <FormControl sx={{ minWidth: 120 }}>
+                        <FormControl sx={{ minWidth: 120 }} disabled={isReadOnly}>
                             <InputLabel>演算子</InputLabel>
                             <Select
                                 value={conditionOperator}
@@ -244,6 +248,7 @@ export default function BranchNode({ id, data }: { id: string; data: any }) {
                             onChange={(e) => setConditionValue(e.target.value)}
                             fullWidth
                             placeholder="例: 100000, はい"
+                            disabled={isReadOnly}
                         />
                     </Box>
 
@@ -257,6 +262,7 @@ export default function BranchNode({ id, data }: { id: string; data: any }) {
                             onChange={(e) => setYesLabel(e.target.value)}
                             size="small"
                             sx={{ flex: 1 }}
+                            disabled={isReadOnly}
                         />
                         <TextField
                             label="条件不一致時 (下)"
@@ -264,12 +270,19 @@ export default function BranchNode({ id, data }: { id: string; data: any }) {
                             onChange={(e) => setNoLabel(e.target.value)}
                             size="small"
                             sx={{ flex: 1 }}
+                            disabled={isReadOnly}
                         />
                     </Box>
                 </DialogContent>
                 <DialogActions>
-                    <Button onClick={() => setDialogOpen(false)}>キャンセル</Button>
-                    <Button variant="contained" onClick={handleSave}>保存</Button>
+                    {isReadOnly ? (
+                        <Button onClick={() => setDialogOpen(false)} variant="contained">閉じる</Button>
+                    ) : (
+                        <>
+                            <Button onClick={() => setDialogOpen(false)}>キャンセル</Button>
+                            <Button variant="contained" onClick={handleSave}>保存</Button>
+                        </>
+                    )}
                 </DialogActions>
             </Dialog>
         </>

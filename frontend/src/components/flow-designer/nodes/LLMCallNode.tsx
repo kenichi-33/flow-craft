@@ -21,7 +21,10 @@ export default function LLMCallNode({ id, data }: { id: string; data: any }) {
     const [outputField, setOutputField] = useState(data.outputField || 'llmResponse');
     const { setNodes } = useReactFlow();
 
+    const isReadOnly = data.readOnly === true;
+
     const handleSave = () => {
+        if (isReadOnly) return;
         setNodes((nds) =>
             nds.map((node) =>
                 node.id === id
@@ -60,7 +63,9 @@ export default function LLMCallNode({ id, data }: { id: string; data: any }) {
                     boxShadow: '0 4px 12px rgba(0, 137, 123, 0.4)',
                     border: '2px solid rgba(255,255,255,0.5)',
                     position: 'relative',
+                    cursor: isReadOnly ? 'pointer' : 'default',
                 }}
+                onClick={isReadOnly ? () => setDialogOpen(true) : undefined}
             >
                 <Handle
                     type="target"
@@ -85,14 +90,16 @@ export default function LLMCallNode({ id, data }: { id: string; data: any }) {
                     >
                         {data.label || 'LLM呼び出し'}
                     </Typography>
-                    <IconButton
-                        size="small"
-                        onClick={() => setDialogOpen(true)}
-                        onMouseDown={(e) => e.stopPropagation()}
-                        sx={{ color: 'white', p: 0.3 }}
-                    >
-                        <EditIcon sx={{ fontSize: 14 }} />
-                    </IconButton>
+                    {!isReadOnly && (
+                        <IconButton
+                            size="small"
+                            onClick={() => setDialogOpen(true)}
+                            onMouseDown={(e) => e.stopPropagation()}
+                            sx={{ color: 'white', p: 0.3 }}
+                        >
+                            <EditIcon sx={{ fontSize: 14 }} />
+                        </IconButton>
+                    )}
                 </Box>
 
                 {data.model && (
@@ -116,8 +123,9 @@ export default function LLMCallNode({ id, data }: { id: string; data: any }) {
                 />
             </Box>
 
+            {/* Unified Dialog */}
             <Dialog open={dialogOpen} onClose={() => setDialogOpen(false)} maxWidth="sm" fullWidth>
-                <DialogTitle>LLM呼び出し設定</DialogTitle>
+                <DialogTitle>{isReadOnly ? 'LLM呼び出し設定 (読取専用)' : 'LLM呼び出し設定'}</DialogTitle>
                 <DialogContent>
                     <TextField
                         label="ステップ名"
@@ -125,9 +133,10 @@ export default function LLMCallNode({ id, data }: { id: string; data: any }) {
                         onChange={(e) => setLabel(e.target.value)}
                         fullWidth
                         sx={{ mt: 2 }}
+                        disabled={isReadOnly}
                     />
 
-                    <FormControl fullWidth sx={{ mt: 2 }}>
+                    <FormControl fullWidth sx={{ mt: 2 }} disabled={isReadOnly}>
                         <InputLabel>モデル</InputLabel>
                         <Select
                             value={model}
@@ -153,6 +162,7 @@ export default function LLMCallNode({ id, data }: { id: string; data: any }) {
                         multiline
                         rows={2}
                         placeholder="あなたは○○のエキスパートです。"
+                        disabled={isReadOnly}
                     />
 
                     <TextField
@@ -165,6 +175,7 @@ export default function LLMCallNode({ id, data }: { id: string; data: any }) {
                         sx={{ mt: 2 }}
                         placeholder="{{formField}} の内容を分析してください。"
                         helperText="{{変数名}} でフォームデータを参照可能"
+                        disabled={isReadOnly}
                     />
 
                     <Box sx={{ mt: 2 }}>
@@ -178,6 +189,7 @@ export default function LLMCallNode({ id, data }: { id: string; data: any }) {
                             max={2}
                             step={0.1}
                             valueLabelDisplay="auto"
+                            disabled={isReadOnly}
                         />
                     </Box>
 
@@ -189,11 +201,18 @@ export default function LLMCallNode({ id, data }: { id: string; data: any }) {
                         sx={{ mt: 2 }}
                         placeholder="llmResponse"
                         helperText="LLMの応答を保存するフィールド名"
+                        disabled={isReadOnly}
                     />
                 </DialogContent>
                 <DialogActions>
-                    <Button onClick={() => setDialogOpen(false)}>キャンセル</Button>
-                    <Button variant="contained" onClick={handleSave}>保存</Button>
+                    {isReadOnly ? (
+                        <Button onClick={() => setDialogOpen(false)} variant="contained">閉じる</Button>
+                    ) : (
+                        <>
+                            <Button onClick={() => setDialogOpen(false)}>キャンセル</Button>
+                            <Button variant="contained" onClick={handleSave}>保存</Button>
+                        </>
+                    )}
                 </DialogActions>
             </Dialog>
         </>

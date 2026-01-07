@@ -14,7 +14,10 @@ export default function ParallelGatewayNode({ id, data }: { id: string; data: an
     const [label, setLabel] = useState(data.label || '分岐');
     const { setNodes } = useReactFlow();
 
+    const isReadOnly = data.readOnly === true;
+
     const handleSave = () => {
+        if (isReadOnly) return;
         setNodes((nds) =>
             nds.map((node) =>
                 node.id === id
@@ -107,8 +110,9 @@ export default function ParallelGatewayNode({ id, data }: { id: string; data: an
                 {data.label || '分岐'}
             </Typography>
 
+            {/* Unified Dialog */}
             <Dialog open={dialogOpen} onClose={() => setDialogOpen(false)}>
-                <DialogTitle>並行分岐の設定</DialogTitle>
+                <DialogTitle>{isReadOnly ? '並行分岐の設定 (読取専用)' : '並行分岐の設定'}</DialogTitle>
                 <DialogContent>
                     <TextField
                         margin="dense"
@@ -118,11 +122,18 @@ export default function ParallelGatewayNode({ id, data }: { id: string; data: an
                         onChange={(e) => setLabel(e.target.value)}
                         sx={{ mt: 1 }}
                         helperText="全ての後続タスクを並行して生成します"
+                        disabled={isReadOnly}
                     />
                 </DialogContent>
                 <DialogActions>
-                    <Button onClick={() => setDialogOpen(false)}>キャンセル</Button>
-                    <Button onClick={handleSave} variant="contained">保存</Button>
+                    {isReadOnly ? (
+                        <Button onClick={() => setDialogOpen(false)} variant="contained">閉じる</Button>
+                    ) : (
+                        <>
+                            <Button onClick={() => setDialogOpen(false)}>キャンセル</Button>
+                            <Button onClick={handleSave} variant="contained">保存</Button>
+                        </>
+                    )}
                 </DialogActions>
             </Dialog>
         </>
