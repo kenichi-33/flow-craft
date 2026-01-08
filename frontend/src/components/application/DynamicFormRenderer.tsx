@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { useForm } from 'react-hook-form';
+import { useForm, Controller } from 'react-hook-form';
 import { Box, Button, TextField, Checkbox, FormControlLabel, Typography, Paper, MenuItem, Radio, RadioGroup, FormControl, FormLabel, Divider, Chip } from '@mui/material';
 import { ResponsiveGridLayout } from 'react-grid-layout';
 import 'react-grid-layout/css/styles.css';
@@ -249,124 +249,168 @@ export default function DynamicFormRenderer({ schema, layouts, onSubmit, renderA
                                                             </Box>
                                                         )}
 
-                                                        {/* Inputs */}
                                                         {/* Text/Number/Date/TextArea */}
                                                         {(['text', 'number', 'textarea', 'date'].includes(field.type)) && (
-                                                            <TextField
-                                                                fullWidth
-                                                                variant="standard"
-                                                                multiline={field.type === 'textarea'}
-                                                                rows={field.type === 'textarea' ? 4 : 1}
-                                                                type={field.type === 'date' ? (field.includeTime ? 'datetime-local' : 'date') : field.type}
-                                                                label={field.title}
-                                                                InputLabelProps={{ shrink: true, required: isRequired }}
-                                                                {...register(field.id, { required: isRequired })}
-                                                                error={!!errors[field.id]}
-                                                                helperText={errors[field.id] ? '必須項目です' : ''}
-                                                                InputProps={{ 
-                                                                    disableUnderline: true,
-                                                                    readOnly: isReadOnly,
-                                                                }}
-                                                                inputProps={{
-                                                                    style: { textAlign: field.textAlign }
-                                                                }}
-                                                                disabled={isReadOnly}
-                                                                sx={inputStyle}
+                                                            <Controller
+                                                                name={field.id}
+                                                                control={methods.control}
+                                                                rules={{ required: isRequired }}
+                                                                defaultValue={field.defaultValue || ''}
+                                                                render={({ field: { onChange, value, ref } }) => (
+                                                                    <TextField
+                                                                        fullWidth
+                                                                        variant="standard"
+                                                                        inputRef={ref}
+                                                                        value={value ?? ''}
+                                                                        onChange={onChange}
+                                                                        multiline={field.type === 'textarea'}
+                                                                        rows={field.type === 'textarea' ? 4 : 1}
+                                                                        type={field.type === 'date' ? (field.includeTime ? 'datetime-local' : 'date') : field.type}
+                                                                        label={field.title}
+                                                                        InputLabelProps={{ shrink: true, required: isRequired }}
+                                                                        error={!!errors[field.id]}
+                                                                        helperText={errors[field.id] ? '必須項目です' : ''}
+                                                                        InputProps={{ 
+                                                                            disableUnderline: true,
+                                                                            readOnly: isReadOnly,
+                                                                        }}
+                                                                        inputProps={{
+                                                                            style: { textAlign: field.textAlign }
+                                                                        }}
+                                                                        disabled={isReadOnly}
+                                                                        sx={inputStyle}
+                                                                    />
+                                                                )}
                                                             />
                                                         )}
 
                                                         {/* Select */}
                                                         {field.type === 'select' && (
-                                                            <TextField
-                                                                select
-                                                                fullWidth
-                                                                variant="standard"
-                                                                label={field.title}
-                                                                InputLabelProps={{ shrink: true, required: isRequired }}
-                                                                {...register(field.id, { required: isRequired })}
-                                                                error={!!errors[field.id]}
-                                                                defaultValue=""
-                                                                InputProps={{ disableUnderline: true, readOnly: isReadOnly }}
-                                                                disabled={isReadOnly}
-                                                                sx={inputStyle}
-                                                            >
-                                                                {field.options?.map((opt: any) => {
-                                                                    const val = typeof opt === 'string' ? opt : opt.value;
-                                                                    const lbl = typeof opt === 'string' ? opt : opt.label;
-                                                                    return (
-                                                                        <MenuItem key={val} value={val} sx={{ borderRadius: 2, m: 0.5 }}>
-                                                                            {lbl}
-                                                                        </MenuItem>
-                                                                    );
-                                                                })}
-                                                            </TextField>
+                                                            <Controller
+                                                                name={field.id}
+                                                                control={methods.control}
+                                                                rules={{ required: isRequired }}
+                                                                defaultValue={field.defaultValue || ''}
+                                                                render={({ field: { onChange, value, ref } }) => (
+                                                                    <TextField
+                                                                        select
+                                                                        fullWidth
+                                                                        variant="standard"
+                                                                        inputRef={ref}
+                                                                        label={field.title}
+                                                                        value={value ?? ''}
+                                                                        onChange={onChange}
+                                                                        InputLabelProps={{ shrink: true, required: isRequired }}
+                                                                        error={!!errors[field.id]}
+                                                                        InputProps={{ disableUnderline: true, readOnly: isReadOnly }}
+                                                                        disabled={isReadOnly}
+                                                                        sx={inputStyle}
+                                                                    >
+                                                                        {field.options?.map((opt: any) => {
+                                                                            const val = typeof opt === 'string' ? opt : opt.value;
+                                                                            const lbl = typeof opt === 'string' ? opt : opt.label;
+                                                                            return (
+                                                                                <MenuItem key={val} value={val} sx={{ borderRadius: 2, m: 0.5 }}>
+                                                                                    {lbl}
+                                                                                </MenuItem>
+                                                                            );
+                                                                        })}
+                                                                    </TextField>
+                                                                )}
+                                                            />
                                                         )}
 
                                                         {/* Radio Group */}
                                                         {field.type === 'radio' && (
-                                                            <FormControl component="fieldset" error={!!errors[field.id]} fullWidth disabled={isReadOnly}>
-                                                                <FormLabel component="legend" required={isRequired} sx={{ mb: 1.5, fontWeight: 'bold', fontSize: '0.9rem', color: '#4a5568' }}>{field.title}</FormLabel>
-                                                                <RadioGroup row sx={{ display: 'flex', flexWrap: 'wrap', mx: -0.5 }}>
-                                                                    {field.options?.map((opt: any) => {
-                                                                        const val = typeof opt === 'string' ? opt : opt.value;
-                                                                        const lbl = typeof opt === 'string' ? opt : opt.label;
-                                                                        return (
-                                                                            <FormControlLabel
-                                                                                key={val}
-                                                                                value={val}
-                                                                                control={<Radio {...register(field.id, { required: isRequired })} sx={{ '&.Mui-checked': { color: '#3a1c71' } }} />}
-                                                                                label={lbl}
-                                                                                sx={selectionCardStyle}
-                                                                            />
-                                                                        );
-                                                                    })}
-                                                                </RadioGroup>
-                                                            </FormControl>
+                                                            <Controller
+                                                                name={field.id}
+                                                                control={methods.control}
+                                                                rules={{ required: isRequired }}
+                                                                defaultValue={field.defaultValue || ''}
+                                                                render={({ field: { onChange, value } }) => (
+                                                                    <FormControl component="fieldset" error={!!errors[field.id]} fullWidth disabled={isReadOnly}>
+                                                                        <FormLabel component="legend" required={isRequired} sx={{ mb: 1.5, fontWeight: 'bold', fontSize: '0.9rem', color: '#4a5568' }}>{field.title}</FormLabel>
+                                                                        <RadioGroup 
+                                                                            row 
+                                                                            sx={{ display: 'flex', flexWrap: 'wrap', mx: -0.5 }}
+                                                                            value={value ?? ''}
+                                                                            onChange={onChange}
+                                                                        >
+                                                                            {field.options?.map((opt: any) => {
+                                                                                const val = typeof opt === 'string' ? opt : opt.value;
+                                                                                const lbl = typeof opt === 'string' ? opt : opt.label;
+                                                                                return (
+                                                                                    <FormControlLabel
+                                                                                        key={val}
+                                                                                        value={val}
+                                                                                        control={<Radio sx={{ '&.Mui-checked': { color: '#3a1c71' } }} />}
+                                                                                        label={lbl}
+                                                                                        sx={selectionCardStyle}
+                                                                                    />
+                                                                                );
+                                                                            })}
+                                                                        </RadioGroup>
+                                                                    </FormControl>
+                                                                )}
+                                                            />
                                                         )}
 
                                                         {/* Checkbox Group */}
                                                         {field.type === 'checkbox' && (
-                                                            <FormControl component="fieldset" error={!!errors[field.id]} fullWidth disabled={isReadOnly}>
-                                                                <FormLabel component="legend" required={isRequired} sx={{ mb: 1.5, fontWeight: 'bold', fontSize: '0.9rem', color: '#4a5568' }}>{field.title}</FormLabel>
-                                                                <Box sx={{ display: 'flex', flexWrap: 'wrap', mx: -0.5 }}>
-                                                                    {/* For checkboxes in RHF, if multiple have same name, they are an array. But simple binding needs care.
-                                                                        We'll iterate options and just register independently for now, expecting RHF to handle array if same name. 
-                                                                        OR using Controller is safer. But sticking to register for simplicity if it works. 
-                                                                        If standard register check is buggy for array, we might need a better solution. 
-                                                                        For now, mapped checkboxes with value and same name usually work in HTML forms. */}
-                                                                    {field.options && field.options.length > 0 ? (
-                                                                        field.options.map((opt: any) => {
-                                                                            const val = typeof opt === 'string' ? opt : opt.value;
-                                                                            const lbl = typeof opt === 'string' ? opt : opt.label;
-                                                                            return (
-                                                                                <FormControlLabel
-                                                                                    key={val}
+                                                            <Controller
+                                                                name={field.id}
+                                                                control={methods.control}
+                                                                rules={{ required: isRequired }}
+                                                                defaultValue={field.defaultValue || (field.options?.length > 0 ? [] : false)}
+                                                                render={({ field: { onChange, value } }) => (
+                                                                    <FormControl component="fieldset" error={!!errors[field.id]} fullWidth disabled={isReadOnly}>
+                                                                        <FormLabel component="legend" required={isRequired} sx={{ mb: 1.5, fontWeight: 'bold', fontSize: '0.9rem', color: '#4a5568' }}>{field.title}</FormLabel>
+                                                                        <Box sx={{ display: 'flex', flexWrap: 'wrap', mx: -0.5 }}>
+                                                                            {field.options && field.options.length > 0 ? (
+                                                                                /* Multi-checkbox group */
+                                                                                field.options.map((opt: any) => {
+                                                                                    const val = typeof opt === 'string' ? opt : opt.value;
+                                                                                    const lbl = typeof opt === 'string' ? opt : opt.label;
+                                                                                    const isChecked = Array.isArray(value) ? value.includes(val) : false;
+                                                                                    
+                                                                                    return (
+                                                                                        <FormControlLabel
+                                                                                            key={val}
+                                                                                            control={
+                                                                                                <Checkbox 
+                                                                                                    checked={isChecked}
+                                                                                                    onChange={(e) => {
+                                                                                                        const newValue = e.target.checked
+                                                                                                            ? [...(Array.isArray(value) ? value : []), val]
+                                                                                                            : (Array.isArray(value) ? value : []).filter((v: any) => v !== val);
+                                                                                                        onChange(newValue);
+                                                                                                    }}
+                                                                                                    sx={{ '&.Mui-checked': { color: '#3a1c71' } }}
+                                                                                                />
+                                                                                            }
+                                                                                            label={lbl}
+                                                                                            sx={selectionCardStyle}
+                                                                                        />
+                                                                                    );
+                                                                                })
+                                                                            ) : (
+                                                                                /* Single checkbox (boolean) */
+                                                                                 <FormControlLabel
                                                                                     control={
                                                                                         <Checkbox 
-                                                                                            value={val} 
-                                                                                            {...register(field.id)}
+                                                                                            checked={!!value}
+                                                                                            onChange={(e) => onChange(e.target.checked)}
                                                                                             sx={{ '&.Mui-checked': { color: '#3a1c71' } }}
                                                                                         />
                                                                                     }
-                                                                                    label={lbl}
+                                                                                    label={field.title || field.label}
                                                                                     sx={selectionCardStyle}
                                                                                 />
-                                                                            );
-                                                                        })
-                                                                    ) : (
-                                                                         <FormControlLabel
-                                                                            control={
-                                                                                <Checkbox 
-                                                                                    {...register(field.id, { required: isRequired })}
-                                                                                    sx={{ '&.Mui-checked': { color: '#3a1c71' } }}
-                                                                                />
-                                                                            }
-                                                                            label={field.title || field.label}
-                                                                            sx={selectionCardStyle}
-                                                                        />
-                                                                    )}
-                                                                </Box>
-                                                            </FormControl>
+                                                                            )}
+                                                                        </Box>
+                                                                    </FormControl>
+                                                                )}
+                                                            />
                                                         )}
                                                     </Box>
                                                 );

@@ -40,6 +40,7 @@ model FlowDefinition {
 model Application {
   id                      String   @id @default(uuid())
   applicationNumber       Int      @default(autoincrement()) @map("application_number")
+  title                   String   @default("無題") // 件名
   applicationDefinitionId String?  @map("application_definition_id")
   formDefinitionId        String   @map("form_definition_id")
   flowDefinitionId        String   @map("flow_definition_id")
@@ -163,6 +164,8 @@ model ApplicationDefinition {
   version          Int          @default(1)
   tags             String[]     @default([])
   publishedAt      DateTime?    @map("published_at")
+  createdBy        String?      @map("created_by")
+  updatedBy        String?      @map("updated_by")
   createdAt        DateTime     @default(now()) @map("created_at")
   updatedAt        DateTime     @updatedAt @map("updated_at")
 

@@ -147,10 +147,15 @@ export default function SubmitApplicationPage() {
     });
 
     const submitMutation = useMutation({
-        mutationFn: (data: any) => api.post('/workflow/start', {
-            applicationDefinitionId: appDefId,
-            inputData: data,
-        }),
+        mutationFn: (data: any) => {
+            const titleInput = document.getElementById('application-title') as HTMLInputElement;
+            const title = titleInput?.value || '無題';
+            return api.post('/workflow/start', {
+                applicationDefinitionId: appDefId,
+                title,
+                inputData: data,
+            });
+        },
         onSuccess: (result: any) => {
             router.push(`/applications/${result.id}`);
         },
@@ -162,10 +167,15 @@ export default function SubmitApplicationPage() {
 
     // 一時保存用のmutation
     const saveDraftMutation = useMutation({
-        mutationFn: (data: any) => api.post('/workflow/save-draft', {
-            applicationDefinitionId: appDefId,
-            inputData: data,
-        }),
+        mutationFn: (data: any) => {
+            const titleInput = document.getElementById('application-title') as HTMLInputElement;
+            const title = titleInput?.value || '無題';
+            return api.post('/workflow/save-draft', {
+                applicationDefinitionId: appDefId,
+                title,
+                inputData: data,
+            });
+        },
         onSuccess: (result: any) => {
             router.push(`/applications/${result.id}`);
         },
@@ -300,6 +310,18 @@ export default function SubmitApplicationPage() {
                                 {error}
                             </Alert>
                         )}
+
+                        <Box sx={{ mb: 4 }}>
+                            <TextField
+                                fullWidth
+                                required
+                                label="件名"
+                                placeholder="申請の件名を入力してください"
+                                sx={inputStyle}
+                                name="title"
+                                id="application-title"
+                            />
+                        </Box>
 
                         <DynamicFormRenderer 
                             schema={appDef.formDefinition.schema}

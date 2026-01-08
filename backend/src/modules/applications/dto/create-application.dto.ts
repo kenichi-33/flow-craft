@@ -11,6 +11,10 @@ export class CreateApplicationDto {
 
     @IsString()
     @IsNotEmpty()
+    title: string;
+
+    @IsString()
+    @IsNotEmpty()
     applicantId: string;
 
     @IsObject()

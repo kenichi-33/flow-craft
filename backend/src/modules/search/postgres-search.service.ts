@@ -12,6 +12,7 @@ export class PostgresSearchService implements ISearchService {
 
   async search(dto: SearchApplicationDto): Promise<SearchResult<Application>> {
     const { applicationDefinitionId, criteria = {}, page = 1, limit = 20 } = dto;
+    this.logger.debug(`Search request: ${JSON.stringify(dto)}`); // Debug log
     const skip = (page - 1) * limit;
 
     const where: Prisma.ApplicationWhereInput = {
@@ -23,12 +24,9 @@ export class PostgresSearchService implements ISearchService {
       const jsonFilters: Prisma.ApplicationWhereInput[] = [];
 
       for (const [fieldId, criterion] of Object.entries(criteria)) {
-        const path = [fieldId]; // Assumes flat structure. If nested, split by dot?
+        const path = [fieldId];
         const value = criterion.value;
 
-        // Note: Prisma JSON filtering relies on database-side type consistency.
-        // If the value in DB is string "100", and we query with number 100, it might not match.
-        
         switch (criterion.operator) {
           case SearchOperator.EQUALS:
             jsonFilters.push({
@@ -39,22 +37,22 @@ export class PostgresSearchService implements ISearchService {
             });
             break;
           case SearchOperator.CONTAINS:
-            // JSONB 'contains' is for object containment or array containment, NOT string substring.
-            // For string substring in JSON, Postgres usually needs raw SQL or text search.
-            // Prisma doesn't natively support substring search inside JSON values easily in `where`.
-            // Fallback: Use string_contains if it's a string, may be limited.
-            // For now, we simulate 'equals' or use raw query if absolutely needed.
-            // Prisma 5+ might have better support, but strictly speaking json 'string_contains' is tricky.
-            // Let's use `string_contains` if implicitly supported or fallback to exact match for MVP
-            // or use specific JSON filter syntax if available.
-            // Actually, for PostgreSQL, path equals works. 
-            // 'string_contains' within JSON is not standard in Prisma types yet.
-            // We will treat it as exact match for now or consider raw query if critical.
+             // Support both exact match (for strings/numbers) and array containment (for checkboxes/multi-selects)
              jsonFilters.push({
-              inputData: {
-                path,
-                equals: value, // Temporary limitation: Exact match
-              },
+               OR: [
+                 {
+                   inputData: {
+                     path,
+                     equals: value, 
+                   },
+                 },
+                 {
+                   inputData: {
+                     path,
+                     array_contains: value, 
+                   },
+                 }
+               ]
             });
             break;
           case SearchOperator.GT:

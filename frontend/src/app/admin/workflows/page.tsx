@@ -13,6 +13,8 @@ import TimelineIcon from '@mui/icons-material/Timeline';
 import FilterListIcon from '@mui/icons-material/FilterList';
 import ClearIcon from '@mui/icons-material/Clear';
 import SearchIcon from '@mui/icons-material/Search';
+import { UserDisplay } from '@/components/UserDisplay';
+
 import DataTable, { Column, FetchParams, PaginatedResponse } from '@/components/DataTable';
 
 interface Application {
@@ -30,6 +32,7 @@ interface Application {
         nodes: any[];
     };
     applicantId: string;
+    applicantInfo?: any;
 }
 
 interface Filters {
@@ -58,7 +61,7 @@ const getStatusColor = (status: string) => {
 
 const getStatusLabel = (status: string) => {
     switch (status) {
-        case 'APPROVED': return '完了';
+        case 'APPROVED': return '承認済';
         case 'IN_PROGRESS': return '処理中';
         case 'REJECTED': return '却下';
         case 'REMANDED': return '差戻し';
@@ -135,6 +138,7 @@ export default function WorkflowsListPage() {
             id: 'applicantId',
             label: '申請者',
             minWidth: 120,
+            format: (_, row) => <UserDisplay user={row.applicantInfo} fallback={row.applicantId} />,
         },
         {
             id: 'status',

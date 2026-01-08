@@ -8,6 +8,7 @@ import AddIcon from '@mui/icons-material/Add';
 import EditIcon from '@mui/icons-material/Edit';
 import HistoryIcon from '@mui/icons-material/History';
 import DataTable, { Column, FetchParams, PaginatedResponse } from '@/components/DataTable';
+import { UserDisplay } from '@/components/UserDisplay';
 
 interface ApplicationDefinition {
     id: string;
@@ -20,6 +21,10 @@ interface ApplicationDefinition {
     flowDefinition: { id: string; name: string } | null;
     createdAt: string;
     updatedAt: string;
+    createdBy?: string;
+    updatedBy?: string;
+    createdByInfo?: any;
+    updatedByInfo?: any;
 }
 
 const getStatusColor = (status: string) => {
@@ -129,20 +134,34 @@ export default function AppsListPage() {
             id: 'createdAt',
             label: '作成日時',
             minWidth: 160,
-            format: (value) => (
-                <span suppressHydrationWarning>
-                    {new Date(value).toLocaleString('ja-JP')}
-                </span>
+            format: (value, row) => (
+                <Box>
+                     <Typography variant="body2" suppressHydrationWarning>
+                        {new Date(value).toLocaleString('ja-JP')}
+                     </Typography>
+                     {row.createdByInfo && (
+                         <Box sx={{ mt: 0.5 }}>
+                             <UserDisplay user={row.createdByInfo} fallback={row.createdBy} />
+                         </Box>
+                     )}
+                </Box>
             ),
         },
         {
             id: 'updatedAt',
             label: '更新日時',
             minWidth: 160,
-            format: (value) => (
-                <span suppressHydrationWarning>
-                    {new Date(value).toLocaleString('ja-JP')}
-                </span>
+            format: (value, row) => (
+                <Box>
+                     <Typography variant="body2" suppressHydrationWarning>
+                        {new Date(value).toLocaleString('ja-JP')}
+                     </Typography>
+                     {row.updatedByInfo && (
+                         <Box sx={{ mt: 0.5 }}>
+                             <UserDisplay user={row.updatedByInfo} fallback={row.updatedBy} />
+                         </Box>
+                     )}
+                </Box>
             ),
         },
         {

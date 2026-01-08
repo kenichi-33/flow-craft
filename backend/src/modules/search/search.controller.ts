@@ -2,7 +2,6 @@ import { Controller, Post, Body, Param, HttpCode, HttpStatus } from '@nestjs/com
 import { SearchService } from './search.service';
 import { SearchApplicationDto } from './dto/search-application.dto';
 import { PrismaService } from '../../prisma/prisma.service';
-
 @Controller('search')
 export class SearchController {
   constructor(

@@ -107,6 +107,7 @@ export class TasksService {
             where.OR = [
                 { application: { applicantId: { contains: search, mode: 'insensitive' } } },
                 { application: { applicationDefinition: { name: { contains: search, mode: 'insensitive' } } } },
+                { application: { title: { contains: search, mode: 'insensitive' } } },
             ];
         }
 

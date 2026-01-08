@@ -40,6 +40,7 @@ export class WorkflowEngineService implements OnModuleInit {
     async startWorkflow(input: {
         applicationDefinitionId: string;
         applicantId: string;
+        title: string;
         inputData: any;
     }) {
         // アプリ定義を取得
@@ -100,6 +101,7 @@ export class WorkflowEngineService implements OnModuleInit {
         // 申請を作成（スナップショット保存でバージョン互換性を確保）
         const application = await this.prisma.application.create({
             data: {
+                title: input.title,
                 applicationDefinitionId: appDef.id,
                 formDefinitionId: appDef.formDefinitionId,
                 flowDefinitionId: appDef.flowDefinitionId,
@@ -145,6 +147,7 @@ export class WorkflowEngineService implements OnModuleInit {
     async saveDraft(input: {
         applicationDefinitionId: string;
         applicantId: string;
+        title: string;
         inputData: any;
     }) {
         // アプリ定義を取得
@@ -177,6 +180,7 @@ export class WorkflowEngineService implements OnModuleInit {
         // 申請を下書きステータスで作成
         const application = await this.prisma.application.create({
             data: {
+                title: input.title,
                 applicationDefinitionId: appDef.id,
                 formDefinitionId: appDef.formDefinitionId,
                 flowDefinitionId: appDef.flowDefinitionId,

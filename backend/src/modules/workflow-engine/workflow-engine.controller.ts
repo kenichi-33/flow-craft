@@ -1,12 +1,16 @@
 import { Controller, Post, Get, Body, Param } from '@nestjs/common';
 import { WorkflowEngineService } from './workflow-engine.service';
-import { IsString, IsOptional, IsIn } from 'class-validator';
+import { IsString, IsOptional, IsIn, IsNotEmpty } from 'class-validator';
 import { CurrentUser } from '../../auth/decorators';
 import type { AuthUser } from '../../auth/types/user.interface';
 
 class StartWorkflowDto {
     @IsString()
     applicationDefinitionId: string;
+
+    @IsString()
+    @IsNotEmpty()
+    title: string;
 
     @IsOptional()
     inputData: any;

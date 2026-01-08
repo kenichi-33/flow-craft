@@ -104,6 +104,27 @@ Docker環境があれば、すぐにローカルで動作確認が可能です�
    - **Backend API**: http://localhost:8080/api
    - **Mailpit**: http://localhost:8025 (メール確認用)
 
+## 🔧 環境のメンテナンス
+
+### 環境の完全初期化
+データベースや設定を含めて環境を完全にリセットしたい場合（ボリュームの削除）、以下のコマンドを実行します。
+**注意: データベース内の全データが削除されます。**
+
+```bash
+docker-compose down -v
+docker-compose up -d --build
+```
+
+### 依存関係（node_modules）の更新
+`package.json` を変更した場合など、依存ライブラリを更新するには以下を実行します。
+Node.jsのモジュールはDockerボリューム内に保存されているため、再ビルドとボリュームの更新が必要です。
+
+```bash
+# コンテナを停止し、匿名ボリューム（node_modules等）を再作成して起動
+docker-compose down
+docker-compose up -d --build -V
+```
+
 ### Elasticsearch Mode (Optional)
 本システムは、デフォルトのPostgreSQL検索モードに加え、大規模データ向けのElasticsearchモードをサポートしています。
 

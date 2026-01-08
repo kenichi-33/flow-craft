@@ -18,6 +18,7 @@ import {
     DialogContent,
     DialogActions,
     Avatar,
+    alpha,
 } from '@mui/material';
 import { useRouter, useParams } from 'next/navigation';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
@@ -51,6 +52,7 @@ interface TaskDetail {
     application: {
         id: string;
         applicationNumber: number;
+        title: string;
         applicantId: string;
         applicantInfo?: any; // スナップショット追加
         inputData: any;
@@ -96,6 +98,35 @@ function formatAssignedTo(assignedTo?: string): string {
         return a;
     }).join(', ');
 }
+
+const SectionPaper = ({ title, children }: { title: string; children: React.ReactNode }) => (
+    <Paper
+        elevation={0}
+        sx={{
+            p: 3,
+            mb: 3,
+            borderRadius: 3,
+            border: '1px solid',
+            borderColor: 'divider',
+            background: 'linear-gradient(135deg, rgba(255,255,255,0.98) 0%, rgba(248,250,252,0.98) 100%)',
+        }}
+    >
+        <Typography
+            variant="h6"
+            sx={{
+                fontWeight: 700,
+                mb: 2,
+                pb: 1.5,
+                borderBottom: '2px solid',
+                borderColor: alpha('#667eea', 0.3),
+                color: '#333',
+            }}
+        >
+            {title}
+        </Typography>
+        {children}
+    </Paper>
+);
 
 export default function TaskDetailPage() {
     const router = useRouter();
@@ -176,7 +207,10 @@ export default function TaskDetailPage() {
 
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 3, flexWrap: 'wrap' }}>
                 <Typography variant="h4">
-                    {task.application?.applicationDefinition?.name || '承認'} - 承認確認
+                    #{task.application?.applicationNumber} 件名: {task.application?.title || '無題'}
+                </Typography>
+                <Typography variant="subtitle1" sx={{ width: '100%', mb: 1, opacity: 0.9 }}>
+                    アプリ名: {task.application?.applicationDefinition?.name}
                 </Typography>
                 <Chip
                     label={`現在のステップ: ${currentStepLabel}`}
@@ -238,13 +272,15 @@ export default function TaskDetailPage() {
             </Paper>
 
             {/* 2. 申請内容 - 共通コンポーネント使用 */}
-            <Box sx={{ mb: 3 }}>
-                <DynamicFormRenderer
-                    schema={schema}
-                    initialData={task.application?.inputData}
-                    readOnly={true}
-                />
-            </Box>
+            <SectionPaper title="申請フォーム">
+                <Box sx={{ mb: 3 }}>
+                    <DynamicFormRenderer
+                        schema={schema}
+                        initialData={task.application?.inputData}
+                        readOnly={true}
+                    />
+                </Box>
+            </SectionPaper>
 
             {/* 3. 承認履歴 */}
             {task.application?.history && task.application.history.length > 0 && (

@@ -1,4 +1,4 @@
-import { IsString, IsNotEmpty, IsNumber, IsOptional, ValidateNested, IsEnum } from 'class-validator';
+import { IsString, IsNotEmpty, IsNumber, IsOptional, ValidateNested, IsEnum, IsObject } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export enum SearchOperator {
@@ -25,8 +25,7 @@ export class SearchApplicationDto {
   applicationDefinitionId: string;
 
   @IsOptional()
-  @ValidateNested()
-  @Type(() => Object) // Record<string, SearchCriterion>
+  @IsObject()
   criteria?: Record<string, SearchCriterion>;
 
   @IsNumber()

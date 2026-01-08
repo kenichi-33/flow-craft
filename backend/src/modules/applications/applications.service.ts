@@ -111,6 +111,7 @@ export class ApplicationsService {
             where.OR = [
                 { applicantId: { contains: search, mode: 'insensitive' } },
                 { applicationDefinition: { name: { contains: search, mode: 'insensitive' } } },
+                { title: { contains: search, mode: 'insensitive' } },
             ];
         }
 

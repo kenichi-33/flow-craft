@@ -26,6 +26,7 @@ interface Task {
     application: {
         id: string;
         applicationNumber: number;
+        title: string;
         applicantId: string;
         applicantInfo?: any;
         applicationDefinition?: {
@@ -177,6 +178,12 @@ export default function TasksListPage() {
             label: 'アプリ名',
             minWidth: 130,
             format: (_, row) => row.application?.applicationDefinition?.name || '不明',
+        },
+        {
+            id: 'title',
+            label: '件名',
+            minWidth: 200,
+            format: (_, row) => <Typography variant="body2" fontWeight="bold">{row.application?.title || '無題'}</Typography>,
         },
         {
             id: 'applicantId',
@@ -356,7 +363,7 @@ export default function TasksListPage() {
                                     value={filters.search || ''}
                                     onChange={(e) => setFilters({ ...filters, search: e.target.value })}
                                     onKeyDown={handleKeyDown}
-                                    placeholder="アプリ名、申請者で検索..."
+                                    placeholder="件名、アプリ名、申請者で検索..."
                                     InputProps={{
                                         startAdornment: (
                                             <InputAdornment position="start">

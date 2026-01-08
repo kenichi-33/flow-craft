@@ -4,7 +4,7 @@ import React, { useCallback, useState } from 'react';
 import { api } from '@/lib/api';
 import {
     Box, Chip, Button, IconButton, Tooltip, Paper, Collapse,
-    TextField, FormControl, InputLabel, Select, MenuItem, Grid, InputAdornment
+    TextField, FormControl, InputLabel, Select, MenuItem, Grid, InputAdornment, Typography
 } from '@mui/material';
 import Link from 'next/link';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
@@ -12,6 +12,8 @@ import EditIcon from '@mui/icons-material/Edit';
 import FilterListIcon from '@mui/icons-material/FilterList';
 import ClearIcon from '@mui/icons-material/Clear';
 import SearchIcon from '@mui/icons-material/Search';
+import CreateNewFolderIcon from '@mui/icons-material/CreateNewFolder'; // UNUSED but keeping if needed, removed in minimal edit
+import { UserDisplay } from '@/components/UserDisplay'; 
 import DataTable, { Column, FetchParams, PaginatedResponse } from '@/components/DataTable';
 
 interface Task {
@@ -19,11 +21,14 @@ interface Task {
     status: string;
     stepId: string;
     assignedTo: string | null;
+    assignedToInfo?: any;
     createdAt: string;
     application: {
         id: string;
         applicationNumber: number;
+        title: string;
         applicantId: string;
+        applicantInfo?: any;
         applicationDefinition?: {
             name: string;
         };
@@ -62,6 +67,21 @@ const STATUS_OPTIONS = [
     { value: 'PENDING', label: '保留中' },
     { value: 'COMPLETED', label: '完了' },
 ];
+
+// 担当者表示用のフォーマット
+function formatAssignedTo(assignedTo?: string | null): string {
+    if (!assignedTo) return '未指定';
+
+    const assignments = assignedTo.split(',').map(s => s.trim());
+    return assignments.map(a => {
+        if (a.startsWith('user:')) return a.substring(5);
+        if (a.startsWith('role:')) return `ロール: ${a.substring(5)}`;
+        if (a.startsWith('group:')) return `グループ: ${a.substring(6)}`;
+        if (a === 'applicant') return '申請者';
+        if (a === 'applicant_manager') return '申請者の上長';
+        return a;
+    }).join(', ');
+}
 
 function getStepLabel(stepId: string, nodes?: any[]): string {
     if (!nodes) return stepId;
@@ -125,16 +145,22 @@ export default function AdminTasksPage() {
             format: (_, row) => row.application?.applicationDefinition?.name || '不明',
         },
         {
+            id: 'title',
+            label: '件名',
+            minWidth: 200,
+            format: (_, row) => <Typography variant="body2" fontWeight="bold">{row.application?.title || '無題'}</Typography>,
+        },
+        {
             id: 'applicantId',
             label: '申請者',
             minWidth: 120,
-            format: (_, row) => row.application?.applicantId,
+            format: (_, row) => <UserDisplay user={row.application?.applicantInfo} fallback={row.application?.applicantId} />,
         },
         {
             id: 'assignedTo',
             label: '担当者',
-            minWidth: 120,
-            format: (value) => value || '-',
+            minWidth: 140,
+            format: (_, row) => <UserDisplay user={row.assignedToInfo} fallback={formatAssignedTo(row.assignedTo)} />,
         },
         {
             id: 'stepId',

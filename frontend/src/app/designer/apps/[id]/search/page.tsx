@@ -34,6 +34,7 @@ interface Application {
   applicationNumber: number;
   status: string;
   applicantId: string;
+  applicantInfo?: any;
   createdAt: string;
   inputData: any;
 }
@@ -45,7 +46,29 @@ interface SearchResult {
   limit: number;
 }
 
-// --- Dynamic Search Form Component ---
+import { UserDisplay } from '@/components/UserDisplay';
+
+const getStatusColor = (status: string) => {
+    switch (status) {
+        case 'APPROVED': return 'success';
+        case 'IN_PROGRESS': return 'info';
+        case 'REJECTED': return 'error';
+        case 'REMANDED': return 'warning';
+        case 'DRAFT': return 'default';
+        default: return 'default';
+    }
+};
+
+const getStatusLabel = (status: string) => {
+    switch (status) {
+        case 'APPROVED': return '承認済';
+        case 'IN_PROGRESS': return '処理中';
+        case 'REJECTED': return '却下';
+        case 'REMANDED': return '差戻し';
+        case 'DRAFT': return '下書き';
+        default: return status;
+    }
+};
 
 const OPERATORS = [
   { value: 'equals', label: 'Equals (=)' },
@@ -63,10 +86,11 @@ const DynamicSearchForm = ({ schema, onSubmit, isLoading }: { schema: any, onSub
 
   if (!schema || !schema.properties) return null;
 
-  const allFields = Object.entries(schema.properties).map(([id, config]: [string, any]) => ({
-    id,
-    ...config,
-  }));
+  // Filter out layout/non-input fields
+  const NON_INPUT_TYPES = ['label', 'group', 'divider', 'spacer', 'paragraph', 'html', 'button'];
+  const allFields = Object.entries(schema.properties)
+    .map(([id, config]: [string, any]) => ({ id, ...config }))
+    .filter(f => !NON_INPUT_TYPES.includes(f.type));
 
   // Available fields to add (not currently active)
   const availableFields = allFields.filter(f => !activeFilters.includes(f.id));
@@ -138,7 +162,7 @@ const DynamicSearchForm = ({ schema, onSubmit, isLoading }: { schema: any, onSub
                             <Grid size={{ xs: 12, md: 4 }}>
                                 <FormControl fullWidth size="small" variant="standard">
                                     <Select
-                                        defaultValue={field.type === 'string' ? "contains" : "equals"}
+                                        defaultValue={field.type === 'string' || field.type === 'checkbox' ? "contains" : "equals"}
                                         {...register(`${field.id}_operator`)}
                                         disableUnderline
                                         sx={{ fontSize: '0.875rem' }}
@@ -150,7 +174,7 @@ const DynamicSearchForm = ({ schema, onSubmit, isLoading }: { schema: any, onSub
                                 </FormControl>
                             </Grid>
                             <Grid size={{ xs: 12, md: 8 }}>
-                                {field.type === 'select' || field.type === 'radio' ? (
+                                {field.type === 'select' || field.type === 'radio' || field.type === 'checkbox' ? (
                                     <FormControl fullWidth size="small">
                                         <Select
                                             {...register(`${field.id}_value`)}
@@ -256,6 +280,8 @@ export default function SearchPage() {
     enabled: !!appDef?.formDefinitionId,
   });
 
+
+
   // 3. Search Mutation/Query
   const { data: searchResults, isLoading: isSearchLoading } = useQuery<SearchResult>({
     queryKey: ['search-applications', id, page, rowsPerPage, criteria],
@@ -345,20 +371,21 @@ export default function SearchPage() {
           />
        </Paper>
 
-       {/* Results Table */}
-       <Paper sx={{ borderRadius: 3, overflow: 'hidden' }} elevation={1}>
-          <TableContainer>
-            <Table>
+       <Paper sx={{ borderRadius: 3, overflow: 'hidden', width: '100%' }} elevation={1}>
+          <TableContainer sx={{ maxHeight: 800, overflowX: 'auto' }}>
+            <Table stickyHeader>
               <TableHead sx={{ bgcolor: '#f5f5f5' }}>
                 <TableRow>
                   <TableCell />
-                  <TableCell>申請番号</TableCell>
-                  <TableCell>ステータス</TableCell>
-                  <TableCell>申請者</TableCell>
-                  <TableCell>申請日時</TableCell>
-                  {/* Dynamic Columns - Show first 3 fields from schema for quick view */}
-                  {Object.keys(formDef.schema.properties || {}).slice(0, 3).map(key => (
-                      <TableCell key={key}>{formDef.schema.properties[key].title || key}</TableCell>
+                  <TableCell sx={{ whiteSpace: 'nowrap', minWidth: 100 }}>申請番号</TableCell>
+                  <TableCell sx={{ whiteSpace: 'nowrap', minWidth: 100 }}>ステータス</TableCell>
+                  <TableCell sx={{ whiteSpace: 'nowrap', minWidth: 150 }}>申請者</TableCell>
+                  <TableCell sx={{ whiteSpace: 'nowrap', minWidth: 180 }}>申請日時</TableCell>
+                  {/* Dynamic Columns - Show all input fields */}
+                  {Object.entries(formDef.schema.properties || {})
+                    .filter(([_, config]: [string, any]) => !['label', 'group', 'divider', 'spacer', 'paragraph', 'html', 'button'].includes(config.type))
+                    .map(([key, config]: [string, any]) => (
+                      <TableCell key={key} sx={{ whiteSpace: 'nowrap', minWidth: 150 }}>{config.title || key}</TableCell>
                   ))}
                 </TableRow>
               </TableHead>
@@ -374,16 +401,21 @@ export default function SearchPage() {
                       <TableCell sx={{ fontWeight: 'bold' }}>#{app.applicationNumber}</TableCell>
                       <TableCell>
                         <Chip 
-                          label={app.status} 
-                          color={app.status === 'APPROVED' ? 'success' : app.status === 'REJECTED' ? 'error' : app.status === 'DRAFT' ? 'default' : 'primary'}
+                          label={getStatusLabel(app.status)} 
+                          color={getStatusColor(app.status) as any}
                           size="small"
+                          sx={{ fontWeight: 600 }}
                         />
                       </TableCell>
-                      <TableCell>{app.applicantId}</TableCell>
+                      <TableCell>
+                          <UserDisplay user={app.applicantInfo} fallback={app.applicantId} />
+                      </TableCell>
                       <TableCell>{new Date(app.createdAt).toLocaleString()}</TableCell>
                       
                        {/* Dynamic Data Cells */}
-                       {Object.keys(formDef.schema.properties || {}).slice(0, 3).map(key => (
+                       {Object.entries(formDef.schema.properties || {})
+                          .filter(([_, config]: [string, any]) => !['label', 'group', 'divider', 'spacer', 'paragraph', 'html', 'button'].includes(config.type))
+                          .map(([key, _]) => (
                           <TableCell key={key}>
                              {typeof app.inputData[key] === 'object' ? JSON.stringify(app.inputData[key]) : app.inputData[key]}
                           </TableCell>
@@ -392,7 +424,7 @@ export default function SearchPage() {
                     
                     {/* Expanded Detail Row */}
                     <TableRow>
-                      <TableCell style={{ paddingBottom: 0, paddingTop: 0 }} colSpan={6 + Object.keys(formDef.schema.properties || {}).slice(0, 3).length}>
+                      <TableCell style={{ paddingBottom: 0, paddingTop: 0 }} colSpan={6 + Object.entries(formDef.schema.properties || {}).filter(([_, config]: [string, any]) => !['label', 'group', 'divider', 'spacer', 'paragraph', 'html', 'button'].includes(config.type)).length}>
                         <Collapse in={expandedRow === app.id} timeout="auto" unmountOnExit>
                           <Box sx={{ margin: 2, p: 2, bgcolor: '#fafafa', borderRadius: 2 }}>
                              <Typography variant="subtitle2" gutterBottom component="div">

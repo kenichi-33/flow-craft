@@ -35,6 +35,7 @@ import AssignmentIcon from '@mui/icons-material/Assignment';
 interface ApplicationDetail {
     id: string;
     applicationNumber: number;
+    title: string;
     applicantId: string;
     applicantInfo?: any;
     status: string;
@@ -298,7 +299,10 @@ export default function ApplicationDetailPage() {
                 <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                     <Box>
                         <Typography variant="h4" sx={{ fontWeight: 700, mb: 1 }}>
-                            #{application.applicationNumber} {application.applicationDefinition?.name || '申請詳細'}
+                            #{application.applicationNumber} 件名: {application.title || '無題'}
+                        </Typography>
+                        <Typography variant="subtitle1" sx={{ mb: 1, opacity: 0.9 }}>
+                            アプリ名: {application.applicationDefinition?.name}
                         </Typography>
                         <Typography variant="body2" sx={{ opacity: 0.9 }} suppressHydrationWarning>
                             申請日: {new Date(application.createdAt).toLocaleString('ja-JP')}
@@ -414,13 +418,15 @@ export default function ApplicationDetailPage() {
             </SectionPaper>
 
             {/* 2. 申請内容 (共通コンポーネント使用) */}
-            <Box sx={{ mb: 3 }}>
-                <DynamicFormRenderer
-                    schema={application.formSchema || application.formDefinition?.schema}
-                    initialData={application.inputData}
-                    readOnly={true}
-                />
-            </Box>
+            <SectionPaper title="申請フォーム">
+                <Box sx={{ mb: 3 }}>
+                    <DynamicFormRenderer
+                        schema={application.formSchema || application.formDefinition?.schema}
+                        initialData={application.inputData}
+                        readOnly={true}
+                    />
+                </Box>
+            </SectionPaper>
 
             {/* 3. タスク一覧 */}
             {((application.tasks?.length ?? 0) > 0 || (application.flowDefinition?.nodes?.length ?? 0) > 0) && (

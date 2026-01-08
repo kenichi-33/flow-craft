@@ -26,6 +26,7 @@ import { useParams } from 'next/navigation';
 import RestoreIcon from '@mui/icons-material/Restore';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import Link from 'next/link';
+import { UserDisplay } from '@/components/UserDisplay';
 
 interface AppVersion {
     id: string;
@@ -134,7 +135,9 @@ export default function AppVersionsPage() {
                                     <TableCell>
                                         {new Date(v.publishedAt).toLocaleString('ja-JP')}
                                     </TableCell>
-                                    <TableCell>{v.publishedBy || '-'}</TableCell>
+                                    <TableCell>
+                                        <UserDisplay user={(v as any).publishedByInfo} fallback={v.publishedBy || '-'} />
+                                    </TableCell>
                                     <TableCell>
                                         {v.formSchema?.properties
                                             ? Object.keys(v.formSchema.properties).length

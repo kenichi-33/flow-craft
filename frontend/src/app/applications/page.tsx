@@ -20,6 +20,7 @@ import { UserDisplay } from '@/components/UserDisplay';
 interface Application {
     id: string;
     applicationNumber: number;
+    title: string;
     applicantId: string;
     applicantInfo?: any;
     status: string;
@@ -131,20 +132,26 @@ export default function ApplicationsListPage() {
         {
             id: 'applicationNumber',
             label: '申請ID',
-            minWidth: 100,
+            minWidth: 80,
             format: (value) => <strong>#{value}</strong>,
-        },
-        {
-            id: 'applicantId',
-            label: '申請者',
-            minWidth: 120,
-            format: (value, row) => <UserDisplay user={row.applicantInfo} fallback={value} />,
         },
         {
             id: 'appName',
             label: 'アプリ名',
             minWidth: 180,
             format: (_, row) => row.applicationDefinition?.name || '不明',
+        },
+        {
+            id: 'title',
+            label: '件名',
+            minWidth: 200,
+            format: (value) => <Typography variant="body2" fontWeight="bold">{value}</Typography>,
+        },
+        {
+            id: 'applicantId',
+            label: '申請者',
+            minWidth: 120,
+            format: (value, row) => <UserDisplay user={row.applicantInfo} fallback={value} />,
         },
         {
             id: 'status',
@@ -296,7 +303,7 @@ export default function ApplicationsListPage() {
                                     value={filters.search || ''}
                                     onChange={(e) => setFilters({ ...filters, search: e.target.value })}
                                     onKeyDown={handleKeyDown}
-                                    placeholder="アプリ名、申請者で検索..."
+                                    placeholder="件名、アプリ名、申請者で検索..."
                                     InputProps={{
                                         startAdornment: (
                                             <InputAdornment position="start">

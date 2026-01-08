@@ -113,6 +113,12 @@ export default function AppStudioLayout({
                 <Typography variant="subtitle1" noWrap component="div" fontWeight="bold">
                     App Studio
                 </Typography>
+                <Box sx={{ flexGrow: 1 }} />
+                <Tooltip title="サイドバーを閉じる">
+                    <IconButton onClick={handleDesktopDrawerToggle}>
+                        <MenuIcon />
+                    </IconButton>
+                </Tooltip>
             </Toolbar>
             <Divider />
             <List sx={{ flexGrow: 1 }}>
@@ -180,11 +186,13 @@ export default function AppStudioLayout({
                                 <ArrowBackIcon />
                             </IconButton>
                         </Tooltip>
-                        <Tooltip title={desktopOpen ? "サイドバーを閉じる" : "サイドバーを開く"}>
-                            <IconButton onClick={handleDesktopDrawerToggle}>
-                                <MenuIcon />
-                            </IconButton>
-                        </Tooltip>
+                        {!desktopOpen && (
+                            <Tooltip title="サイドバーを開く">
+                                <IconButton onClick={handleDesktopDrawerToggle}>
+                                    <MenuIcon />
+                                </IconButton>
+                            </Tooltip>
+                        )}
                     </Box>
                     
                     <Box sx={{ flexGrow: 1, display: 'flex', alignItems: 'center', gap: 2 }}>

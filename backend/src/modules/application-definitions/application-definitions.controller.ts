@@ -9,8 +9,10 @@ export class ApplicationDefinitionsController {
     constructor(private readonly appDefsService: ApplicationDefinitionsService) { }
 
     @Post()
-    create(@Body() createDto: CreateApplicationDefinitionDto) {
-        return this.appDefsService.create(createDto);
+    @UseGuards(JwtAuthGuard)
+    create(@Body() createDto: CreateApplicationDefinitionDto, @Req() req: any) {
+        const username = req.user?.username || 'Unknown';
+        return this.appDefsService.create(createDto, username);
     }
 
     @Get()
@@ -52,8 +54,10 @@ export class ApplicationDefinitionsController {
     }
 
     @Put(':id')
-    update(@Param('id') id: string, @Body() updateDto: UpdateApplicationDefinitionDto) {
-        return this.appDefsService.update(id, updateDto);
+    @UseGuards(JwtAuthGuard)
+    update(@Param('id') id: string, @Body() updateDto: UpdateApplicationDefinitionDto, @Req() req: any) {
+        const username = req.user?.username || 'Unknown';
+        return this.appDefsService.update(id, updateDto, username);
     }
 
     @Post(':id/publish')

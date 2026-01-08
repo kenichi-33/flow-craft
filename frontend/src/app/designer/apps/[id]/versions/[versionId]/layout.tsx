@@ -98,6 +98,12 @@ export default function VersionAppStudioLayout({
                     icon={<LockIcon sx={{ fontSize: 14 }} />}
                     sx={{ ml: 1 }}
                 />
+                <Box sx={{ flexGrow: 1 }} />
+                <Tooltip title="サイドバーを閉じる">
+                    <IconButton onClick={handleDesktopDrawerToggle}>
+                        <MenuIcon />
+                    </IconButton>
+                </Tooltip>
             </Toolbar>
             <Divider />
             <List sx={{ flexGrow: 1 }}>
@@ -173,14 +179,16 @@ export default function VersionAppStudioLayout({
                         <MenuIcon />
                     </IconButton>
 
-                    {/* Desktop Toggle */}
-                    <Box sx={{ display: { xs: 'none', sm: 'flex' }, alignItems: 'center', mr: 2 }}>
-                        <Tooltip title={desktopOpen ? "サイドバーを閉じる" : "サイドバーを開く"}>
-                            <IconButton onClick={handleDesktopDrawerToggle}>
-                                <MenuIcon />
-                            </IconButton>
-                        </Tooltip>
-                    </Box>
+                    {/* Desktop Toggle (only when closed) */}
+                    {!desktopOpen && (
+                        <Box sx={{ display: { xs: 'none', sm: 'flex' }, alignItems: 'center', mr: 2 }}>
+                            <Tooltip title="サイドバーを開く">
+                                <IconButton onClick={handleDesktopDrawerToggle}>
+                                    <MenuIcon />
+                                </IconButton>
+                            </Tooltip>
+                        </Box>
+                    )}
                     
                     <Box sx={{ flexGrow: 1, display: 'flex', alignItems: 'center', gap: 2 }}>
                         <Typography variant="h6" noWrap component="div">

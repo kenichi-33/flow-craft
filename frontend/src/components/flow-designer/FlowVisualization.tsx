@@ -219,14 +219,21 @@ export default function FlowVisualization({
 
             // ゲートウェイ（特にJoin）は履歴に残らないことが多いため、
             // 「自分の下流にあるノードが完了済み」または「自分が現在地より前にある」場合に完了とみなす推論ロジックを追加。
-            if (!isCompleted && isGateway) {
+            if (!isCompleted && (isGateway || isEnd)) {
                 // 簡易判定: 出力先エッジのターゲットがcompletedStepIdsまたはcurrentStepIdsに含まれているか
                 const outgoingEdges = rawEdges.filter((e: any) => e.source === node.id);
-                const isPassed = outgoingEdges.some((e: any) => {
-                    return completedStepIds.has(e.target) || currentStepIds.has(e.target);
-                });
-                if (isPassed) {
-                    isCompleted = true;
+                // ENDノードは出力がないため、入力元が完了しているかで判定
+                if (isEnd) {
+                     const incomingEdges = rawEdges.filter((e: any) => e.target === node.id);
+                     const isReached = incomingEdges.some((e: any) => completedStepIds.has(e.source));
+                     if (isReached) isCompleted = true;
+                } else {
+                    const isPassed = outgoingEdges.some((e: any) => {
+                        return completedStepIds.has(e.target) || currentStepIds.has(e.target);
+                    });
+                    if (isPassed) {
+                        isCompleted = true;
+                    }
                 }
             }
 
@@ -244,14 +251,26 @@ export default function FlowVisualization({
                 borderColor = '#2196f3';
                 color = '#0d47a1';
             } else if (isStart) {
-                // 開始ノード: 現在地でなければ完了済み（緑）か通常
-                 if (isCompleted) {
-                    bgColor = '#e8f5e9';
-                    borderColor = '#4caf50';
+                // 開始ノード: 完了でも緑にはせず、常にニュートラル（白/グレー）にして区別する
+                 // ユーザー要望「開始と完了がどちらも緑でわかりにくい」に対応
+                bgColor = '#fff';
+                borderColor = '#607d8b'; // Blue Grey
+                if (isCompleted) {
+                    // 完了している場合はボーダーを濃くする程度で、緑背景にはしない
+                    bgColor = '#eceff1';
+                    borderColor = '#455a64';
                 }
             } else if (isEnd) {
-                bgColor = '#ffebee';
-                borderColor = '#f44336';
+                // 終了ノード: 完了したら赤を濃くする、または「到達」を示す
+                if (isCompleted) {
+                    bgColor = '#ffebee';
+                    borderColor = '#d32f2f'; // 濃い赤
+                    color = '#b71c1c';
+                } else {
+                    bgColor = '#fafafa'; // 未到達は薄く
+                    borderColor = '#ef5350';
+                    color = '#e53935';
+                }
             } else if (isCompleted) {
                 bgColor = '#e8f5e9';
                 borderColor = '#4caf50';
@@ -273,10 +292,14 @@ export default function FlowVisualization({
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    // 開始ノードは常に緑色（完了扱い）
+                    // 開始・終了ノードの個別スタイル上書き
                     ...(isStart ? {
-                        background: '#e8f5e9',
-                        border: '2px solid #4caf50',
+                        background: bgColor,
+                        border: `2px solid ${borderColor}`,
+                    } : {}),
+                    ...(isEnd ? {
+                         background: bgColor,
+                         border: `2px solid ${borderColor}`,
                     } : {}),
                 };
             } else if (isGateway) {

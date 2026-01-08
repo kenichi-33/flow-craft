@@ -13,17 +13,23 @@ export interface FindAllOptions {
     tags?: string[];
 }
 
+import { UsersService } from '../users/users.service';
+
 @Injectable()
 export class ApplicationDefinitionsService {
-    constructor(private prisma: PrismaService) { }
+    constructor(
+        private prisma: PrismaService,
+        private usersService: UsersService,
+    ) { }
 
-    async create(createDto: CreateApplicationDefinitionDto) {
+    async create(createDto: CreateApplicationDefinitionDto, username: string) {
         return this.prisma.applicationDefinition.create({
             data: {
-                name: createDto.name,
-                description: createDto.description,
-                formDefinitionId: createDto.formDefinitionId,
-                flowDefinitionId: createDto.flowDefinitionId,
+                ...createDto,
+                version: 1,
+                status: AppDefStatus.DRAFT,
+                createdBy: username,
+                updatedBy: username,
             },
             include: {
                 formDefinition: true,
@@ -31,6 +37,8 @@ export class ApplicationDefinitionsService {
             },
         });
     }
+
+
 
     async findAll(options: FindAllOptions = {}) {
         const { page, limit, search, sortBy = 'createdAt', sortOrder = 'desc' } = options;
@@ -53,9 +61,12 @@ export class ApplicationDefinitionsService {
             orderBy.createdAt = sortOrder;
         }
 
+        let resultData: any[];
+        let paginationToken: any = null;
+
         // ページネーションなしの場合は単純な配列を返す（後方互換性）
         if (!page && !limit) {
-            return this.prisma.applicationDefinition.findMany({
+            resultData = await this.prisma.applicationDefinition.findMany({
                 where,
                 orderBy,
                 include: {
@@ -63,36 +74,62 @@ export class ApplicationDefinitionsService {
                     flowDefinition: true,
                 },
             });
-        }
+        } else {
+            // ページネーションありの場合
+            const pageNum = page || 1;
+            const limitNum = limit || 50;
+            const skip = (pageNum - 1) * limitNum;
 
-        // ページネーションありの場合
-        const pageNum = page || 1;
-        const limitNum = limit || 50;
-        const skip = (pageNum - 1) * limitNum;
+            const [data, total] = await Promise.all([
+                this.prisma.applicationDefinition.findMany({
+                    where,
+                    orderBy,
+                    skip,
+                    take: limitNum,
+                    include: {
+                        formDefinition: true,
+                        flowDefinition: true,
+                    },
+                }),
+                this.prisma.applicationDefinition.count({ where }),
+            ]);
 
-        const [data, total] = await Promise.all([
-            this.prisma.applicationDefinition.findMany({
-                where,
-                orderBy,
-                skip,
-                take: limitNum,
-                include: {
-                    formDefinition: true,
-                    flowDefinition: true,
-                },
-            }),
-            this.prisma.applicationDefinition.count({ where }),
-        ]);
-
-        return {
-            data,
-            pagination: {
+            resultData = data;
+            paginationToken = {
                 page: pageNum,
                 limit: limitNum,
                 total,
                 totalPages: Math.ceil(total / limitNum),
-            },
-        };
+            };
+        }
+
+        // ユーザー情報を付加
+        const enrichedData = await Promise.all(resultData.map(async (app) => {
+            let createdByInfo: any = null;
+            let updatedByInfo: any = null;
+
+            if (app.createdBy) {
+                createdByInfo = await this.usersService.getUserSnapshotByUsername(app.createdBy);
+            }
+            if (app.updatedBy) {
+                updatedByInfo = await this.usersService.getUserSnapshotByUsername(app.updatedBy);
+            }
+
+            return {
+                ...app,
+                createdByInfo,
+                updatedByInfo,
+            };
+        }));
+
+        if (paginationToken) {
+            return {
+                data: enrichedData,
+                pagination: paginationToken,
+            };
+        }
+        
+        return enrichedData;
     }
 
     async findOne(id: string) {
@@ -111,12 +148,15 @@ export class ApplicationDefinitionsService {
         return appDef;
     }
 
-    async update(id: string, updateDto: UpdateApplicationDefinitionDto) {
+    async update(id: string, updateDto: UpdateApplicationDefinitionDto, username: string) {
         await this.findOne(id); // Check if exists
 
         return this.prisma.applicationDefinition.update({
             where: { id },
-            data: updateDto,
+            data: {
+                ...updateDto,
+                updatedBy: username,
+            },
             include: {
                 formDefinition: true,
                 flowDefinition: true,
@@ -249,13 +289,28 @@ export class ApplicationDefinitionsService {
     /**
      * Get version history for an app definition
      */
+    /**
+     * Get version history for an app definition
+     */
     async getVersions(id: string) {
         await this.findOne(id); // Check if exists
 
-        return this.prisma.appVersion.findMany({
+        const versions = await this.prisma.appVersion.findMany({
             where: { applicationDefinitionId: id },
             orderBy: { version: 'desc' },
         });
+
+        // Populate publishedBy info
+        return Promise.all(versions.map(async (v) => {
+            let publishedByInfo: any = null;
+            if (v.publishedBy) {
+                publishedByInfo = await this.usersService.getUserSnapshotByUsername(v.publishedBy);
+            }
+            return {
+                ...v,
+                publishedByInfo,
+            };
+        }));
     }
 
     /**

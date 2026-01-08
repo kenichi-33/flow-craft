@@ -673,6 +673,13 @@ function FlowEditorContent({ appId }: { appId: string }) {
                                     {saveMutation.isPending ? '保存中...' : '下書き保存'}
                                 </Button>
                             </Box>
+                            {(app as any)?.flowDefinition?.updatedAt && (
+                                <Box sx={{ mt: 1, textAlign: 'right', bgcolor: 'rgba(255,255,255,0.8)', p: 0.5, borderRadius: 1 }}>
+                                    <Typography variant="caption" color="text.secondary">
+                                        最終保存: {new Date((app as any).flowDefinition.updatedAt).toLocaleString('ja-JP')}
+                                    </Typography>
+                                </Box>
+                            )}
                         </Panel>
                     </ReactFlow>
                 </Box>

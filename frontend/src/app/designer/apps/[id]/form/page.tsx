@@ -291,7 +291,12 @@ export default function AppFormEditorPage() {
                     variant="standard"
                     InputProps={{ disableUnderline: true, style: { fontSize: '1.2rem', fontWeight: 'bold' } }}
                 />
-                <Box sx={{ display: 'flex', gap: 1 }}>
+                <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+                    {(app as any)?.formDefinition?.updatedAt && (
+                        <Typography variant="caption" color="text.secondary" sx={{ mr: 2 }}>
+                            最終保存: {new Date((app as any).formDefinition.updatedAt).toLocaleString('ja-JP')}
+                        </Typography>
+                    )}
                     <Button
                         variant="outlined"
                         startIcon={<VisibilityIcon />}
