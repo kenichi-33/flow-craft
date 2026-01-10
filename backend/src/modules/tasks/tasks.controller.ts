@@ -35,6 +35,7 @@ export class TasksController {
             userId: myTasks === 'true' ? user.username : undefined,
             userRoles: user.roles,
             userGroups: user.groups,
+            userGroupCodes: user.groupCodes,
         });
     }
 

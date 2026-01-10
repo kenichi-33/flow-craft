@@ -50,7 +50,7 @@ export class ApplicationsController {
     }
 
     @Put(':id')
-    update(@Param('id') id: string, @Body() updateData: { inputData: any }) {
+    update(@Param('id') id: string, @Body() updateData: { title?: string; inputData?: any; status?: string }) {
         return this.applicationsService.update(id, updateData);
     }
 }

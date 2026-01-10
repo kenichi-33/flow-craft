@@ -84,7 +84,11 @@ export class ApplicationsService {
 
         // ステータスフィルタ
         if (status) {
-            where.status = status as any;
+            if (status.includes(',')) {
+                where.status = { in: status.split(',') as any[] };
+            } else {
+                where.status = status as any;
+            }
         }
 
         // 申請IDフィルタ
@@ -192,7 +196,7 @@ export class ApplicationsService {
         return application;
     }
 
-    async update(id: string, updateData: { inputData: any }) {
+    async update(id: string, updateData: { title?: string; inputData?: any; status?: string }) {
         const application = await this.prisma.application.findUnique({
             where: { id },
         });
@@ -201,11 +205,14 @@ export class ApplicationsService {
             throw new NotFoundException(`Application with ID ${id} not found`);
         }
 
+        const data: Prisma.ApplicationUpdateInput = {};
+        if (updateData.title !== undefined) data.title = updateData.title;
+        if (updateData.inputData !== undefined) data.inputData = updateData.inputData as Prisma.InputJsonValue;
+        if (updateData.status !== undefined) data.status = updateData.status as any;
+
         const updatedApplication = await this.prisma.application.update({
             where: { id },
-            data: {
-                inputData: updateData.inputData as Prisma.InputJsonValue,
-            },
+            data,
             include: {
                 applicationDefinition: true,
             },

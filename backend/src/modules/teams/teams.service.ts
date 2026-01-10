@@ -1,18 +1,47 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { UsersService } from '../users/users.service';
 
 @Injectable()
 export class TeamsService {
-    constructor(private prisma: PrismaService) { }
+    constructor(
+        private prisma: PrismaService,
+        private usersService: UsersService,
+    ) { }
 
     // チーム一覧
     async findAll() {
-        return this.prisma.team.findMany({
+        const teams = await this.prisma.team.findMany({
             include: {
                 members: true,
             },
             orderBy: { createdAt: 'desc' },
         });
+
+        // Enrich user members with Keycloak info
+        const enrichedTeams = await Promise.all(teams.map(async (team) => {
+            const enrichedMembers = await Promise.all(team.members.map(async (member) => {
+                if (member.memberType === 'user') {
+                    try {
+                        const userInfo = await this.usersService.getUserSnapshotByUsername(member.memberId);
+                        return {
+                            ...member,
+                            memberInfo: {
+                                displayName: [userInfo.lastName, userInfo.firstName].filter(Boolean).join(' ') || userInfo.username,
+                                department: userInfo.department,
+                                username: userInfo.username,
+                            },
+                        };
+                    } catch {
+                        return member;
+                    }
+                }
+                return member;
+            }));
+            return { ...team, members: enrichedMembers };
+        }));
+
+        return enrichedTeams;
     }
 
     // チーム詳細

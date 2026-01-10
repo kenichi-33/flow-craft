@@ -8,6 +8,7 @@ export interface JwtPayload {
     roles?: string[];
     groups?: string[];
     groupCodes?: string[];
+    group_code?: string[];
     employeeId?: string;
     displayName?: string;
     exp?: number;

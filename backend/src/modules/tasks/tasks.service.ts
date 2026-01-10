@@ -16,6 +16,7 @@ export interface FindAllOptions {
     userId?: string;
     userRoles?: string[];
     userGroups?: string[];
+    userGroupCodes?: string[];
 }
 
 @Injectable()
@@ -25,7 +26,7 @@ export class TasksService {
     /**
      * ユーザーがタスクを実行可能かチェック（クライアントサイドフィルタ用）
      */
-    private canUserAccessTask(task: any, userId: string, userRoles: string[], userGroups: string[]): boolean {
+    private canUserAccessTask(task: any, userId: string, userRoles: string[], userGroups: string[], userGroupCodes: string[]): boolean {
         const assignedTo = task.assignedTo;
 
         if (!assignedTo) {
@@ -49,7 +50,9 @@ export class TasksService {
             // グループ指定
             else if (assignment.startsWith('group:')) {
                 const targetGroup = assignment.substring(6);
-                // グループパスが完全一致、またはユーザーがサブグループに所属しているかチェック
+                // ID match
+                if (userGroupCodes?.includes(targetGroup)) return true;
+                // Path match
                 if (userGroups?.some(g => g === targetGroup || g.startsWith(targetGroup + '/'))) return true;
             }
             // 申請者指定
@@ -73,7 +76,7 @@ export class TasksService {
         const {
             page, limit, search, sortBy = 'createdAt', sortOrder = 'desc',
             status, applicationNumber, dateFrom, dateTo,
-            userId, userRoles = [], userGroups = []
+            userId, userRoles = [], userGroups = [], userGroupCodes = []
         } = options;
 
         // 基本検索条件
@@ -137,7 +140,7 @@ export class TasksService {
 
             // ユーザーフィルタリングが指定されている場合
             if (userId) {
-                return tasks.filter(task => this.canUserAccessTask(task, userId, userRoles, userGroups));
+                return tasks.filter(task => this.canUserAccessTask(task, userId, userRoles, userGroups, userGroupCodes));
             }
             return tasks;
         }
@@ -164,7 +167,7 @@ export class TasksService {
             });
 
             const filteredTasks = allTasks.filter(task =>
-                this.canUserAccessTask(task, userId, userRoles, userGroups)
+                this.canUserAccessTask(task, userId, userRoles, userGroups, userGroupCodes)
             );
 
             const total = filteredTasks.length;
