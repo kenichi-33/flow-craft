@@ -2,7 +2,7 @@ import React from 'react';
 import { useDraggable } from '@dnd-kit/core';
 import { 
     Type, AlignLeft, Hash, Calendar, List, CheckSquare, 
-    FolderTree, Minus, Heading, GripVertical, Clock
+    FolderTree, Minus, Heading, GripVertical, Clock, Upload
 } from 'lucide-react';
 
 export const TOOLBOX_GROUPS = [
@@ -15,6 +15,7 @@ export const TOOLBOX_GROUPS = [
             { type: 'date', label: '日付', Icon: Calendar },
             { type: 'time', label: '時間', Icon: Clock },
             { type: 'dateRange', label: '日付範囲', Icon: Calendar },
+            { type: 'file', label: 'ファイル', Icon: Upload },
         ]
     },
     {

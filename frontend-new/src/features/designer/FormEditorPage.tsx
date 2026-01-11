@@ -172,6 +172,11 @@ export default function FormEditorPage() {
                 includeTime: config.includeTime,
                 align: config.align,
                 readOnly: config.readOnly,
+                // File properties
+                multiple: config.multiple,
+                maxFiles: config.maxFiles,
+                maxSize: config.maxSize,
+                acceptedTypes: config.acceptedTypes,
                 // Attempt to find width from layout
                 width: layout.find((l: any) => l.i === fieldId)?.w || 12,
             }));
@@ -476,6 +481,11 @@ export default function FormEditorPage() {
                     'x-type': field.type,
                     'x-parent': parentId, // Add hierarchy
                     default: field.defaultValue, 
+                    // File properties
+                    multiple: field.multiple,
+                    maxFiles: field.maxFiles,
+                    maxSize: field.maxSize,
+                    acceptedTypes: field.acceptedTypes,
                 };
                 
                 if (field.required) required.push(field.id);

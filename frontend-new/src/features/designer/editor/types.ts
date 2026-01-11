@@ -16,4 +16,9 @@ export interface FormField {
     width?: number; // 1-12 col span
     defaultValue?: any;
     children?: FormField[]; // For nested groups
+    // File-specific properties
+    acceptedTypes?: string; // e.g., ".pdf,.jpg,.png"
+    maxSize?: number; // Max file size in MB
+    multiple?: boolean; // Allow multiple files
+    maxFiles?: number; // Max number of files
 }

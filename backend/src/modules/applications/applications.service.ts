@@ -47,6 +47,43 @@ export class ApplicationsService {
             },
         });
 
+        // Link uploaded files to this application
+        try {
+            const formDef = await this.prisma.formDefinition.findUnique({
+                where: { id: createApplicationDto.formDefinitionId },
+            });
+
+            if (formDef && formDef.schema) {
+                const schema = formDef.schema as any;
+                const fileIds: string[] = [];
+                const inputData = createApplicationDto.inputData || {};
+
+                // Find file fields in schema
+                if (schema.properties) {
+                    for (const [key, prop] of Object.entries(schema.properties) as [string, any][]) {
+                        if (prop.type === 'file' || prop['x-type'] === 'file') {
+                            const value = inputData[key];
+                            if (Array.isArray(value)) {
+                                fileIds.push(...value.filter(v => typeof v === 'string'));
+                            } else if (typeof value === 'string' && value) {
+                                fileIds.push(value);
+                            }
+                        }
+                    }
+                }
+
+                if (fileIds.length > 0) {
+                    await this.prisma.file.updateMany({
+                        where: { id: { in: fileIds } },
+                        data: { applicationId: application.id },
+                    });
+                }
+            }
+        } catch (error) {
+            console.error('Failed to link files to application:', error);
+            // Non-critical, continue
+        }
+
         // Trigger async indexing
         await this.queueService.enqueue('application-indexing', { applicationId: application.id });
 

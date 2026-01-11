@@ -57,6 +57,27 @@ services:
       MP_SMTP_AUTH_ACCEPT_ANY: 1
       MP_SMTP_AUTH_ALLOW_INSECURE: 1
 
+  minio:
+    image: minio/minio
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      MINIO_ROOT_USER: minio
+      MINIO_ROOT_PASSWORD: minio123
+      # Global CORS setting
+      MINIO_API_CORS_ALLOW_ORIGIN: "*"
+      MINIO_BROWSER_REDIRECT_URL: "http://localhost:9001"
+    command: server /data --console-address ":9001"
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+
+
   elasticsearch:
     image: elasticsearch:8.11.0
     environment:
@@ -71,6 +92,7 @@ services:
       - elasticsearch_data:/usr/share/elasticsearch/data
 
   backend:
+    profiles: ["app"]
     build:
       context: ./backend
       target: development
@@ -88,6 +110,12 @@ services:
       MAIL_USER: user
       MAIL_PASSWORD: password
       MAIL_FROM: noreply@flowcraft.local
+      # S3/MinIO Configuration
+      S3_ENDPOINT: http://minio:9000
+      S3_PUBLIC_URL: http://localhost:9000
+      S3_ACCESS_KEY: minio
+      S3_SECRET_KEY: minio123
+      S3_BUCKET: flowcraft-files
     ports:
       - "8080:8080"
     depends_on:
@@ -95,11 +123,14 @@ services:
         condition: service_healthy
       keycloak:
         condition: service_started
+      minio:
+        condition: service_healthy
     volumes:
       - ./backend:/usr/src/app
       - /usr/src/app/node_modules
 
   frontend:
+    profiles: ["app"]
     build:
       context: ./frontend
       target: development
@@ -120,3 +151,4 @@ volumes:
   postgres_data:
   keycloak_db_data:
   elasticsearch_data:
+  minio_data:

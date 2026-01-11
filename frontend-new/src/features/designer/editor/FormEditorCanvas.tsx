@@ -2,7 +2,7 @@ import { useDroppable } from '@dnd-kit/core';
 import { SortableContext, useSortable, rectSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { 
-    GripVertical, Trash2, Calendar, FolderTree
+    GripVertical, Trash2, Calendar, FolderTree, Upload
 } from 'lucide-react';
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
@@ -212,6 +212,17 @@ export function FieldPreview({ field, isSelected, onDelete, dragHandleProps, chi
                         <div className="h-9 bg-background border rounded px-3 flex items-center justify-between shadow-sm w-32">
                             <span>HH:mm</span>
                             <div className="h-4 w-4 opacity-50 flex items-center justify-center">🕒</div>
+                        </div>
+                    )}
+
+                    {field.type === 'file' && (
+                        <div className="border-2 border-dashed rounded-lg p-4 bg-background shadow-sm text-center">
+                            <Upload className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
+                            <p className="text-xs">ファイルをドラッグ&ドロップ</p>
+                            <p className="text-[10px] text-muted-foreground mt-1">
+                                {field.acceptedTypes ? `許可: ${field.acceptedTypes}` : 'すべてのファイル'}
+                                {field.maxSize ? ` / 最大 ${field.maxSize}MB` : ''}
+                            </p>
                         </div>
                     )}
 

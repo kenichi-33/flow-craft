@@ -72,6 +72,58 @@ export default function FormEditorProperties({
                 )}
             </div>
 
+            {/* File properties */}
+            {field.type === 'file' && (
+                <div className="space-y-3 pt-2 border-t">
+                    <Label className="text-xs font-semibold">ファイル設定</Label>
+                    <div className="space-y-1.5">
+                        <Label className="text-xs">許可する拡張子</Label>
+                        <Input 
+                            value={field.acceptedTypes || ''} 
+                            onChange={(e) => onUpdate(field.id, { acceptedTypes: e.target.value })} 
+                            placeholder=".pdf,.jpg,.png" 
+                            disabled={readOnly}
+                            className="text-xs"
+                        />
+                        <p className="text-[10px] text-muted-foreground">空欄ですべてのファイルを許可</p>
+                    </div>
+                    <div className="space-y-1.5">
+                        <Label className="text-xs">最大サイズ (MB)</Label>
+                        <Input 
+                            type="number" 
+                            value={field.maxSize || ''} 
+                            onChange={(e) => onUpdate(field.id, { maxSize: e.target.value ? Number(e.target.value) : undefined })} 
+                            placeholder="10" 
+                            disabled={readOnly}
+                            className="text-xs w-24"
+                        />
+                    </div>
+                    {field.multiple && (
+                        <div className="space-y-1.5">
+                            <Label className="text-xs">最大ファイル数</Label>
+                            <Input 
+                                type="number" 
+                                value={field.maxFiles || ''} 
+                                onChange={(e) => onUpdate(field.id, { maxFiles: e.target.value ? Number(e.target.value) : undefined })} 
+                                placeholder="無制限" 
+                                disabled={readOnly}
+                                className="text-xs w-24"
+                            />
+                        </div>
+                    )}
+
+                    <div className="flex items-center gap-2">
+                        <Checkbox 
+                            id="multiple" 
+                            checked={field.multiple || false} 
+                            onCheckedChange={(checked) => onUpdate(field.id, { multiple: !!checked })} 
+                            disabled={readOnly} 
+                        />
+                        <Label htmlFor="multiple" className="text-sm cursor-pointer">複数ファイルを許可</Label>
+                    </div>
+                </div>
+            )}
+
             {['select', 'radio', 'checkbox'].includes(field.type) && (
                 <div className="space-y-2 pt-2">
                     <div className="flex items-center justify-between">

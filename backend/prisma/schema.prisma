@@ -227,3 +227,19 @@ model TeamMember {
   @@map("team_members")
 }
 
+// アップロードされたファイル
+model File {
+  id            String   @id @default(uuid())
+  filename      String   // 表示用ファイル名
+  originalName  String   @map("original_name") // 元のファイル名
+  mimeType      String   @map("mime_type")
+  size          Int      // バイト数
+  bucket        String
+  key           String   // S3/MinIOのオブジェクトキー
+  status        String   @default("pending") // pending, uploaded, deleted
+  applicationId String?  @map("application_id")
+  uploadedBy    String   @map("uploaded_by")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  @@map("files")
+}

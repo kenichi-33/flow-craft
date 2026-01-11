@@ -1,7 +1,7 @@
 // DynamicFormRenderer - Converted from MUI to shadcn/ui
 import { useState, useEffect, useRef } from 'react';
 import { useForm, Controller } from 'react-hook-form';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -9,8 +9,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Calendar, Type, Hash, List, AlignLeft, AlignCenter, AlignRight, CheckSquare, Minus, Heading, FolderTree } from 'lucide-react';
+import FileUploadField from './FileUploadField';
 
 export interface DynamicFormRendererProps {
     schema: any;
@@ -61,6 +60,11 @@ export default function DynamicFormRenderer({
         align: config.align || 'left',
         defaultValue: config.default,
         parent: config['x-parent'], // Support hierarchy
+        // File-specific properties
+        acceptedTypes: config.acceptedTypes,
+        maxSize: config.maxSize,
+        multiple: config.multiple,
+        maxFiles: config.maxFiles,
     }));
 
     // 2. Compute default values
@@ -283,6 +287,18 @@ export default function DynamicFormRenderer({
                         ) : (
                             <Input type="time" {...register(field.id, { required: field.required })} className="h-11 bg-background" />
                         )
+                    ) : field.type === 'file' ? (
+                        <FileUploadField
+                            fieldId={field.id}
+                            control={control}
+                            readOnly={isFieldReadOnly}
+                            required={field.required}
+                            acceptedTypes={field.acceptedTypes}
+                            maxSize={field.maxSize}
+                            multiple={field.multiple}
+                            maxFiles={field.maxFiles}
+                            value={value}
+                        />
                     ) : (
                         // Default: text
                         isFieldReadOnly ? (
