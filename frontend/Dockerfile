@@ -1,12 +1,12 @@
 # Base stage
-FROM node:20-alpine AS base
+FROM node:24-alpine AS base
 WORKDIR /app
 
 # Development stage
 FROM base AS development
 COPY package.json package-lock.json ./
 RUN npm ci
-COPY . .
+
 CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0", "--port", "3000"]
 
 # Builder stage

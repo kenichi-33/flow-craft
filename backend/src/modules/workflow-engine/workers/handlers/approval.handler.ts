@@ -100,12 +100,31 @@ export class ApprovalHandler implements ITaskHandler {
     if (!assignee) return;
 
     try {
-      // 担当者のメールアドレスを取得
+      // アプリケーション情報を取得（定義含む）
+      const application = await this.prisma.application.findUnique({
+        where: { id: applicationId },
+        include: { applicationDefinition: true },
+      });
+
+      if (!application) {
+        this.logger.warn(`Application not found: ${applicationId}`);
+        return;
+      }
+
+      // 担当者のメールアドレスと名前を取得
       let email: string | null = null;
+      let assigneeName = assignee;
+
       if (assignee.startsWith('user:')) {
         const username = assignee.substring(5);
         const userSnapshot = await this.usersService.getUserSnapshotByUsername(username);
         email = userSnapshot?.email || null;
+        
+        if (userSnapshot) {
+          assigneeName = userSnapshot.lastName && userSnapshot.firstName
+            ? `${userSnapshot.lastName} ${userSnapshot.firstName}`
+            : userSnapshot.username;
+        }
       }
 
       if (!email) {
@@ -113,9 +132,17 @@ export class ApprovalHandler implements ITaskHandler {
         return;
       }
 
+      // 変数コンテキストの作成
+      const variables = {
+        ...inputData,
+        application,
+        applicationDefinition: application.applicationDefinition,
+        assignee: assigneeName,
+      };
+
       // 変数置換
-      const subject = this.replaceVariables(subjectTemplate || '承認依頼', inputData);
-      const body = this.replaceVariables(bodyTemplate || '承認をお願いします', inputData);
+      const subject = this.replaceVariables(subjectTemplate || '承認依頼', variables);
+      const body = this.replaceVariables(bodyTemplate || '承認をお願いします', variables);
 
       await this.mailService.sendEmail(
         email,

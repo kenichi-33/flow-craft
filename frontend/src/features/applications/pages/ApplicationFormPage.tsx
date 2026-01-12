@@ -2,13 +2,13 @@ import { useState } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { api } from '@/lib/api';
-import DynamicFormRenderer from '@/components/application/DynamicFormRenderer';
+import DynamicFormRenderer from '@/components/model/form/renderer/DynamicFormRenderer';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { ArrowLeft, Loader2, CheckCircle, GitFork } from 'lucide-react';
 import { toast } from 'sonner';
-import FlowVisualization from '@/components/flow-designer/FlowVisualization';
+import FlowVisualization from '@/components/designer/flow/FlowVisualization';
 import { useAuthStore } from '@/stores/useAuthStore';
 
 interface AppDefinition {

@@ -57,8 +57,12 @@ export class UsersService {
             };
             
             return response.data.access_token;
-        } catch (error) {
-            console.error('Failed to get admin token:', error);
+        } catch (error: any) {
+            console.error('Failed to get admin token:', error.message);
+            if (error.response) {
+                console.error('Error Status:', error.response.status);
+                console.error('Error Data:', JSON.stringify(error.response.data));
+            }
             throw error;
         }
     }

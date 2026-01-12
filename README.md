@@ -138,32 +138,20 @@ docker-compose up -d --build -V
 ### Queue Mode (Kafka / pg-boss)
 デフォルトではPostgreSQLベースの `pg-boss` を使用しますが、大規模環境向けに Kafka モードもサポートしています。
 
-1. **Kafkaの起動**
-   ```bash
-   docker compose --profile kafka up -d
-   ```
-
-2. **バックエンド設定**
-   `backend/.env` に以下を設定します（デフォルトは pg-boss）。
-   ```env
-   QUEUE_TYPE=kafka
-   KAFKA_BROKERS=localhost:9092
-   ```
+**Kafkaモードでの起動:**
+環境変数 `QUEUE_TYPE` を指定して起動します。
+```bash
+QUEUE_TYPE=kafka docker compose --profile kafka up -d
+```
 
 ### Elasticsearch Mode (Optional)
 デフォルトのPostgreSQL検索に加え、全文検索エンジンElasticsearchを利用可能です。
 
-1. **Elasticsearchの起動**
-   ```bash
-   docker compose --profile es up -d
-   ```
-
-2. **バックエンド設定**
-   `backend/.env` に以下を設定します。
-   ```env
-   SEARCH_MODE=elasticsearch
-   ELASTICSEARCH_NODE=http://localhost:9200
-   ```
+**Elasticsearchモードでの起動:**
+環境変数 `SEARCH_MODE` を指定して起動します。
+```bash
+SEARCH_MODE=elasticsearch docker compose --profile es up -d
+```
 
 ## 📝 ライセンス
 

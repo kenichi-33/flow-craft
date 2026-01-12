@@ -4,23 +4,23 @@ import AppStudioLayout from "@/layouts/AppStudioLayout";
 import ReadOnlyDesignerLayout from "@/features/designer/layouts/ReadOnlyDesignerLayout";
 
 import HomePage from "@/features/dashboard/HomePage";
-import NewApplicationPage from "@/features/applications/NewApplicationPage";
-import ApplicationFormPage from "@/features/applications/ApplicationFormPage";
-import ApplicationListPage from "@/features/applications/ApplicationListPage";
-import ApplicationDetailPage from "@/features/applications/ApplicationDetailPage";
-import TaskListPage from "@/features/tasks/TaskListPage";
-import TaskDetailPage from "@/features/tasks/TaskDetailPage";
+import NewApplicationPage from "@/features/applications/pages/NewApplicationPage";
+import ApplicationFormPage from "@/features/applications/pages/ApplicationFormPage";
+import ApplicationListPage from "@/features/applications/pages/ApplicationListPage";
+import ApplicationDetailPage from "@/features/applications/pages/ApplicationDetailPage";
+import TaskListPage from "@/features/tasks/pages/TaskListPage";
+import TaskDetailPage from "@/features/tasks/pages/TaskDetailPage";
 
 // Designer (App Studio) - Outside Layout (list, new)
-import DesignerAppsPage from "@/features/designer/DesignerAppsPage";
-import DesignerNewAppPage from "@/features/designer/DesignerNewAppPage";
+import DesignerAppsPage from "@/features/designer/pages/DesignerAppsPage";
+import DesignerNewAppPage from "@/features/designer/pages/DesignerNewAppPage";
 // Designer (App Studio) - Inside AppStudioLayout
-import DesignerOverviewPage from "@/features/designer/DesignerOverviewPage";
-import DesignerVersionsPage from "@/features/designer/DesignerVersionsPage";
-import DesignerSearchPage from "@/features/designer/DesignerSearchPage";
-import FormEditorPage from "@/features/designer/FormEditorPage";
-import FlowEditorPage from "@/features/designer/FlowEditorPage";
-import VersionPreviewPage from "@/features/designer/VersionPreviewPage";
+import DesignerOverviewPage from "@/features/designer/pages/DesignerOverviewPage";
+import DesignerVersionsPage from "@/features/designer/pages/DesignerVersionsPage";
+import DesignerSearchPage from "@/features/designer/pages/DesignerSearchPage";
+import FormEditorPage from "@/features/designer/pages/FormEditorPage";
+import FlowEditorPage from "@/features/designer/pages/FlowEditorPage";
+import VersionPreviewPage from "@/features/designer/pages/VersionPreviewPage";
 
 // Admin
 import AdminDashboardPage from "@/features/admin/AdminDashboardPage";

@@ -2,5 +2,24 @@
     "id": "master",
     "realm": "master",
     "enabled": true,
-    "sslRequired": "none"
+    "sslRequired": "none",
+    "users": [
+        {
+            "username": "admin",
+            "email": "admin@example.com",
+            "firstName": "Admin",
+            "lastName": "User",
+            "enabled": true,
+            "emailVerified": true,
+            "credentials": [
+                {
+                    "type": "password",
+                    "value": "admin"
+                }
+            ],
+            "realmRoles": [
+                "admin"
+            ]
+        }
+    ]
 }

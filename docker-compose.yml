@@ -35,8 +35,8 @@ services:
       KC_HOSTNAME_PORT: 8081
       KC_HTTP_ENABLED: "true"
       KC_HOSTNAME_STRICT_HTTPS: "false"
-      KEYCLOAK_ADMIN: admin
-      KEYCLOAK_ADMIN_PASSWORD: admin
+      # KEYCLOAK_ADMIN: admin
+      # KEYCLOAK_ADMIN_PASSWORD: admin
     command:
       - start-dev
       - --import-realm
@@ -128,6 +128,8 @@ services:
       KEYCLOAK_REALM: workflow
       KEYCLOAK_CLIENT_ID: workflow-api
       KEYCLOAK_CLIENT_SECRET: workflow-api-secret
+      KEYCLOAK_ADMIN_USER: admin
+      KEYCLOAK_ADMIN_PASSWORD: admin
       # Mail Configuration
       MAIL_HOST: mailpit
       MAIL_PORT: 1025
@@ -140,6 +142,12 @@ services:
       S3_ACCESS_KEY: minio
       S3_SECRET_KEY: minio123
       S3_BUCKET: flowcraft-files
+      # Search Configuration
+      SEARCH_MODE: ${SEARCH_MODE:-postgres}
+      ELASTICSEARCH_NODE: ${ELASTICSEARCH_NODE:-http://elasticsearch:9200}
+      # Queue Configuration
+      QUEUE_TYPE: ${QUEUE_TYPE:-pg-boss}
+      KAFKA_BROKERS: ${KAFKA_BROKERS:-kafka:9092}
     ports:
       - "8080:8080"
     depends_on:

@@ -1,49 +1,88 @@
-# バックエンド アーキテクチャ概要
+# バックエンド アーキテクチャ
 
-Flow Craftのバックエンドは、NestJSフレームワークを採用したモジュラーモノリス構成となっています。
+NestJS による Modular Monolith 構成を採用しています。
+APIサーバー機能に加え、非同期処理を行う Worker や定期実行を実行する Scheduler が同居する構成となっています。
 
-## 技術スタック
+## システム構成要素
 
-- **Framework**: [NestJS](https://nestjs.com/) (Node.js)
-- **Language**: TypeScript
-- **Database**: PostgreSQL
-- **ORM**: Prisma
-- **Queue**: pg-boss (PostgreSQLベースのジョブキュー)
-- **Authentication**: Keycloak (OIDC/OAuth2)
+```mermaid
+flowchart TD
+    Client["Frontend / API Client"] -->|HTTP| API["API Controller"]
+    
+    subgraph Backend
+        API -->|Invoke| Executor["Workflow Engine Service<br/>(Executor)"]
+        Executor -->|CRUD| DB[("PostgreSQL")]
+        Executor -->|Enqueue| Queue["Job Queue<br/>(pg-boss / Kafka)"]
+        
+        Queue -->|Dequeue| Worker["Generic Worker"]
+        Worker -->|Update| DB
+        
+        Worker -->|Delegate| Registry["Task Handler Registry"]
+        Registry -->|Execute| Handlers["Task Handlers"]
+        
+        Scheduler["Task Scheduler"] -->|Invoke| Services["Cleanup/Recovery Services"]
+        Services -->|Maintenance| DB
+        Services -->|Enqueue| Queue
+        
+        Queue -->|Dequeue| Indexer["Search Service<br/>(Indexer)"]
+        Indexer -->|Fetch| DB
+        Indexer -->|Index| ES["Elasticsearch"]
+    end
+    
+    Handlers -->|API| External["External APIs"]
+    Handlers -->|LLM| AI["LLM Providers"]
+```
 
-## モジュール構成
+## 主要モジュール
 
-アプリケーションは機能単位でモジュールに分割されています。
+### 1. Workflow Engine Module (`src/modules/workflow-engine`)
+ワークフロー実行の中核を担うモジュールです。
 
-### Core Modules
-- **AppModule**: ルートモジュール。全体の構成とグローバル設定を管理。
-- **PrismaModule**: データベース接続管理。
-- **QueueModule**: 非同期ジョブキュー機能を提供。`pg-boss` を使用し、透過的な `IQueueAdapter` インターフェースを提供。
-- **NotificationsModule**: メール送信などの通知機能。
+- **WorkflowEngineService (Executor)**: 
+  - フロー定義に基づき、次のステップを決定する「司令塔」。
+  - `WORKFLOW_NODE_PROCESS` ジョブを処理し、必要なタスク (`WorkflowTask`) をDBに作成して `TASK_EXECUTE` キューを発行します。
+  - `TASK_COMPLETE` ジョブを処理し、タスク完了後のフロー遷移（`advanceToNextNode`）を実行します。
+  
+- **GenericWorker (Worker)**: 
+  - 非同期タスクの「実行者」。`TASK_EXECUTE` キューを処理します。
+  - `nodeType` に応じた Handler に処理を委譲し、その結果 (`success`, `shouldAdvance`) を `TASK_COMPLETE` キューとして返却します。
+  
+- **TaskHandlers**:
+  - Workerから呼び出される具体的な処理ロジック。
+  - `ApprovalHandler`: メール送信のみを行い、承認判定は行いません (`shouldAdvance: false`)。
+  - `ApiCallHandler`: APIリクエストを実行し、完了を報告します (`shouldAdvance: true`)。
 
-### Feature Modules
-- **WorkflowEngineModule**: ワークフローのコアロジック（状態遷移、タスク生成、自動処理）を担当。
-- **ApplicationsModule**: 申請データのCRUD操作。
-- **TasksModule**: 承認タスクの管理。
-- **UsersModule**: Keycloakと連携したユーザー情報の取得。
+### 2. Queue Module (`src/modules/queue`)
+非同期処理基盤を提供します。
 
-## 非同期ワークフロー処理 (Async Workflow)
+- **PgBossQueueAdapter**: PostgreSQLベースのジョブキュー `pg-boss`。
+- **KafkaAdapter**: Kafkaを使用した高スループット対応アダプタ。`QUEUE_TYPE` 設定で切り替え可能。
+- **QueueService**: アプリケーション層からキューへのアクセスを抽象化。
 
-スケーラビリティと耐障害性を向上させるため、ワークフローのノード遷移処理は非同期メッセージキューを用いて実装されています。
+### 3. Search Module (`src/modules/search`)
+全文検索およびインデクシング機能を提供します。
 
-### 処理フロー
-1. **申請/承認アクション**: ユーザーがAPI経由で申請や承認を行う。
-2. **状態更新**: DB上の申請ステータスを更新。
-3. **ジョブエンキュー**: 次のステップへの遷移処理を `WORKFLOW_NODE_PROCESS` ジョブとしてキューに登録。
-4. **即時レスポンス**: ユーザーには即座に成功レスポンスを返す（処理待ち状態）。
-5. **ジョブ処理 (Worker)**:
-   - バックグラウンドでWorker（`WorkflowEngineService`内）がジョブを取得。
-   - 最新の申請データをDBから取得 (`Always-Fetch-Latest` パターン)。
-   - ビジネスロジック（次ノード判定、タスク生成、メール送信、APIコール等）を実行。
+- **SearchService (Indexer)**:
+  - `application-indexing` ジョブを購読し、非同期でインデックス更新（登録・削除）を行います。
+  - `ApplicationsService` での作成・更新時にジョブがエンキューされます。
+- **Adapters**:
+  - **ElasticsearchSearchService**: Elasticsearch に対するインデックス操作と検索。
+  - **PostgresSearchService**: PostgreSQL に対する検索（インデックス不要モード）。
 
-これにより、重い処理（外部API連携やメール送信）によるレスポンス遅延を防ぎ、システム全体の応答性を高めています。
+### 4. Application Recovery Service (`src/modules/applications`)
+**Scheduler (`@Cron`)** を使用した自己修復機能です。
 
-## エラーハンドリング
+- **役割**: システム障害やワーカーのダウンにより、処理が途中でスタックした（`IN_PROGRESS` だが `PENDING` タスクがない）アプリケーションを検知し、自動的に再エンキューします。
+- **頻度**: 5分ごとに実行。
 
-- **Web API**: NestJSのExceptionFilterにより、標準化されたJSONエラーレスポンスを返却。
-- **Worker**: ジョブ処理失敗時は `pg-boss` のリトライ機能により自動再試行。最終的に失敗した場合は `failed_jobs` として記録され、手動での再実行が可能。
+### 5. Storage Module (`src/modules/storage`)
+ファイルアップロードとクリーンアップを管理します。
+
+- **StorageService**: S3/MinIO へのファイル操作。
+- **StorageCleanupService**: 定期実行 (`3:00 AM`) により、期限切れの一時ファイルや、紐付けされなかった孤立ファイルを削除します。
+
+## データフロー
+
+1. **同期処理**: APIリクエスト（申請作成、タスク完了など）は、最小限のDB更新を行い、重い処理はキューに積んで即レスポンスを返します。
+2. **非同期処理**: Workerがジョブを拾い、ハンドラーを通じて処理を実行。結果はDB（`workflow_tasks`, `workflow_task_histories`）に保存されます。
+3. **結果整合性**: フローの遷移は非同期で行われるため、クライアントはポーリングまたはWebSocket（将来拡張）で状態を確認します。

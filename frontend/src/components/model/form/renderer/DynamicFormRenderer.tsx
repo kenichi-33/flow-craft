@@ -10,12 +10,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
-import FileUploadField from './FileUploadField';
-import UserSelector from './UserSelector';
-import DepartmentSelector from './DepartmentSelector';
-import DataGridField, { type GridColumn } from './DataGridField';
-import CurrencyInputField from './CurrencyInputField';
-import CalculationField from './CalculationField';
+import FileUploadField from '../fields/FileUploadField';
+import UserSelector from '../fields/UserSelector';
+import DepartmentSelector from '../fields/DepartmentSelector';
+import DataGridField, { type GridColumn } from '../fields/DataGridField';
+import CurrencyInputField from '../fields/CurrencyInputField';
+import CalculationField from '../fields/CalculationField';
 
 export interface DynamicFormRendererProps {
     schema: any;

@@ -9,9 +9,9 @@ import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { ArrowLeft, Loader2, Clock, User, CheckCircle, XCircle, AlertCircle, GitFork } from 'lucide-react';
-import DynamicFormRenderer from '@/components/application/DynamicFormRenderer';
-import ApprovalHistory from '@/components/application/ApprovalHistory';
-import FlowVisualization from '@/components/flow-designer/FlowVisualization';
+import DynamicFormRenderer from '@/components/model/form/renderer/DynamicFormRenderer';
+import ApprovalHistory from '@/components/model/application/ApprovalHistory';
+import FlowVisualization from '@/components/designer/flow/FlowVisualization';
 import { UserDisplay } from '@/components/common/UserDisplay';
 
 interface TaskDetail {

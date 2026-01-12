@@ -1,4 +1,3 @@
-// FlowEditorPage - Converted from MUI to shadcn/ui
 import React, { useState, useCallback, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -17,7 +16,6 @@ import {
     useNodesState,
     useEdgesState,
     addEdge,
-    ReactFlowProvider,
     Panel,
     useReactFlow,
     type Connection,
@@ -26,15 +24,15 @@ import {
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 
-import StartNode from '@/components/flow-designer/nodes/StartNode';
-import ApprovalNode from '@/components/flow-designer/nodes/ApprovalNode';
-import EndNode from '@/components/flow-designer/nodes/EndNode';
-import BranchNode from '@/components/flow-designer/nodes/BranchNode';
-import APICallNode from '@/components/flow-designer/nodes/APICallNode';
-import LLMCallNode from '@/components/flow-designer/nodes/LLMCallNode';
-import ParallelGatewayNode from '@/components/flow-designer/nodes/ParallelGatewayNode';
-import JoinGatewayNode from '@/components/flow-designer/nodes/JoinGatewayNode';
-import SwimLaneNode from '@/components/flow-designer/nodes/SwimLaneNode';
+import StartNode from './nodes/StartNode';
+import ApprovalNode from './nodes/ApprovalNode';
+import EndNode from './nodes/EndNode';
+import BranchNode from './nodes/BranchNode';
+import APICallNode from './nodes/APICallNode';
+import LLMCallNode from './nodes/LLMCallNode';
+import ParallelGatewayNode from './nodes/ParallelGatewayNode';
+import JoinGatewayNode from './nodes/JoinGatewayNode';
+import SwimLaneNode from './nodes/SwimLaneNode';
 
 const nodeTypes = {
     start: StartNode,
@@ -57,7 +55,7 @@ const TOOLBOX_GROUPS = [
     { name: 'ゲートウェイ', items: [{ type: 'branch', label: '分岐 (XOR)', color: '#ffca28', icon: '◇' }, { type: 'parallel', label: '並行 (AND)', color: '#ffeb3b', icon: '+' }, { type: 'join', label: '合流', color: '#ffeb3b', icon: '><' }] },
 ];
 
-// --- Validation Rules (unchanged) ---
+// --- Validation Rules ---
 interface ValidationRule { id: string; name: string; description: string; category: 'structure' | 'connectivity' | 'path'; check: (nodes: Node[], edges: Edge[]) => string | null; }
 
 const VALIDATION_RULES: ValidationRule[] = [
@@ -77,8 +75,7 @@ function validateFlow(nodes: Node[], edges: Edge[]) {
 
 const DEFAULT_NODES: Node[] = [{ id: 'start', type: 'start', position: { x: 250, y: 50 }, data: { label: '開始' } }];
 
-// --- FlowEditorContent ---
-function FlowEditorContent({ appId }: { appId: string }) {
+export default function FlowDesigner({ appId }: { appId: string }) {
     const { versionId } = useParams();
     const isReadOnly = !!versionId;
     const queryClient = useQueryClient();
@@ -273,10 +270,4 @@ function FlowEditorContent({ appId }: { appId: string }) {
             </div>
         </div>
     );
-}
-
-export default function FlowEditorPage() {
-    const { id } = useParams();
-    if (!id) return <div>App ID not found</div>;
-    return <ReactFlowProvider><FlowEditorContent appId={id} /></ReactFlowProvider>;
 }
