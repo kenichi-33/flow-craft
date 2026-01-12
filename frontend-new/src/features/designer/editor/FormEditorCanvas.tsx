@@ -2,7 +2,8 @@ import { useDroppable } from '@dnd-kit/core';
 import { SortableContext, useSortable, rectSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { 
-    GripVertical, Trash2, Calendar, FolderTree, Upload
+    GripVertical, Trash2, Calendar, FolderTree, Upload, User,
+    Building2, ToggleLeft, Mail, Phone, Link
 } from 'lucide-react';
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
@@ -141,7 +142,9 @@ export function FieldPreview({ field, isSelected, onDelete, dragHandleProps, chi
                 <div className="text-sm text-muted-foreground h-full">
                     {field.type === 'text' && <div className="h-9 bg-background border rounded px-3 flex items-center shadow-sm w-full"></div>}
                     {field.type === 'textarea' && <div className="h-20 bg-background border rounded px-3 py-2 shadow-sm w-full"></div>}
-                    {field.type === 'number' && <div className="h-9 bg-background border rounded px-3 flex items-center shadow-sm w-32"></div>}
+                    {field.type === 'number' && <div className="h-9 bg-background border rounded px-3 flex items-center shadow-sm w-32 justify-end font-mono text-xs text-muted-foreground">123</div>}
+                    {field.type === 'currency' && <div className="h-9 bg-background border rounded px-3 flex items-center shadow-sm w-32 justify-end font-mono text-xs text-muted-foreground">¥ 1,234</div>}
+                    {field.type === 'calculation' && <div className="h-9 bg-muted border rounded px-3 flex items-center shadow-sm w-32 justify-end font-mono text-xs text-muted-foreground font-bold">= 0</div>}
                     
                     {field.type === 'select' && (
                         <div className="h-9 bg-background border rounded px-3 flex items-center justify-between shadow-sm w-full">
@@ -226,6 +229,64 @@ export function FieldPreview({ field, isSelected, onDelete, dragHandleProps, chi
                         </div>
                     )}
 
+                    {field.type === 'user-select' && (
+                        <div className="h-9 bg-background border rounded px-3 flex items-center justify-between shadow-sm w-full">
+                            <span className="flex items-center gap-2 text-muted-foreground">
+                                <div className="h-5 w-5 bg-muted rounded-full flex items-center justify-center text-[10px]">👤</div>
+                                <span>ユーザーを選択...</span>
+                            </span>
+                            <div className="h-4 w-4 opacity-50 text-xs">▼</div>
+                        </div>
+                    )}
+
+                    {field.type === 'array' && (
+                        <div className="border rounded-md overflow-hidden bg-background shadow-sm">
+                            <div className="bg-muted/50 px-3 py-2 text-xs font-semibold border-b flex gap-2">
+                                <span className="w-6 text-center text-muted-foreground">#</span>
+                                {(field.columns || [{ label: '項目A' }, { label: '項目B' }]).map((col: any, idx: number) => (
+                                    <span key={idx} className="flex-1 truncate border-l pl-2 border-border/50">{col.label}</span>
+                                ))}
+                            </div>
+                            <div className="p-4 text-center text-xs text-muted-foreground border-b border-dashed bg-muted/5">
+                                データなし
+                            </div>
+                            <div className="px-2 py-1 bg-muted/10 border-t">
+                                <span className="text-[10px] border rounded px-2 py-0.5 bg-background text-muted-foreground inline-flex items-center gap-1">
+                                    + 行追加
+                                </span>
+                            </div>
+                        </div>
+                    )}
+
+                    {field.type === 'switch' && (
+                        <div className="flex items-center space-x-2 p-2 border rounded bg-background shadow-sm w-fit">
+                             <div className="w-8 h-4 rounded-full bg-primary/20 relative">
+                                <div className="absolute left-0 top-0 w-4 h-4 bg-background rounded-full border shadow-sm"></div>
+                             </div>
+                             <span className="text-xs">有効</span>
+                        </div>
+                    )}
+                    {field.type === 'department' && (
+                        <div className="h-9 bg-background border rounded px-3 flex items-center justify-between shadow-sm w-full">
+                            <span className="flex items-center gap-2 text-muted-foreground">
+                                <Building2 className="h-4 w-4" />
+                                <span>部署を選択...</span>
+                            </span>
+                            <div className="h-4 w-4 opacity-50 text-xs">▼</div>
+                        </div>
+                    )}
+                    {['email', 'tel', 'url'].includes(field.type) && (
+                        <div className="h-9 bg-background border rounded px-3 flex items-center gap-2 shadow-sm w-full">
+                            {field.type === 'email' && <Mail className="h-4 w-4 text-muted-foreground" />}
+                            {field.type === 'tel' && <Phone className="h-4 w-4 text-muted-foreground" />}
+                            {field.type === 'url' && <Link className="h-4 w-4 text-muted-foreground" />}
+                            <span className="text-xs text-muted-foreground">
+                                {field.type === 'email' ? 'example@company.com' : 
+                                 field.type === 'tel' ? '03-1234-5678' : 'https://example.com'}
+                            </span>
+                        </div>
+                    )}
+                    
                     {field.type === 'divider' && <div className="border-t my-2 border-border/50"></div>}
                     
                     {field.type === 'label' && (

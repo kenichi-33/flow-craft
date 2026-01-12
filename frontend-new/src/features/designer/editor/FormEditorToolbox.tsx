@@ -2,7 +2,8 @@ import React from 'react';
 import { useDraggable } from '@dnd-kit/core';
 import { 
     Type, AlignLeft, Hash, Calendar, List, CheckSquare, 
-    FolderTree, Minus, Heading, GripVertical, Clock, Upload
+    FolderTree, Minus, Heading, GripVertical, Clock, Upload, User, Table, JapaneseYen, Calculator,
+    Building2, ToggleLeft, Mail, Phone, Link
 } from 'lucide-react';
 
 export const TOOLBOX_GROUPS = [
@@ -12,10 +13,21 @@ export const TOOLBOX_GROUPS = [
             { type: 'text', label: 'テキスト', Icon: Type },
             { type: 'textarea', label: 'テキストエリア', Icon: AlignLeft },
             { type: 'number', label: '数値', Icon: Hash },
+            { type: 'currency', label: '金額 (¥)', Icon: JapaneseYen },
+            { type: 'calculation', label: '自動計算', Icon: Calculator },
+			{ type: 'email', label: 'メール', Icon: Mail },
+			{ type: 'tel', label: '電話番号', Icon: Phone },
+			{ type: 'url', label: 'URL', Icon: Link },
             { type: 'date', label: '日付', Icon: Calendar },
             { type: 'time', label: '時間', Icon: Clock },
             { type: 'dateRange', label: '日付範囲', Icon: Calendar },
             { type: 'file', label: 'ファイル', Icon: Upload },
+        ]
+    },
+    {
+        title: '高度な項目',
+        items: [
+             { type: 'array', label: '明細テーブル', Icon: Table },
         ]
     },
     {
@@ -24,6 +36,9 @@ export const TOOLBOX_GROUPS = [
             { type: 'select', label: 'セレクト', Icon: List },
             { type: 'radio', label: 'ラジオ', Icon: CheckSquare },
             { type: 'checkbox', label: 'チェックボックス', Icon: CheckSquare },
+			{ type: 'switch', label: 'スイッチ', Icon: ToggleLeft },
+            { type: 'user-select', label: 'ユーザー選択', Icon: User },
+			{ type: 'department', label: '部署選択', Icon: Building2 },
         ]
     },
     {

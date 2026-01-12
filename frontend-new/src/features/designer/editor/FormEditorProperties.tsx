@@ -42,6 +42,20 @@ export default function FormEditorProperties({
                 <Label className="text-xs">説明・ヘルプテキスト</Label>
                 <Input value={field.description || ''} onChange={(e) => onUpdate(field.id, { description: e.target.value })} disabled={readOnly} />
             </div>
+
+            {['text', 'tel', 'email', 'url'].includes(field.type) && (
+                <div className="space-y-1.5 pt-2 border-t">
+                     <Label className="text-xs">入力規則 (正規表現)</Label>
+                     <Input 
+                        value={field.pattern || ''} 
+                        onChange={(e) => onUpdate(field.id, { pattern: e.target.value })} 
+                        placeholder={field.type === 'tel' ? '^0[0-9-]{9,12}$' : '^[a-zA-Z0-9]+$'}
+                        disabled={readOnly} 
+                        className="font-mono text-xs"
+                    />
+                    <p className="text-[10px] text-muted-foreground">空欄の場合はデフォルトのチェックが適用されます</p>
+                </div>
+            )}
             
             {/* Alignment */}
              <div className="space-y-1.5">
@@ -111,7 +125,6 @@ export default function FormEditorProperties({
                             />
                         </div>
                     )}
-
                     <div className="flex items-center gap-2">
                         <Checkbox 
                             id="multiple" 
@@ -120,6 +133,163 @@ export default function FormEditorProperties({
                             disabled={readOnly} 
                         />
                         <Label htmlFor="multiple" className="text-sm cursor-pointer">複数ファイルを許可</Label>
+                    </div>
+                </div>
+            )}
+
+            {field.type === 'user-select' && (
+                <div className="space-y-3 pt-2 border-t">
+                    <Label className="text-xs font-semibold">ユーザー選択設定</Label>
+                    <div className="flex items-center gap-2">
+                        <Checkbox 
+                            id="multiple" 
+                            checked={field.multiple || false} 
+                            onCheckedChange={(checked) => onUpdate(field.id, { multiple: !!checked })} 
+                            disabled={readOnly} 
+                        />
+                        <Label htmlFor="multiple" className="text-sm cursor-pointer">複数選択を許可</Label>
+                    </div>
+                </div>
+            )}
+
+            {field.type === 'department' && (
+                <div className="space-y-3 pt-2 border-t">
+                    <Label className="text-xs font-semibold">部署選択設定</Label>
+                    <div className="flex items-center gap-2">
+                        <Checkbox 
+                            id="multiple" 
+                            checked={field.multiple || false} 
+                            onCheckedChange={(checked) => onUpdate(field.id, { multiple: !!checked })} 
+                            disabled={readOnly} 
+                        />
+                        <Label htmlFor="multiple" className="text-sm cursor-pointer">複数選択を許可</Label>
+                    </div>
+                </div>
+            )}
+
+            {/* Calculation specific properties */}
+            {field.type === 'calculation' && (
+                <div className="space-y-3 pt-2 border-t">
+                    <Label className="text-xs font-semibold">計算式設定</Label>
+                    <div className="space-y-1.5">
+                        <Label className="text-xs">計算式 (Formula)</Label>
+                        <Input 
+                            value={field.formula || ''} 
+                            onChange={(e) => onUpdate(field.id, { formula: e.target.value })} 
+                            placeholder="quantity * price" 
+                            disabled={readOnly}
+                            className="text-xs font-mono"
+                        />
+                        <p className="text-[10px] text-muted-foreground">
+                            フィールドIDを使用して計算式を記述します (+ - * / ( ) が使用可能)
+                        </p>
+                    </div>
+                </div>
+            )}
+
+            {/* Data Grid Column Editor */}
+            {field.type === 'array' && (
+                <div className="space-y-3 pt-2 border-t">
+                    <div className="flex items-center justify-between">
+                        <Label className="text-xs font-semibold">列定義 (カラム)</Label>
+                         <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="h-6 text-[10px]"
+                            onClick={() => {
+                                const currentColumns = (field.columns || []) as any[];
+                                const newCol = { 
+                                    id: `col_${Date.now()}`, 
+                                    key: `col_${Date.now()}`, 
+                                    label: '新規列', 
+                                    type: 'text' 
+                                };
+                                onUpdate(field.id, { columns: [...currentColumns, newCol] });
+                            }}
+                            disabled={readOnly}
+                        >
+                            + 列追加
+                        </Button>
+                    </div>
+                    
+                    <div className="space-y-3">
+                         {((field.columns || []) as any[]).map((col: any, index: number) => (
+                             <div key={index} className="border rounded p-2 space-y-2 bg-muted/20">
+                                 <div className="flex items-center justify-between gap-2">
+                                     <span className="text-[10px] font-mono text-muted-foreground">#{index + 1}</span>
+                                     <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="icon"
+                                        className="h-6 w-6 text-muted-foreground hover:text-destructive"
+                                        onClick={() => {
+                                            const newCols = [...((field.columns || []) as any[])];
+                                            newCols.splice(index, 1);
+                                            onUpdate(field.id, { columns: newCols });
+                                        }}
+                                        disabled={readOnly}
+                                    >
+                                        <Trash2 className="h-3 w-3" />
+                                    </Button>
+                                 </div>
+                                 
+                                 <div className="grid grid-cols-2 gap-2">
+                                     <div className="space-y-1">
+                                         <Label className="text-[10px]">列ラベル</Label>
+                                         <Input 
+                                             value={col.label} 
+                                             onChange={(e) => {
+                                                 const newCols = [...((field.columns || []) as any[])];
+                                                 newCols[index] = { ...newCols[index], label: e.target.value };
+                                                 onUpdate(field.id, { columns: newCols });
+                                             }}
+                                             className="h-7 text-xs"
+                                             disabled={readOnly}
+                                         />
+                                     </div>
+                                     <div className="space-y-1">
+                                         <Label className="text-[10px]">データキー</Label>
+                                         <Input 
+                                             value={col.key} 
+                                             onChange={(e) => {
+                                                  const newCols = [...((field.columns || []) as any[])];
+                                                  newCols[index] = { ...newCols[index], key: e.target.value };
+                                                  onUpdate(field.id, { columns: newCols });
+                                             }}
+                                             className="h-7 text-xs font-mono"
+                                             disabled={readOnly}
+                                         />
+                                     </div>
+                                 </div>
+
+                                 <div className="space-y-1">
+                                     <Label className="text-[10px]">タイプ</Label>
+                                     <select 
+                                         className="flex h-7 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-1 text-xs shadow-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                                         value={col.type}
+                                         onChange={(e) => {
+                                              const newCols = [...((field.columns || []) as any[])];
+                                              newCols[index] = { ...newCols[index], type: e.target.value };
+                                              onUpdate(field.id, { columns: newCols });
+                                         }}
+                                         disabled={readOnly}
+                                     >
+                                         <option value="text">テキスト</option>
+                                         <option value="number">数値</option>
+                                         <option value="date">日付</option>
+                                         <option value="checkbox">チェックボックス</option>
+                                         {/* Select support needs more UI for options, skip for basic v1 or simple text list? */}
+                                         {/* <option value="select">セレクト</option> */} 
+                                     </select>
+                                 </div>
+                             </div>
+                         ))}
+                         {(!field.columns || field.columns.length === 0) && (
+                             <div className="text-xs text-muted-foreground text-center py-4 border border-dashed rounded">
+                                 列が定義されていません
+                             </div>
+                         )}
                     </div>
                 </div>
             )}

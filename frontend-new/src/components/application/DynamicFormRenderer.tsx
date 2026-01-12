@@ -9,7 +9,13 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
+import { Switch } from '@/components/ui/switch';
 import FileUploadField from './FileUploadField';
+import UserSelector from './UserSelector';
+import DepartmentSelector from './DepartmentSelector';
+import DataGridField, { type GridColumn } from './DataGridField';
+import CurrencyInputField from './CurrencyInputField';
+import CalculationField from './CalculationField';
 
 export interface DynamicFormRendererProps {
     schema: any;
@@ -65,6 +71,17 @@ export default function DynamicFormRenderer({
         maxSize: config.maxSize,
         multiple: config.multiple,
         maxFiles: config.maxFiles,
+        // Data Grid specific properties
+        columns: config.items?.properties ? Object.entries(config.items.properties).map(([key, prop]: [string, any]) => ({
+            id: key,
+            key: key,
+            label: prop.title || prop.label || key,
+            type: prop.type,
+            options: prop.enum || prop.options,
+        })) : undefined,
+        // Calculation
+        formula: config.formula,
+        pattern: config.pattern,
     }));
 
     // 2. Compute default values
@@ -76,7 +93,7 @@ export default function DynamicFormRenderer({
     });
 
     const methods = useForm({ defaultValues: computedDefaults });
-    const { register, handleSubmit, formState: { errors }, control, getValues } = methods;
+    const { register, handleSubmit, formState: { errors }, control, getValues, setValue } = methods;
     const { ref: containerRef } = useWidth();
 
     // Handle missing or invalid schema gracefully
@@ -237,10 +254,29 @@ export default function DynamicFormRenderer({
                         )
                     ) : field.type === 'number' ? (
                         isFieldReadOnly ? (
-                            <div className="p-3 rounded-lg bg-muted text-sm">{value ?? '-'}</div>
+                            <div className="p-3 rounded-lg bg-muted text-sm text-right font-mono">{value ?? '-'}</div>
                         ) : (
-                            <Input type="number" {...register(field.id, { required: field.required })} placeholder={`${field.label}を入力...`} className="h-11 bg-background" />
+                            <Input type="number" {...register(field.id, { required: field.required })} placeholder={`${field.label}を入力...`} className="h-11 bg-background text-right font-mono" />
                         )
+                    ) : field.type === 'currency' ? (
+                        isFieldReadOnly ? (
+                            <div className="p-3 rounded-lg bg-muted text-sm text-right font-mono">
+                                {value ? `¥${new Intl.NumberFormat('ja-JP').format(Number(value))}` : '-'}
+                            </div>
+                        ) : (
+                            <CurrencyInputField
+                                field={field}
+                                control={control}
+                                readOnly={false}
+                            />
+                        )
+                    ) : field.type === 'calculation' ? (
+                        <CalculationField
+                            field={field}
+                            control={control}
+                            setValue={setValue}
+                            readOnly={isFieldReadOnly}
+                        />
                     ) : field.type === 'dateRange' ? (
                         isFieldReadOnly ? (
                             <div className="p-3 rounded-lg bg-muted text-sm flex items-center gap-2">
@@ -299,8 +335,86 @@ export default function DynamicFormRenderer({
                             maxFiles={field.maxFiles}
                             value={value}
                         />
+                    ) : field.type === 'user-select' ? (
+                        <Controller
+                            name={field.id}
+                            control={control}
+                            rules={{ required: field.required }}
+                            render={({ field: f }) => (
+                                <UserSelector
+                                    fieldId={field.id}
+                                    value={f.value}
+                                    onChange={f.onChange}
+                                    readOnly={isFieldReadOnly}
+                                    placeholder={`${field.label}を選択...`}
+                                    multiple={field.multiple}
+                                />
+                            )}
+                        />
+                    ) : field.type === 'array' ? (
+                        <Controller
+                            name={field.id}
+                            control={control}
+                            rules={{ required: field.required }}
+                            defaultValue={[]}
+                            render={({ field: f }) => (
+                                <DataGridField
+                                    fieldId={field.id}
+                                    columns={(field.columns || []) as GridColumn[]}
+                                    value={f.value}
+                                    onChange={f.onChange}
+                                    readOnly={isFieldReadOnly}
+                                />
+                            )}
+                        />
+                    ) : field.type === 'switch' ? (
+                        isFieldReadOnly ? (
+                            <div className="flex items-center space-x-2 p-3 rounded-lg bg-muted/30 border">
+                                <Switch checked={!!value} disabled />
+                                <Label className="text-sm font-normal text-muted-foreground">{value ? '有効' : '無効'}</Label>
+                            </div>
+                        ) : (
+                            <Controller name={field.id} control={control} render={({ field: f }) => (
+                                <div className="flex items-center space-x-2">
+                                    <Switch checked={f.value} onCheckedChange={f.onChange} />
+                                    <Label className="text-sm font-normal cursor-pointer" onClick={() => f.onChange(!f.value)}>有効にする</Label>
+                                </div>
+                            )} />
+                        )
+                    ) : field.type === 'department' ? (
+                        <Controller
+                            name={field.id}
+                            control={control}
+                            rules={{ required: field.required }}
+                            render={({ field: f }) => (
+                                <DepartmentSelector
+                                    value={f.value}
+                                    onChange={f.onChange}
+                                    readOnly={isFieldReadOnly}
+                                    multiple={field.multiple}
+                                    placeholder={`${field.label}を選択...`}
+                                />
+                            )}
+                        />
+                    ) : ['text', 'email', 'tel', 'url'].includes(field.type) ? (
+                        isFieldReadOnly ? (
+                            <div className="p-3 rounded-lg bg-muted text-sm">{value || '-'}</div>
+                        ) : (
+                             <Input 
+                                type={field.type === 'text' ? 'text' : field.type} 
+                                {...register(field.id, { 
+                                    required: field.required,
+                                    pattern: field.pattern ? new RegExp(field.pattern) : (
+                                        field.type === 'email' ? /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i : 
+                                        field.type === 'url' ? /^(http|https):\/\/[^ "]+$/ : undefined
+                                    )
+                                })} 
+                                placeholder={`${field.label}を入力...`} 
+                                className="h-11 bg-background" 
+                            />
+                        )
                     ) : (
-                        // Default: text
+                        // Default fallback
                         isFieldReadOnly ? (
                             <div className="p-3 rounded-lg bg-muted text-sm">{value || '-'}</div>
                         ) : (

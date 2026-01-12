@@ -1,4 +1,4 @@
-import { Controller, Get, Query } from '@nestjs/common';
+import { Controller, Get, Post, Body, Query } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { UsersService } from './users.service';
 import axios from 'axios';
@@ -162,6 +162,34 @@ export class UsersController {
                 pagination: { page: 1, limit: 20, total: 0, totalPages: 0 },
             };
         }
+    }
+
+    @Post('resolve')
+    async resolveUsers(@Body() body: { ids: string[] }) {
+        if (!body.ids || !Array.isArray(body.ids)) return [];
+        const uniqueIds = Array.from(new Set(body.ids));
+        
+        const results = await Promise.all(uniqueIds.map(async (id) => {
+            try {
+                // Check if it's a UUID (simple check)
+                if (!id || typeof id !== 'string') return null;
+                
+                const snapshot = await this.usersService.getUserSnapshot(id);
+                // Fallback check if user not found (Service returns 'unknown' username)
+                if (snapshot.username === 'unknown') return null;
+                
+                return {
+                    id,
+                    username: snapshot.username,
+                    displayName: `${snapshot.lastName || ''} ${snapshot.firstName || ''}`.trim() || snapshot.username,
+                    email: snapshot.email
+                };
+            } catch (e) {
+                return null;
+            }
+        }));
+        
+        return results.filter((u): u is NonNullable<typeof u> => u !== null);
     }
 
     @Get('departments')

@@ -5,6 +5,7 @@ export interface Option {
 
 export interface FormField {
     id: string;
+    key?: string; // For Data Grid columns
     type: string;
     label: string;
     options?: Option[] | string[];
@@ -21,4 +22,8 @@ export interface FormField {
     maxSize?: number; // Max file size in MB
     multiple?: boolean; // Allow multiple files
     maxFiles?: number; // Max number of files
+    // For Data Grid
+    columns?: FormField[]; // Simplified nested fields for grid columns. Using FormField itself but will treat ID as Key.
+    formula?: string; // For CalculationField
+    pattern?: string; // For Regex validation
 }

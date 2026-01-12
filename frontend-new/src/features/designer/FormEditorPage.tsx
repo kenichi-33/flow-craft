@@ -177,6 +177,16 @@ export default function FormEditorPage() {
                 maxFiles: config.maxFiles,
                 maxSize: config.maxSize,
                 acceptedTypes: config.acceptedTypes,
+                formula: config.formula,
+                pattern: config.pattern,
+                // Data Grid properties
+                columns: config.items ? Object.entries(config.items.properties || {}).map(([key, prop]: [string, any]) => ({
+                    id: key, // Use key as ID for simplicity in editor
+                    key: key,
+                    type: prop.type,
+                    label: prop.title || prop.label || key,
+                    // Minimal mapping for column
+                })) : undefined,
                 // Attempt to find width from layout
                 width: layout.find((l: any) => l.i === fieldId)?.w || 12,
             }));
@@ -324,6 +334,18 @@ export default function FormEditorPage() {
             }
             if (type === 'label') newField.label = '見出しテキスト';
             if (type === 'divider') newField.label = '区切り線';
+            if (type === 'user-select') {
+                newField.width = 6;
+                newField.multiple = false;
+            }
+            if (type === 'array') {
+                newField.label = '明細テーブル';
+                newField.width = 12;
+                newField.columns = [
+                    { id: generateId(), type: 'text', label: '項目1', key: 'item1' },
+                    { id: generateId(), type: 'number', label: '金額', key: 'amount' }
+                ];
+            }
 
             setFields((prev) => {
                 // Determine drop target
@@ -486,6 +508,19 @@ export default function FormEditorPage() {
                     maxFiles: field.maxFiles,
                     maxSize: field.maxSize,
                     acceptedTypes: field.acceptedTypes,
+                    pattern: field.pattern,
+                    // Data Grid properties -> schema items
+                    items: field.type === 'array' ? {
+                        type: 'object',
+                        properties: (field.columns || []).reduce((acc: any, col: any) => {
+                            acc[col.key || col.id] = {
+                                type: col.type,
+                                title: col.label,
+                            };
+                            return acc;
+                        }, {})
+                    } : undefined,
+                    formula: field.formula,
                 };
                 
                 if (field.required) required.push(field.id);
