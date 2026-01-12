@@ -1,92 +1,36 @@
-'use client';
-
-import React from 'react';
+// DynamicFormRenderer - Converted from MUI to shadcn/ui
+import { useState, useEffect, useRef } from 'react';
 import { useForm, Controller } from 'react-hook-form';
-import { Box, Button, TextField, Checkbox, FormControlLabel, Typography, Paper, MenuItem, Radio, RadioGroup, FormControl, FormLabel, Divider, Chip } from '@mui/material';
-import { ResponsiveGridLayout } from 'react-grid-layout';
-import 'react-grid-layout/css/styles.css';
+import { Card, CardContent } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Separator } from '@/components/ui/separator';
+import { Badge } from '@/components/ui/badge';
+import { Switch } from '@/components/ui/switch';
+import FileUploadField from './FileUploadField';
+import UserSelector from './UserSelector';
+import DepartmentSelector from './DepartmentSelector';
+import DataGridField, { type GridColumn } from './DataGridField';
+import CurrencyInputField from './CurrencyInputField';
+import CalculationField from './CalculationField';
 
-
-interface DynamicFormRendererProps {
+export interface DynamicFormRendererProps {
     schema: any;
     layouts?: any;
     onSubmit?: (data: any) => void;
     renderActions?: (methods: any) => React.ReactNode;
     readOnly?: boolean;
     initialData?: any;
+    defaultValues?: any;
 }
 
-// ... styles remain same ...
-
-// Custom styled components for consistent premium look
-const itemAnimation = {
-    animation: 'fadeInUp 0.5s ease-out forwards',
-    opacity: 0,
-    '@keyframes fadeInUp': {
-        '0%': { opacity: 0, transform: 'translateY(10px)' },
-        '100%': { opacity: 1, transform: 'translateY(0)' },
-    }
-};
-
-const inputStyle = {
-    '& .MuiInputBase-root': {
-        bgcolor: '#f8f9fa',
-        borderRadius: 3,
-        border: '1px solid #e2e8f0',
-        transition: 'all 0.2s ease-in-out',
-        '&:hover': {
-            bgcolor: '#fff',
-            borderColor: '#bkc',
-            boxShadow: '0 2px 8px rgba(0,0,0,0.05)',
-        },
-        '&.Mui-focused': {
-            bgcolor: '#fff',
-            borderColor: '#3a1c71',
-            boxShadow: '0 0 0 3px rgba(58, 28, 113, 0.1)',
-        }
-    },
-    '& .MuiInputBase-input': {
-        padding: '12px 16px',
-    },
-    '& .MuiInputLabel-root': {
-        transform: 'translate(14px, 12px) scale(1)',
-        '&.Mui-focused, &.MuiFormLabel-filled': {
-            transform: 'translate(14px, -9px) scale(0.75)',
-            fontWeight: 'bold',
-            color: '#3a1c71',
-        }
-    }
-};
-
-const selectionCardStyle = {
-    flex: 1,
-    minWidth: '150px',
-    m: 0.5,
-    p: 1.5,
-    borderRadius: 3,
-    border: '1px solid #edf2f7',
-    transition: 'all 0.2s',
-    bgcolor: '#f8f9fa',
-    '&:hover': {
-        bgcolor: '#fff',
-        borderColor: '#cbd5e0',
-        transform: 'translateY(-1px)',
-        boxShadow: '0 4px 12px rgba(0,0,0,0.05)'
-    },
-    '&:has(.Mui-checked)': {
-        bgcolor: '#f0f5ff',
-        borderColor: '#3a1c71',
-        boxShadow: '0 4px 12px rgba(58, 28, 113, 0.1)'
-    }
-};
-
-
-import { useState, useEffect, useRef } from 'react';
-
+// Width hook for responsive layout
 const useWidth = () => {
     const ref = useRef<HTMLDivElement>(null);
     const [width, setWidth] = useState(1200);
-
     useEffect(() => {
         if (!ref.current) return;
         const resizeObserver = new ResizeObserver((entries) => {
@@ -99,360 +43,400 @@ const useWidth = () => {
     return { ref, width };
 };
 
-export default function DynamicFormRenderer({ schema, layouts, onSubmit, renderActions, readOnly = false, initialData = {} }: DynamicFormRendererProps) {
-    const methods = useForm({
-        defaultValues: initialData
-    });
-    const { register, handleSubmit, formState: { errors }, getValues } = methods;
-    const { width, ref: containerRef } = useWidth();
-    const mounted = true;
-
-    if (!schema || !schema.properties) {
-        return <Typography>Invalid Form Schema</Typography>;
-    }
-
-    const fields = Object.entries(schema.properties).map(([id, config]: [string, any]) => ({
+export default function DynamicFormRenderer({ 
+    schema, 
+    layouts, 
+    onSubmit, 
+    renderActions, 
+    readOnly = false, 
+    initialData = {},
+    defaultValues = {} 
+}: DynamicFormRendererProps) {
+    // 1. Parse fields first (safe even if schema is null)
+    const properties = schema?.properties || {};
+    const fields = Object.entries(properties).map(([id, config]: [string, any]) => ({
         id,
-        ...config,
+        type: config.type || config['x-type'] || 'text',
+        label: config.title || config.label || id,
+        options: config.enum || config.options || [],
+        required: (schema?.required || []).includes(id) || config.required,
+        readOnly: config.readOnly,
+        description: config.description,
+        includeTime: config.includeTime,
+        align: config.align || 'left',
+        defaultValue: config.default,
+        parent: config['x-parent'], // Support hierarchy
+        // File-specific properties
+        acceptedTypes: config.acceptedTypes,
+        maxSize: config.maxSize,
+        multiple: config.multiple,
+        maxFiles: config.maxFiles,
+        // Data Grid specific properties
+        columns: config.items?.properties ? Object.entries(config.items.properties).map(([key, prop]: [string, any]) => ({
+            id: key,
+            key: key,
+            label: prop.title || prop.label || key,
+            type: prop.type,
+            options: prop.enum || prop.options,
+        })) : undefined,
+        // Calculation
+        formula: config.formula,
+        pattern: config.pattern,
     }));
 
-    // Retrieve layout from props.layouts, schema, or generate default
-    const propsLayout = layouts?.lg || layouts?.[Object.keys(layouts || {})[0]];
-    const schemaLayout = schema['x-layout'];
-    const layout = propsLayout || schemaLayout || fields.map((f, i) => ({ i: f.id, x: 0, y: i * 2, w: 12, h: 2 }));
-    const effectiveLayouts = layouts || { lg: layout, md: layout, sm: layout, xs: layout, xxs: layout };
-
-    // Sort fields by layout position (y then x) for correct tab order and rendering
-    const sortedFields = [...fields].sort((a, b) => {
-        const layoutA = layout.find((l: any) => l.i === a.id) || { x: 0, y: 0 };
-        const layoutB = layout.find((l: any) => l.i === b.id) || { x: 0, y: 0 };
-        if (layoutA.y !== layoutB.y) return layoutA.y - layoutB.y;
-        return layoutA.x - layoutB.x;
+    // 2. Compute default values
+    const computedDefaults = { ...initialData, ...defaultValues };
+    fields.forEach(f => {
+        if (f.defaultValue !== undefined && computedDefaults[f.id] === undefined) {
+            computedDefaults[f.id] = f.defaultValue;
+        }
     });
 
-    const handleFormSubmit = (data: any) => {
-        if (onSubmit) {
-            onSubmit(data);
-        }
+    const methods = useForm({ defaultValues: computedDefaults });
+    const { register, handleSubmit, formState: { errors }, control, getValues, setValue } = methods;
+    const { ref: containerRef } = useWidth();
+
+    // Handle missing or invalid schema gracefully
+    if (!schema) {
+        return (
+            <Card className="border-0 shadow-inner bg-muted/30">
+                <CardContent className="py-8 text-center text-muted-foreground">
+                    フォームスキーマがありません
+                </CardContent>
+            </Card>
+        );
+    }
+
+    // Get layout from props or schema, ensure it's an array
+    const schemaLayout = schema['x-layout'];
+    const propsLayout = layouts?.lg || (Array.isArray(layouts) ? layouts : layouts?.[Object.keys(layouts || {})[0]]);
+    
+    // Determine effective layout - must be an array
+    let layout: any[];
+    if (Array.isArray(propsLayout)) {
+        layout = propsLayout;
+    } else if (Array.isArray(schemaLayout)) {
+        layout = schemaLayout;
+    } else {
+        // Generate default layout
+        layout = fields.map((f, i) => ({ i: f.id, x: 0, y: i * 2, w: 12, h: 2 }));
+    }
+
+    // Sort fields by layout position
+    const sortedFields = [...fields].sort((a, b) => {
+        const la = layout.find((l: any) => l.i === a.id) || { x: 0, y: 0 };
+        const lb = layout.find((l: any) => l.i === b.id) || { x: 0, y: 0 };
+        return la.y === lb.y ? la.x - lb.x : la.y - lb.y;
+    });
+
+    const handleFormSubmit = (data: any) => onSubmit?.(data);
+
+    // Recursive renderer
+    const renderFields = (parentId?: string) => {
+        const currentFields = sortedFields.filter(f => f.parent === parentId);
+        
+        return currentFields.map(field => {
+            const isFieldReadOnly = readOnly || field.readOnly;
+            const layoutItem = layout.find((l: any) => l.i === field.id);
+            const colSpan = Math.min(layoutItem?.w || 12, 12);
+            const value = getValues(field.id);
+
+            // Group Handling (Recursive)
+            if (field.type === 'group') {
+                return (
+                    <div key={field.id} className="p-4 rounded-xl bg-muted/20 border" style={{ gridColumn: `span ${colSpan}` }}>
+                        {field.label && <h3 className="text-base font-bold mb-4 text-foreground">{field.label}</h3>}
+                        <div className="grid grid-cols-12 gap-4">
+                            {renderFields(field.id)}
+                        </div>
+                    </div>
+                );
+            }
+
+            // Divider
+            if (field.type === 'divider') {
+                return <Separator key={field.id} className="my-4 col-span-12" style={{ gridColumn: `span 12` }} />;
+            }
+
+            // Label/Heading
+            if (field.type === 'label') {
+                return (
+                    <div key={field.id} className={`col-span-12 py-2 text-${field.align || 'left'}`} style={{ gridColumn: `span 12` }}>
+                        <h3 className="text-lg font-bold text-foreground">{field.label}</h3>
+                    </div>
+                );
+            }
+
+            return (
+                <div key={field.id} className="space-y-2" style={{ gridColumn: `span ${colSpan}` }}>
+                    <Label className={`text-sm font-medium block text-${field.align || 'left'}`}>
+                        {field.label}
+                        {field.required && !readOnly && <span className="text-destructive ml-1">*</span>}
+                    </Label>
+
+                    {field.type === 'textarea' ? (
+                        isFieldReadOnly ? (
+                            <div className="p-3 rounded-lg bg-muted min-h-[80px] text-sm whitespace-pre-wrap">{value || '-'}</div>
+                        ) : (
+                            <Textarea {...register(field.id, { required: field.required })} placeholder={`${field.label}を入力...`} rows={4} className="resize-none" />
+                        )
+                    ) : field.type === 'select' ? (
+                        isFieldReadOnly ? (
+                            <div className="p-3 rounded-lg bg-muted text-sm">
+                                {field.options.find((o: any) => (typeof o === 'string' ? o : o.value) === value)?.label || value || '-'}
+                            </div>
+                        ) : (
+                            <Controller name={field.id} control={control} rules={{ required: field.required }} render={({ field: f }) => (
+                                <Select value={f.value || ''} onValueChange={f.onChange}>
+                                    <SelectTrigger className="h-11 bg-background"><SelectValue placeholder="選択してください" /></SelectTrigger>
+                                    <SelectContent>
+                                        {field.options.map((opt: any) => {
+                                            const val = typeof opt === 'string' ? opt : opt.value;
+                                            const label = typeof opt === 'string' ? opt : opt.label;
+                                            return <SelectItem key={val} value={val}>{label}</SelectItem>;
+                                        })}
+                                    </SelectContent>
+                                </Select>
+                            )} />
+                        )
+                    ) : field.type === 'checkbox' ? (
+                        <div className="space-y-2 p-3 bg-muted/30 rounded-lg border">
+                            {field.options.map((opt: any, i: number) => {
+                                const val = typeof opt === 'string' ? opt : opt.value;
+                                const label = typeof opt === 'string' ? opt : opt.label;
+                                const checked = Array.isArray(value) ? value.includes(val) : false;
+                                return (
+                                    <div key={i} className="flex items-center gap-2">
+                                        {isFieldReadOnly ? (
+                                            <Badge variant={checked ? 'default' : 'outline'}>{label}</Badge>
+                                        ) : (
+                                            <Controller name={field.id} control={control} render={({ field: f }) => (
+                                                <>
+                                                    <Checkbox id={`${field.id}-${i}`} checked={Array.isArray(f.value) && f.value.includes(val)} onCheckedChange={(c) => {
+                                                        const arr = Array.isArray(f.value) ? [...f.value] : [];
+                                                        c ? arr.push(val) : arr.splice(arr.indexOf(val), 1);
+                                                        f.onChange(arr);
+                                                    }} />
+                                                    <Label htmlFor={`${field.id}-${i}`} className="cursor-pointer font-normal">{label}</Label>
+                                                </>
+                                            )} />
+                                        )}
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    ) : field.type === 'radio' ? (
+                        <div className="space-y-2 p-3 bg-muted/30 rounded-lg border">
+                            {field.options.map((opt: any, i: number) => {
+                                const val = typeof opt === 'string' ? opt : opt.value;
+                                const label = typeof opt === 'string' ? opt : opt.label;
+                                return (
+                                    <div key={i} className="flex items-center gap-2">
+                                        {isFieldReadOnly ? (
+                                            value === val && <Badge>{label}</Badge>
+                                        ) : (
+                                            <Controller name={field.id} control={control} rules={{ required: field.required }} render={({ field: f }) => (
+                                                <>
+                                                    <input type="radio" id={`${field.id}-${i}`} value={val} checked={f.value === val} onChange={() => f.onChange(val)} className="h-4 w-4 text-primary" />
+                                                    <Label htmlFor={`${field.id}-${i}`} className="cursor-pointer font-normal">{label}</Label>
+                                                </>
+                                            )} />
+                                        )}
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    ) : field.type === 'date' ? (
+                        isFieldReadOnly ? (
+                            <div className="p-3 rounded-lg bg-muted text-sm">{value ? new Date(value).toLocaleDateString('ja-JP') : '-'}</div>
+                        ) : (
+                            <Input type={field.includeTime ? 'datetime-local' : 'date'} {...register(field.id, { required: field.required })} className="h-11 bg-background" />
+                        )
+                    ) : field.type === 'number' ? (
+                        isFieldReadOnly ? (
+                            <div className="p-3 rounded-lg bg-muted text-sm text-right font-mono">{value ?? '-'}</div>
+                        ) : (
+                            <Input type="number" {...register(field.id, { required: field.required })} placeholder={`${field.label}を入力...`} className="h-11 bg-background text-right font-mono" />
+                        )
+                    ) : field.type === 'currency' ? (
+                        isFieldReadOnly ? (
+                            <div className="p-3 rounded-lg bg-muted text-sm text-right font-mono">
+                                {value ? `¥${new Intl.NumberFormat('ja-JP').format(Number(value))}` : '-'}
+                            </div>
+                        ) : (
+                            <CurrencyInputField
+                                field={field}
+                                control={control}
+                                readOnly={false}
+                            />
+                        )
+                    ) : field.type === 'calculation' ? (
+                        <CalculationField
+                            field={field}
+                            control={control}
+                            setValue={setValue}
+                            readOnly={isFieldReadOnly}
+                        />
+                    ) : field.type === 'dateRange' ? (
+                        isFieldReadOnly ? (
+                            <div className="p-3 rounded-lg bg-muted text-sm flex items-center gap-2">
+                                 <span>{value?.start ? new Date(value.start).toLocaleDateString('ja-JP') : '-'}</span>
+                                 <span className="text-muted-foreground">～</span>
+                                 <span>{value?.end ? new Date(value.end).toLocaleDateString('ja-JP') : '-'}</span>
+                            </div>
+                        ) : (
+                            <div className="flex items-center gap-2">
+                                <Controller
+                                    name={`${field.id}.start`}
+                                    control={control}
+                                    rules={{ required: field.required }}
+                                    render={({ field: f }) => (
+                                        <Input 
+                                            type="date" 
+                                            value={f.value || ''} 
+                                            onChange={f.onChange} 
+                                            className="h-11 bg-background" 
+                                            placeholder="開始日"
+                                        />
+                                    )}
+                                />
+                                <span className="text-muted-foreground">～</span>
+                                <Controller
+                                    name={`${field.id}.end`}
+                                    control={control}
+                                    rules={{ required: field.required }}
+                                    render={({ field: f }) => (
+                                        <Input 
+                                            type="date" 
+                                            value={f.value || ''} 
+                                            onChange={f.onChange} 
+                                            className="h-11 bg-background" 
+                                            placeholder="終了日"
+                                        />
+                                    )}
+                                />
+                            </div>
+                        )
+                    ) : field.type === 'time' ? (
+                        isFieldReadOnly ? (
+                            <div className="p-3 rounded-lg bg-muted text-sm">{value || '-'}</div>
+                        ) : (
+                            <Input type="time" {...register(field.id, { required: field.required })} className="h-11 bg-background" />
+                        )
+                    ) : field.type === 'file' ? (
+                        <FileUploadField
+                            fieldId={field.id}
+                            control={control}
+                            readOnly={isFieldReadOnly}
+                            required={field.required}
+                            acceptedTypes={field.acceptedTypes}
+                            maxSize={field.maxSize}
+                            multiple={field.multiple}
+                            maxFiles={field.maxFiles}
+                            value={value}
+                        />
+                    ) : field.type === 'user-select' ? (
+                        <Controller
+                            name={field.id}
+                            control={control}
+                            rules={{ required: field.required }}
+                            render={({ field: f }) => (
+                                <UserSelector
+                                    fieldId={field.id}
+                                    value={f.value}
+                                    onChange={f.onChange}
+                                    readOnly={isFieldReadOnly}
+                                    placeholder={`${field.label}を選択...`}
+                                    multiple={field.multiple}
+                                />
+                            )}
+                        />
+                    ) : field.type === 'array' ? (
+                        <Controller
+                            name={field.id}
+                            control={control}
+                            rules={{ required: field.required }}
+                            defaultValue={[]}
+                            render={({ field: f }) => (
+                                <DataGridField
+                                    fieldId={field.id}
+                                    columns={(field.columns || []) as GridColumn[]}
+                                    value={f.value}
+                                    onChange={f.onChange}
+                                    readOnly={isFieldReadOnly}
+                                />
+                            )}
+                        />
+                    ) : field.type === 'switch' ? (
+                        isFieldReadOnly ? (
+                            <div className="flex items-center space-x-2 p-3 rounded-lg bg-muted/30 border">
+                                <Switch checked={!!value} disabled />
+                                <Label className="text-sm font-normal text-muted-foreground">{value ? '有効' : '無効'}</Label>
+                            </div>
+                        ) : (
+                            <Controller name={field.id} control={control} render={({ field: f }) => (
+                                <div className="flex items-center space-x-2">
+                                    <Switch checked={f.value} onCheckedChange={f.onChange} />
+                                    <Label className="text-sm font-normal cursor-pointer" onClick={() => f.onChange(!f.value)}>有効にする</Label>
+                                </div>
+                            )} />
+                        )
+                    ) : field.type === 'department' ? (
+                        <Controller
+                            name={field.id}
+                            control={control}
+                            rules={{ required: field.required }}
+                            render={({ field: f }) => (
+                                <DepartmentSelector
+                                    value={f.value}
+                                    onChange={f.onChange}
+                                    readOnly={isFieldReadOnly}
+                                    multiple={field.multiple}
+                                    placeholder={`${field.label}を選択...`}
+                                />
+                            )}
+                        />
+                    ) : ['text', 'email', 'tel', 'url'].includes(field.type) ? (
+                        isFieldReadOnly ? (
+                            <div className="p-3 rounded-lg bg-muted text-sm">{value || '-'}</div>
+                        ) : (
+                             <Input 
+                                type={field.type === 'text' ? 'text' : field.type} 
+                                {...register(field.id, { 
+                                    required: field.required,
+                                    pattern: field.pattern ? new RegExp(field.pattern) : (
+                                        field.type === 'email' ? /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i : 
+                                        field.type === 'url' ? /^(http|https):\/\/[^ "]+$/ : undefined
+                                    )
+                                })} 
+                                placeholder={`${field.label}を入力...`} 
+                                className="h-11 bg-background" 
+                            />
+                        )
+                    ) : (
+                        // Default fallback
+                        isFieldReadOnly ? (
+                            <div className="p-3 rounded-lg bg-muted text-sm">{value || '-'}</div>
+                        ) : (
+                            <Input type="text" {...register(field.id, { required: field.required })} placeholder={`${field.label}を入力...`} className="h-11 bg-background" />
+                        )
+                    )}
+
+                    {field.description && <p className="text-xs text-muted-foreground">{field.description}</p>}
+                    {errors[field.id] && <p className="text-xs text-destructive">この項目は必須です</p>}
+                </div>
+            );
+        });
     };
 
     return (
         <form onSubmit={handleSubmit(handleFormSubmit)}>
-            <Paper 
-                elevation={0}
-                sx={{ 
-                    p: 5, 
-                    borderRadius: 6,
-                    background: 'rgba(255, 255, 255, 0.9)',
-                    backdropFilter: 'blur(30px)',
-                    boxShadow: '0 20px 60px 0 rgba(31, 38, 135, 0.1)',
-                    border: '1px solid rgba(255, 255, 255, 0.5)',
-                    width: '100%',
-                }}
-            >
-
-
-                <div ref={containerRef}>
-                    {mounted && (
-                        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-                            {(() => {
-                                // Group fields into sections
-                                const sections: any[] = [];
-                                let currentSection: any = { type: 'default', fields: [] };
-
-                                sortedFields.forEach(field => {
-                                    if (field.type === 'group') {
-                                        if (currentSection.fields.length > 0) {
-                                            sections.push(currentSection);
-                                        }
-                                        currentSection = { type: 'group', title: field.title || field.label, fields: [] };
-                                    } else {
-                                        currentSection.fields.push(field);
-                                    }
-                                });
-                                if (currentSection.fields.length > 0 || currentSection.type === 'group') {
-                                    sections.push(currentSection);
-                                }
-
-                                return sections.map((section, secIndex) => (
-                                    <Paper 
-                                        key={secIndex} 
-                                        elevation={section.type === 'group' ? 1 : 0} 
-                                        sx={{ 
-                                            mb: 3, 
-                                            p: section.type === 'group' ? 3 : 0, 
-                                            bgcolor: section.type === 'group' ? 'rgba(255,255,255,0.6)' : 'transparent', 
-                                            borderRadius: 4,
-                                            border: section.type === 'group' ? '1px solid rgba(255,255,255,0.8)' : 'none'
-                                        }}
-                                    >
-                                        {section.type === 'group' && (
-                                            <Typography variant="h6" sx={{ mb: 2, fontWeight: 'bold', color: '#1a365d' }}>
-                                                {section.title}
-                                            </Typography>
-                                        )}
-                                        
-                                        <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(12, 1fr)', gap: 3, width: '100%' }}>
-                                            {section.fields.map((field: any, index: number) => {
-                                                const isReadOnly = readOnly || field.readOnly;
-                                                // Check required status
-                                                const isRequired = !readOnly && (field.required === true || (schema.required && schema.required.includes(field.id)));
-                                                
-                                                // Calculate grid span and position from layout
-                                                // Try to find layout for current field
-                                                let span = 12;
-                                                let xPos = 0;
-                                                let rowHeight = 2; // default rows
-                                                if (effectiveLayouts && effectiveLayouts.lg) {
-                                                    const l = effectiveLayouts.lg.find((l: any) => l.i === field.id);
-                                                    if (l) {
-                                                        span = l.w;
-                                                        xPos = l.x || 0;
-                                                        rowHeight = l.h || 2;
-                                                    }
-                                                }
-                                                // Calculate actual height (each row ~ 80px based on designer rowHeight)
-                                                const itemHeight = rowHeight * 80;
-                                                
-                                                // gridColumn: start / span width
-                                                // CSS Grid columns are 1-indexed, so add 1 to xPos
-                                                const gridColumnValue = xPos > 0 ? `${xPos + 1} / span ${span}` : `span ${span}`;
-                                                
-                                                return (
-                                                    <Box 
-                                                        key={field.id} 
-                                                        sx={{ 
-                                                            gridColumn: gridColumnValue,
-                                                            minHeight: itemHeight,
-                                                            ...itemAnimation,
-                                                            animationDelay: `${index * 0.05}s`,
-                                                            display: 'flex',
-                                                            flexDirection: 'column',
-                                                            justifyContent: 'center'
-                                                        }}
-                                                    >
-                                                        {/* Divider */}
-                                                        {field.type === 'divider' && <Divider sx={{ my: 1 }} />}
-
-                                                        {/* Label (Heading) */}
-                                                        {field.type === 'label' && (
-                                                            <Box sx={{ 
-                                                                display: 'flex', 
-                                                                alignItems: field.verticalAlign === 'top' ? 'flex-start' : field.verticalAlign === 'bottom' ? 'flex-end' : 'center',
-                                                                justifyContent: field.textAlign === 'center' ? 'center' : field.textAlign === 'right' ? 'flex-end' : 'flex-start',
-                                                                height: '100%',
-                                                                minHeight: 50,
-                                                            }}>
-                                                                <Typography variant="h6" sx={{ fontWeight: 'bold', color: '#1a365d' }}>
-                                                                    {field.title || field.label}
-                                                                </Typography>
-                                                            </Box>
-                                                        )}
-
-                                                        {/* Text/Number/Date/TextArea */}
-                                                        {(['text', 'number', 'textarea', 'date'].includes(field.type)) && (
-                                                            <Controller
-                                                                name={field.id}
-                                                                control={methods.control}
-                                                                rules={{ required: isRequired }}
-                                                                defaultValue={field.defaultValue || ''}
-                                                                render={({ field: { onChange, value, ref } }) => (
-                                                                    <TextField
-                                                                        fullWidth
-                                                                        variant="standard"
-                                                                        inputRef={ref}
-                                                                        value={value ?? ''}
-                                                                        onChange={onChange}
-                                                                        multiline={field.type === 'textarea'}
-                                                                        rows={field.type === 'textarea' ? 4 : 1}
-                                                                        type={field.type === 'date' ? (field.includeTime ? 'datetime-local' : 'date') : field.type}
-                                                                        label={field.title}
-                                                                        InputLabelProps={{ shrink: true, required: isRequired }}
-                                                                        error={!!errors[field.id]}
-                                                                        helperText={errors[field.id] ? '必須項目です' : ''}
-                                                                        InputProps={{ 
-                                                                            disableUnderline: true,
-                                                                            readOnly: isReadOnly,
-                                                                        }}
-                                                                        inputProps={{
-                                                                            style: { textAlign: field.textAlign }
-                                                                        }}
-                                                                        disabled={isReadOnly}
-                                                                        sx={inputStyle}
-                                                                    />
-                                                                )}
-                                                            />
-                                                        )}
-
-                                                        {/* Select */}
-                                                        {field.type === 'select' && (
-                                                            <Controller
-                                                                name={field.id}
-                                                                control={methods.control}
-                                                                rules={{ required: isRequired }}
-                                                                defaultValue={field.defaultValue || ''}
-                                                                render={({ field: { onChange, value, ref } }) => (
-                                                                    <TextField
-                                                                        select
-                                                                        fullWidth
-                                                                        variant="standard"
-                                                                        inputRef={ref}
-                                                                        label={field.title}
-                                                                        value={value ?? ''}
-                                                                        onChange={onChange}
-                                                                        InputLabelProps={{ shrink: true, required: isRequired }}
-                                                                        error={!!errors[field.id]}
-                                                                        InputProps={{ disableUnderline: true, readOnly: isReadOnly }}
-                                                                        disabled={isReadOnly}
-                                                                        sx={inputStyle}
-                                                                    >
-                                                                        {field.options?.map((opt: any) => {
-                                                                            const val = typeof opt === 'string' ? opt : opt.value;
-                                                                            const lbl = typeof opt === 'string' ? opt : opt.label;
-                                                                            return (
-                                                                                <MenuItem key={val} value={val} sx={{ borderRadius: 2, m: 0.5 }}>
-                                                                                    {lbl}
-                                                                                </MenuItem>
-                                                                            );
-                                                                        })}
-                                                                    </TextField>
-                                                                )}
-                                                            />
-                                                        )}
-
-                                                        {/* Radio Group */}
-                                                        {field.type === 'radio' && (
-                                                            <Controller
-                                                                name={field.id}
-                                                                control={methods.control}
-                                                                rules={{ required: isRequired }}
-                                                                defaultValue={field.defaultValue || ''}
-                                                                render={({ field: { onChange, value } }) => (
-                                                                    <FormControl component="fieldset" error={!!errors[field.id]} fullWidth disabled={isReadOnly}>
-                                                                        <FormLabel component="legend" required={isRequired} sx={{ mb: 1.5, fontWeight: 'bold', fontSize: '0.9rem', color: '#4a5568' }}>{field.title}</FormLabel>
-                                                                        <RadioGroup 
-                                                                            row 
-                                                                            sx={{ display: 'flex', flexWrap: 'wrap', mx: -0.5 }}
-                                                                            value={value ?? ''}
-                                                                            onChange={onChange}
-                                                                        >
-                                                                            {field.options?.map((opt: any) => {
-                                                                                const val = typeof opt === 'string' ? opt : opt.value;
-                                                                                const lbl = typeof opt === 'string' ? opt : opt.label;
-                                                                                return (
-                                                                                    <FormControlLabel
-                                                                                        key={val}
-                                                                                        value={val}
-                                                                                        control={<Radio sx={{ '&.Mui-checked': { color: '#3a1c71' } }} />}
-                                                                                        label={lbl}
-                                                                                        sx={selectionCardStyle}
-                                                                                    />
-                                                                                );
-                                                                            })}
-                                                                        </RadioGroup>
-                                                                    </FormControl>
-                                                                )}
-                                                            />
-                                                        )}
-
-                                                        {/* Checkbox Group */}
-                                                        {field.type === 'checkbox' && (
-                                                            <Controller
-                                                                name={field.id}
-                                                                control={methods.control}
-                                                                rules={{ required: isRequired }}
-                                                                defaultValue={field.defaultValue || (field.options?.length > 0 ? [] : false)}
-                                                                render={({ field: { onChange, value } }) => (
-                                                                    <FormControl component="fieldset" error={!!errors[field.id]} fullWidth disabled={isReadOnly}>
-                                                                        <FormLabel component="legend" required={isRequired} sx={{ mb: 1.5, fontWeight: 'bold', fontSize: '0.9rem', color: '#4a5568' }}>{field.title}</FormLabel>
-                                                                        <Box sx={{ display: 'flex', flexWrap: 'wrap', mx: -0.5 }}>
-                                                                            {field.options && field.options.length > 0 ? (
-                                                                                /* Multi-checkbox group */
-                                                                                field.options.map((opt: any) => {
-                                                                                    const val = typeof opt === 'string' ? opt : opt.value;
-                                                                                    const lbl = typeof opt === 'string' ? opt : opt.label;
-                                                                                    const isChecked = Array.isArray(value) ? value.includes(val) : false;
-                                                                                    
-                                                                                    return (
-                                                                                        <FormControlLabel
-                                                                                            key={val}
-                                                                                            control={
-                                                                                                <Checkbox 
-                                                                                                    checked={isChecked}
-                                                                                                    onChange={(e) => {
-                                                                                                        const newValue = e.target.checked
-                                                                                                            ? [...(Array.isArray(value) ? value : []), val]
-                                                                                                            : (Array.isArray(value) ? value : []).filter((v: any) => v !== val);
-                                                                                                        onChange(newValue);
-                                                                                                    }}
-                                                                                                    sx={{ '&.Mui-checked': { color: '#3a1c71' } }}
-                                                                                                />
-                                                                                            }
-                                                                                            label={lbl}
-                                                                                            sx={selectionCardStyle}
-                                                                                        />
-                                                                                    );
-                                                                                })
-                                                                            ) : (
-                                                                                /* Single checkbox (boolean) */
-                                                                                 <FormControlLabel
-                                                                                    control={
-                                                                                        <Checkbox 
-                                                                                            checked={!!value}
-                                                                                            onChange={(e) => onChange(e.target.checked)}
-                                                                                            sx={{ '&.Mui-checked': { color: '#3a1c71' } }}
-                                                                                        />
-                                                                                    }
-                                                                                    label={field.title || field.label}
-                                                                                    sx={selectionCardStyle}
-                                                                                />
-                                                                            )}
-                                                                        </Box>
-                                                                    </FormControl>
-                                                                )}
-                                                            />
-                                                        )}
-                                                    </Box>
-                                                );
-                                            })}
-                                        </Box>
-                                    </Paper>
-                                ));
-                            })()}
-                        </Box>
-                    )}
+            <div ref={containerRef} className="space-y-6">
+                <div className="grid grid-cols-12 gap-4">
+                    {renderFields(undefined)}
                 </div>
-
-                <Box sx={{ mt: 6, display: 'flex', justifyContent: 'center' }}>
-                    {renderActions ? renderActions(methods) : (!readOnly && (
-                        <Button 
-                            type="submit" 
-                            variant="contained" 
-                            size="large"
-                            sx={{
-                                px: 8,
-                                py: 2,
-                                borderRadius: 50,
-                                fontSize: '1.2rem',
-                                fontWeight: 'bold',
-                                textTransform: 'none',
-                                background: 'linear-gradient(45deg, #3a1c71 30%, #d76d77 90%)',
-                                boxShadow: '0 10px 30px rgba(58, 28, 113, 0.3)',
-                                transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-                                '&:hover': {
-                                    transform: 'translateY(-3px) scale(1.02)',
-                                    boxShadow: '0 20px 40px rgba(58, 28, 113, 0.4)',
-                                },
-                                '&:active': {
-                                    transform: 'translateY(-1px)',
-                                }
-                            }}
-                        >
-                            Submit Application
-                        </Button>
-                    ))}
-                </Box>
-            </Paper>
+            </div>
+            {renderActions && <div className="mt-6">{renderActions(methods)}</div>}
         </form>
     );
 }

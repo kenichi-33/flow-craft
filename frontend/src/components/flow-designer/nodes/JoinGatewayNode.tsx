@@ -1,141 +1,53 @@
-'use client';
+// JoinGatewayNode - Converted from MUI to shadcn/ui
+import { useState } from 'react';
+import { Handle, Position, useReactFlow } from '@xyflow/react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Plus } from 'lucide-react';
 
-import React, { useState } from 'react';
-import { Handle, Position, useReactFlow } from 'reactflow';
-import {
-    Box, Typography, Dialog, DialogTitle, DialogContent,
-    DialogActions, TextField, Button
-} from '@mui/material';
-import AddIcon from '@mui/icons-material/Add';
-
-// Join Gateway Node - Multiple inputs, one output
 export default function JoinGatewayNode({ id, data }: { id: string; data: any }) {
     const [dialogOpen, setDialogOpen] = useState(false);
     const [label, setLabel] = useState(data.label || '合流');
     const { setNodes } = useReactFlow();
-
     const isReadOnly = data.readOnly === true;
 
     const handleSave = () => {
         if (isReadOnly) return;
-        setNodes((nds) =>
-            nds.map((node) =>
-                node.id === id
-                    ? {
-                        ...node,
-                        data: {
-                            ...node.data,
-                            label,
-                        }
-                    }
-                    : node
-            )
-        );
+        setNodes((nds) => nds.map((node) => node.id === id ? { ...node, data: { ...node.data, label } } : node));
         setDialogOpen(false);
     };
 
     return (
         <>
-            <Box
-                sx={{
-                    width: 50,
-                    height: 50,
-                    transform: 'rotate(45deg)',
-                    background: '#ffeb3b', // Yellow
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    boxShadow: '0 4px 8px rgba(0,0,0,0.2)',
-                    border: '2px solid #fbc02d',
-                    position: 'relative',
-                    cursor: 'pointer',
-                }}
-                onDoubleClick={() => setDialogOpen(true)}
-            >
-                <Box
-                    sx={{
-                        transform: 'rotate(-45deg)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                    }}
+            <div className="relative">
+                <div
+                    className="w-[50px] h-[50px] rotate-45 bg-yellow-300 flex items-center justify-center shadow-lg border-2 border-yellow-500 cursor-pointer"
+                    onDoubleClick={() => setDialogOpen(true)}
                 >
-                    {/* Same icon as Parallel but logically distinct */}
-                    <AddIcon sx={{ color: '#f57f17', fontSize: 32 }} />
-                </Box>
+                    <div className="-rotate-45"><Plus className="h-8 w-8 text-yellow-700" /></div>
+                    <Handle type="target" position={Position.Left} id="input" className="!bg-yellow-500 !w-2 !h-2 !left-0 !top-0 !-translate-x-1/2 !-translate-y-1/2" />
+                    <Handle type="source" position={Position.Right} id="output" className="!bg-yellow-500 !w-2 !h-2 !right-0 !bottom-0 !translate-x-1/2 !translate-y-1/2" />
+                </div>
+                <span className="absolute top-14 left-1/2 -translate-x-1/2 w-24 text-center text-xs font-bold drop-shadow-sm pointer-events-none">{data.label || '合流'}</span>
+            </div>
 
-                {/* Input Handle */}
-                <Handle
-                    type="target"
-                    position={Position.Left}
-                    id="input"
-                    style={{
-                        left: 0,
-                        top: 0,
-                        transform: 'translate(-50%, -50%)',
-                        background: '#fbc02d',
-                        width: 8,
-                        height: 8,
-                    }}
-                />
-
-                {/* Output Handle */}
-                <Handle
-                    type="source"
-                    position={Position.Right}
-                    id="output"
-                    style={{
-                        right: 0,
-                        bottom: 0,
-                        transform: 'translate(50%, 50%)',
-                        background: '#fbc02d',
-                        width: 8,
-                        height: 8,
-                    }}
-                />
-            </Box>
-
-            <Typography
-                variant="caption"
-                sx={{
-                    position: 'absolute',
-                    top: 55,
-                    left: '50%',
-                    transform: 'translateX(-50%)',
-                    width: 100,
-                    textAlign: 'center',
-                    fontWeight: 'bold',
-                    textShadow: '0 1px 2px white',
-                    pointerEvents: 'none',
-                }}
-            >
-                {data.label || '合流'}
-            </Typography>
-
-            {/* Unified Dialog */}
-            <Dialog open={dialogOpen} onClose={() => setDialogOpen(false)}>
-                <DialogTitle>{isReadOnly ? '合流ゲートウェイ設定 (読取専用)' : '合流ゲートウェイ設定'}</DialogTitle>
-                <DialogContent>
-                    <TextField
-                        autoFocus
-                        margin="dense"
-                        label="ラベル"
-                        fullWidth
-                        value={label}
-                        onChange={(e) => setLabel(e.target.value)}
-                        disabled={isReadOnly}
-                    />
+            <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+                <DialogContent className="sm:max-w-sm">
+                    <DialogHeader><DialogTitle>{isReadOnly ? '合流ゲートウェイ (読取専用)' : '合流ゲートウェイ設定'}</DialogTitle></DialogHeader>
+                    <div className="space-y-3 py-2">
+                        <div className="space-y-1.5">
+                            <Label>ラベル</Label>
+                            <Input value={label} onChange={(e) => setLabel(e.target.value)} disabled={isReadOnly} />
+                        </div>
+                    </div>
+                    <DialogFooter>
+                        {isReadOnly ? <Button onClick={() => setDialogOpen(false)}>閉じる</Button> : (
+                            <><Button variant="outline" onClick={() => setDialogOpen(false)}>キャンセル</Button><Button onClick={handleSave}>保存</Button></>
+                        )}
+                    </DialogFooter>
                 </DialogContent>
-                <DialogActions>
-                    {isReadOnly ? (
-                        <Button onClick={() => setDialogOpen(false)} variant="contained">閉じる</Button>
-                    ) : (
-                        <>
-                            <Button onClick={() => setDialogOpen(false)}>キャンセル</Button>
-                            <Button onClick={handleSave} variant="contained">保存</Button>
-                        </>
-                    )}
-                </DialogActions>
             </Dialog>
         </>
     );

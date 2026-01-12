@@ -1,16 +1,15 @@
-'use client';
+// LLMCallNode - Converted from MUI to shadcn/ui
+import { useState } from 'react';
+import { Handle, Position, useReactFlow } from '@xyflow/react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Separator } from '@/components/ui/separator';
+import { Pencil, Bot } from 'lucide-react';
 
-import React, { useState } from 'react';
-import { Handle, Position, useReactFlow } from 'reactflow';
-import {
-    Box, Typography, IconButton, Dialog, DialogTitle, DialogContent,
-    DialogActions, TextField, Button, Select, MenuItem, FormControl, InputLabel,
-    Divider, Slider
-} from '@mui/material';
-import EditIcon from '@mui/icons-material/Edit';
-import SmartToyIcon from '@mui/icons-material/SmartToy';
-
-// LLM Call Node - AI/ML Service Task style
 export default function LLMCallNode({ id, data }: { id: string; data: any }) {
     const [dialogOpen, setDialogOpen] = useState(false);
     const [label, setLabel] = useState(data.label || 'LLM呼び出し');
@@ -20,200 +19,77 @@ export default function LLMCallNode({ id, data }: { id: string; data: any }) {
     const [temperature, setTemperature] = useState(data.temperature ?? 0.7);
     const [outputField, setOutputField] = useState(data.outputField || 'llmResponse');
     const { setNodes } = useReactFlow();
-
     const isReadOnly = data.readOnly === true;
 
     const handleSave = () => {
-        if (isReadOnly) return;
-        setNodes((nds) =>
-            nds.map((node) =>
-                node.id === id
-                    ? {
-                        ...node,
-                        data: {
-                            ...node.data,
-                            label,
-                            model,
-                            prompt,
-                            systemPrompt,
-                            temperature,
-                            outputField,
-                        }
-                    }
-                    : node
-            )
-        );
+        if (isReadOnly) { setDialogOpen(false); return; }
+        setNodes((nds) => nds.map((node) => node.id === id ? { ...node, data: { ...node.data, label, model, prompt, systemPrompt, temperature, outputField } } : node));
         setDialogOpen(false);
     };
 
     return (
         <>
-            <Box
-                sx={{
-                    minWidth: 140,
-                    minHeight: 60,
-                    px: 2,
-                    py: 1,
-                    borderRadius: 2,
-                    background: 'linear-gradient(135deg, #26a69a 0%, #00897b 100%)',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    boxShadow: '0 4px 12px rgba(0, 137, 123, 0.4)',
-                    border: '2px solid rgba(255,255,255,0.5)',
-                    position: 'relative',
-                    cursor: isReadOnly ? 'pointer' : 'default',
-                }}
+            <div
+                className="min-w-[140px] min-h-[60px] px-4 py-2 rounded-lg bg-gradient-to-br from-teal-400 to-teal-600 flex flex-col items-center justify-center shadow-lg border-2 border-white/50 relative"
+                style={{ cursor: isReadOnly ? 'pointer' : 'default' }}
                 onClick={isReadOnly ? () => setDialogOpen(true) : undefined}
             >
-                <Handle
-                    type="target"
-                    position={Position.Left}
-                    style={{
-                        background: '#00695c',
-                        width: 10,
-                        height: 10,
-                        border: '2px solid white',
-                    }}
-                />
-
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                    <SmartToyIcon sx={{ color: 'white', fontSize: 16 }} />
-                    <Typography
-                        variant="body2"
-                        sx={{
-                            color: 'white',
-                            fontWeight: 'bold',
-                            textShadow: '0 1px 2px rgba(0,0,0,0.3)',
-                        }}
-                    >
-                        {data.label || 'LLM呼び出し'}
-                    </Typography>
+                <Handle type="target" position={Position.Left} className="!bg-teal-700 !w-2.5 !h-2.5 !border-2 !border-white" />
+                <div className="flex items-center gap-1">
+                    <Bot className="h-4 w-4 text-white" />
+                    <span className="text-sm text-white font-bold drop-shadow-sm">{data.label || 'LLM呼び出し'}</span>
                     {!isReadOnly && (
-                        <IconButton
-                            size="small"
-                            onClick={() => setDialogOpen(true)}
-                            onMouseDown={(e) => e.stopPropagation()}
-                            sx={{ color: 'white', p: 0.3 }}
-                        >
-                            <EditIcon sx={{ fontSize: 14 }} />
-                        </IconButton>
+                        <button className="p-0.5 text-white hover:bg-white/20 rounded" onClick={() => setDialogOpen(true)} onMouseDown={(e) => e.stopPropagation()}>
+                            <Pencil className="h-3.5 w-3.5" />
+                        </button>
                     )}
-                </Box>
+                </div>
+                {data.model && <span className="text-[9px] text-white/80">{data.model}</span>}
+                <Handle type="source" position={Position.Right} className="!bg-teal-700 !w-2.5 !h-2.5 !border-2 !border-white" />
+            </div>
 
-                {data.model && (
-                    <Typography
-                        variant="caption"
-                        sx={{ color: 'rgba(255,255,255,0.8)', fontSize: 9 }}
-                    >
-                        {data.model}
-                    </Typography>
-                )}
-
-                <Handle
-                    type="source"
-                    position={Position.Right}
-                    style={{
-                        background: '#00695c',
-                        width: 10,
-                        height: 10,
-                        border: '2px solid white',
-                    }}
-                />
-            </Box>
-
-            {/* Unified Dialog */}
-            <Dialog open={dialogOpen} onClose={() => setDialogOpen(false)} maxWidth="sm" fullWidth>
-                <DialogTitle>{isReadOnly ? 'LLM呼び出し設定 (読取専用)' : 'LLM呼び出し設定'}</DialogTitle>
-                <DialogContent>
-                    <TextField
-                        label="ステップ名"
-                        value={label}
-                        onChange={(e) => setLabel(e.target.value)}
-                        fullWidth
-                        sx={{ mt: 2 }}
-                        disabled={isReadOnly}
-                    />
-
-                    <FormControl fullWidth sx={{ mt: 2 }} disabled={isReadOnly}>
-                        <InputLabel>モデル</InputLabel>
-                        <Select
-                            value={model}
-                            onChange={(e) => setModel(e.target.value)}
-                            label="モデル"
-                        >
-                            <MenuItem value="gpt-4">GPT-4</MenuItem>
-                            <MenuItem value="gpt-4-turbo">GPT-4 Turbo</MenuItem>
-                            <MenuItem value="gpt-3.5-turbo">GPT-3.5 Turbo</MenuItem>
-                            <MenuItem value="claude-3-opus">Claude 3 Opus</MenuItem>
-                            <MenuItem value="claude-3-sonnet">Claude 3 Sonnet</MenuItem>
-                            <MenuItem value="gemini-pro">Gemini Pro</MenuItem>
-                        </Select>
-                    </FormControl>
-
-                    <Divider sx={{ my: 2 }} />
-
-                    <TextField
-                        label="システムプロンプト"
-                        value={systemPrompt}
-                        onChange={(e) => setSystemPrompt(e.target.value)}
-                        fullWidth
-                        multiline
-                        rows={2}
-                        placeholder="あなたは○○のエキスパートです。"
-                        disabled={isReadOnly}
-                    />
-
-                    <TextField
-                        label="プロンプト"
-                        value={prompt}
-                        onChange={(e) => setPrompt(e.target.value)}
-                        fullWidth
-                        multiline
-                        rows={3}
-                        sx={{ mt: 2 }}
-                        placeholder="{{formField}} の内容を分析してください。"
-                        helperText="{{変数名}} でフォームデータを参照可能"
-                        disabled={isReadOnly}
-                    />
-
-                    <Box sx={{ mt: 2 }}>
-                        <Typography variant="body2" gutterBottom>
-                            Temperature: {temperature}
-                        </Typography>
-                        <Slider
-                            value={temperature}
-                            onChange={(_, v) => setTemperature(v as number)}
-                            min={0}
-                            max={2}
-                            step={0.1}
-                            valueLabelDisplay="auto"
-                            disabled={isReadOnly}
-                        />
-                    </Box>
-
-                    <TextField
-                        label="出力フィールド名"
-                        value={outputField}
-                        onChange={(e) => setOutputField(e.target.value)}
-                        fullWidth
-                        sx={{ mt: 2 }}
-                        placeholder="llmResponse"
-                        helperText="LLMの応答を保存するフィールド名"
-                        disabled={isReadOnly}
-                    />
+            <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+                <DialogContent className="sm:max-w-md">
+                    <DialogHeader><DialogTitle>{isReadOnly ? 'LLM呼び出し (読取専用)' : 'LLM呼び出し設定'}</DialogTitle></DialogHeader>
+                    <div className="space-y-4">
+                        <div className="space-y-1.5"><Label>ステップ名</Label><Input value={label} onChange={(e) => setLabel(e.target.value)} disabled={isReadOnly} /></div>
+                        <div className="space-y-1.5">
+                            <Label>モデル</Label>
+                            <Select value={model} onValueChange={setModel} disabled={isReadOnly}>
+                                <SelectTrigger><SelectValue /></SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="gpt-4">GPT-4</SelectItem>
+                                    <SelectItem value="gpt-4-turbo">GPT-4 Turbo</SelectItem>
+                                    <SelectItem value="gpt-3.5-turbo">GPT-3.5 Turbo</SelectItem>
+                                    <SelectItem value="claude-3-opus">Claude 3 Opus</SelectItem>
+                                    <SelectItem value="claude-3-sonnet">Claude 3 Sonnet</SelectItem>
+                                    <SelectItem value="gemini-pro">Gemini Pro</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+                        <Separator />
+                        <div className="space-y-1.5"><Label>システムプロンプト</Label><Textarea value={systemPrompt} onChange={(e) => setSystemPrompt(e.target.value)} rows={2} placeholder="あなたは○○のエキスパートです。" disabled={isReadOnly} /></div>
+                        <div className="space-y-1.5">
+                            <Label>プロンプト</Label>
+                            <Textarea value={prompt} onChange={(e) => setPrompt(e.target.value)} rows={3} placeholder={"{{formField}} の内容を分析してください。"} disabled={isReadOnly} />
+                            <p className="text-xs text-muted-foreground">{"{{変数名}}"} でフォームデータを参照可能</p>
+                        </div>
+                        <div className="space-y-1.5">
+                            <Label>Temperature: {temperature}</Label>
+                            <input type="range" min={0} max={2} step={0.1} value={temperature} onChange={(e) => setTemperature(parseFloat(e.target.value))} disabled={isReadOnly} className="w-full h-2 bg-muted rounded-lg cursor-pointer" />
+                        </div>
+                        <div className="space-y-1.5">
+                            <Label>出力フィールド名</Label>
+                            <Input value={outputField} onChange={(e) => setOutputField(e.target.value)} placeholder="llmResponse" disabled={isReadOnly} />
+                            <p className="text-xs text-muted-foreground">LLMの応答を保存するフィールド名</p>
+                        </div>
+                    </div>
+                    <DialogFooter>
+                        {isReadOnly ? <Button onClick={() => setDialogOpen(false)}>閉じる</Button> : (
+                            <><Button variant="outline" onClick={() => setDialogOpen(false)}>キャンセル</Button><Button onClick={handleSave}>保存</Button></>
+                        )}
+                    </DialogFooter>
                 </DialogContent>
-                <DialogActions>
-                    {isReadOnly ? (
-                        <Button onClick={() => setDialogOpen(false)} variant="contained">閉じる</Button>
-                    ) : (
-                        <>
-                            <Button onClick={() => setDialogOpen(false)}>キャンセル</Button>
-                            <Button variant="contained" onClick={handleSave}>保存</Button>
-                        </>
-                    )}
-                </DialogActions>
             </Dialog>
         </>
     );

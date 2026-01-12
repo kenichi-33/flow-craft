@@ -1,92 +1,51 @@
-import { getKeycloak } from './keycloak';
+import { useAuthStore } from '@/stores/useAuthStore';
 
-export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8080';
+export const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8080';
 
 export class ApiError extends Error {
-    constructor(public status: number, public message: string, public data?: any) {
+    public status: number;
+    public message: string;
+    public data?: any;
+
+    constructor(status: number, message: string, data?: any) {
         super(message);
+        this.status = status;
+        this.message = message;
+        this.data = data;
         this.name = 'ApiError';
-    }
-}
-
-// トークン更新を試みる（有効期限30秒前に更新）
-async function refreshTokenIfNeeded(): Promise<boolean> {
-    try {
-        const keycloak = getKeycloak();
-        if (!keycloak.authenticated) {
-            return false;
-        }
-        // トークンの有効期限が30秒未満なら更新
-        const updated = await keycloak.updateToken(30);
-        if (updated) {
-            console.log('[Auth] Token refreshed successfully');
-        }
-        return true;
-    } catch (error) {
-        console.error('[Auth] Token refresh failed:', error);
-        return false;
-    }
-}
-
-// 強制的にトークン更新
-async function forceRefreshToken(): Promise<boolean> {
-    try {
-        const keycloak = getKeycloak();
-        if (!keycloak.authenticated) {
-            return false;
-        }
-        // 0秒を指定して強制更新
-        await keycloak.updateToken(-1);
-        console.log('[Auth] Token force refreshed');
-        return true;
-    } catch (error) {
-        console.error('[Auth] Force token refresh failed:', error);
-        // リフレッシュに失敗した場合は再ログイン
-        try {
-            const keycloak = getKeycloak();
-            keycloak.login();
-        } catch {
-            // ログインも失敗した場合は無視
-        }
-        return false;
-    }
-}
-
-// 現在のアクセストークンを取得
-function getAccessToken(): string | null {
-    try {
-        const keycloak = getKeycloak();
-        return keycloak.token || null;
-    } catch {
-        return null;
     }
 }
 
 async function request<T>(endpoint: string, options: RequestInit = {}, retryCount = 0): Promise<T> {
     const url = `${API_BASE_URL}${endpoint}`;
+    const { refreshToken, logout } = useAuthStore.getState();
 
-    // リクエスト前にトークン更新チェック
-    await refreshTokenIfNeeded();
+    // Refresh if needed before request (e.g. if token is about to expire)
+    // For now, reliance on 401 retry might be sufficient, but we can call refreshToken() if we track expiry.
+    // However, Keycloak-js usually manages this. usage of refreshToken() here checks expiry internal to keycloak-js.
+    await refreshToken(); 
 
-    const token = getAccessToken();
+    const currentToken = useAuthStore.getState().token;
 
     try {
         const response = await fetch(url, {
             ...options,
             headers: {
                 'Content-Type': 'application/json',
-                ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+                ...(currentToken ? { 'Authorization': `Bearer ${currentToken}` } : {}),
                 ...options.headers,
             },
         });
 
-        // 401エラーの場合、トークン更新して1回だけリトライ
+        // 401 retry logic
         if (response.status === 401 && retryCount < 1) {
             console.log('[API] 401 Unauthorized - attempting token refresh...');
-            const refreshed = await forceRefreshToken();
+            const refreshed = await refreshToken();
             if (refreshed) {
-                // リトライ
                 return request<T>(endpoint, options, retryCount + 1);
+            } else {
+                logout(); // Logout if refresh fails on 401
+                throw new ApiError(401, 'Session expired');
             }
         }
 
@@ -106,13 +65,14 @@ async function request<T>(endpoint: string, options: RequestInit = {}, retryCoun
         return text ? JSON.parse(text) : {} as any;
 
     } catch (e) {
-        // 401エラーの場合はリトライを試みてからログを出力
         if (e instanceof ApiError && e.status === 401 && retryCount < 1) {
-            console.log('[API] 401 error caught - attempting recovery...');
-            const refreshed = await forceRefreshToken();
-            if (refreshed) {
-                return request<T>(endpoint, options, retryCount + 1);
-            }
+             console.log('[API] 401 error caught - attempting recovery...');
+             const refreshed = await refreshToken();
+             if (refreshed) {
+                 return request<T>(endpoint, options, retryCount + 1);
+             } else {
+                 logout();
+             }
         }
         console.error('[API] Error:', e);
         throw e;
@@ -125,6 +85,3 @@ export const api = {
     put: <T>(endpoint: string, body: any) => request<T>(endpoint, { method: 'PUT', body: JSON.stringify(body) }),
     delete: <T>(endpoint: string) => request<T>(endpoint, { method: 'DELETE' }),
 };
-
-// トークン更新関数をエクスポート（AuthProviderで使用）
-export { refreshTokenIfNeeded, forceRefreshToken };

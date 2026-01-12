@@ -1,132 +1,67 @@
-'use client';
+// FlowVisualization - Converted from MUI to shadcn/ui with @xyflow/react v12
+import { useMemo } from 'react';
+import { ReactFlow, MarkerType, Background, Handle, Position, Controls } from '@xyflow/react';
+import '@xyflow/react/dist/style.css';
+import { Badge } from '@/components/ui/badge';
 
-import React, { useMemo } from 'react';
-import { Box, Typography, Chip } from '@mui/material';
-import ReactFlow, { MarkerType, Background, Handle, Position, Controls } from 'reactflow';
-import 'reactflow/dist/style.css';
-
-// 共通のハンドル設定（BPMN標準の左→右接続）
+// Common handles (invisible) for BPMN left-to-right connection
 const CommonHandles = () => (
     <>
-        <Handle type="target" position={Position.Left} id="input" style={{ opacity: 0, pointerEvents: 'none' }} />
-        <Handle type="source" position={Position.Right} id="output" style={{ opacity: 0, pointerEvents: 'none' }} />
-        <Handle type="source" position={Position.Right} id="yes" style={{ opacity: 0, top: '30%', pointerEvents: 'none' }} />
-        <Handle type="source" position={Position.Right} id="no" style={{ opacity: 0, top: '70%', pointerEvents: 'none' }} />
+        <Handle type="target" position={Position.Left} id="input" className="!opacity-0 !pointer-events-none" />
+        <Handle type="source" position={Position.Right} id="output" className="!opacity-0 !pointer-events-none" />
+        <Handle type="source" position={Position.Right} id="yes" className="!opacity-0 !pointer-events-none" style={{ top: '30%' }} />
+        <Handle type="source" position={Position.Right} id="no" className="!opacity-0 !pointer-events-none" style={{ top: '70%' }} />
     </>
 );
 
-// 承認ノード：担当者表示あり
+// Approval node with assignee display
 const ApprovalNode = ({ data }: { data: any }) => (
-    <Box sx={{ 
-        p: 1, 
-        textAlign: 'center', 
-        position: 'relative', 
-        minWidth: 120, 
-        minHeight: 60,
-        display: 'flex',
-        flexDirection: 'column',
-        justifyContent: 'center',
-        alignItems: 'center'
-    }}>
+    <div className="p-2 text-center min-w-[120px] min-h-[60px] flex flex-col items-center justify-center relative">
         <CommonHandles />
-        <Typography variant="body2" fontWeight="bold">{data?.label || '承認'}</Typography>
-        {data?.assigneeDisplay ? (
-            <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, fontSize: '0.7rem' }}>
-                {data.assigneeDisplay}
-            </Typography>
-        ) : (
-            <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, fontSize: '0.7rem' }}>
-                未割当
-            </Typography>
-        )}
-        {data?.isCurrent && (
-            <Chip label="現在" size="small" color="primary" sx={{ mt: 0.5, height: 18, fontSize: 10 }} />
-        )}
-        {data?.isCompleted && !data?.isCurrent && (
-            <Chip label="完了" size="small" color="success" sx={{ mt: 0.5, height: 18, fontSize: 10 }} />
-        )}
-    </Box>
+        <span className="text-sm font-bold">{data?.label || '承認'}</span>
+        <span className="text-xs text-muted-foreground mt-0.5">{data?.assigneeDisplay || '未割当'}</span>
+        {data?.isCurrent && <Badge className="mt-1 h-4 text-[10px] px-1.5">現在</Badge>}
+        {data?.isCompleted && !data?.isCurrent && <Badge variant="secondary" className="mt-1 h-4 text-[10px] px-1.5 bg-emerald-100 text-emerald-700">完了</Badge>}
+    </div>
 );
 
-// 開始・終了ノード：丸型
+// Cycle node (start/end) - circular
 const CycleNode = ({ data }: { data: any }) => (
-    <Box sx={{ 
-        width: 40,
-        height: 40,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        borderRadius: '50%',
-        position: 'relative',
-    }}>
+    <div className="w-10 h-10 flex items-center justify-center rounded-full relative">
         <CommonHandles />
-        <Typography variant="caption" fontWeight="bold" sx={{ fontSize: '0.7rem' }}>
-            {data?.label}
-        </Typography>
-    </Box>
+        <span className="text-xs font-bold">{data?.label}</span>
+    </div>
 );
 
-// ゲートウェイノード：菱形（CSSで表現）
-// ゲートウェイノード：菱形（CSSで表現）
+// Gateway node - diamond shape
 const GatewayNode = ({ data }: { data: any }) => (
-    <Box sx={{ 
-        width: 40,
-        height: 40,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        transform: 'rotate(45deg)', // 菱形にする
-        backgroundColor: data?.bgColor || '#f5f5f5',
-        border: `2px solid ${data?.borderColor || '#ccc'}`,
-        borderRadius: '4px',
-    }}>
+    <div className="w-10 h-10 flex items-center justify-center rotate-45 rounded border-2" style={{ backgroundColor: data?.bgColor || '#f5f5f5', borderColor: data?.borderColor || '#ccc' }}>
         <CommonHandles />
-        <Typography 
-            variant="caption" 
-            fontWeight="bold" 
-            sx={{ 
-                transform: 'rotate(-45deg)', // 文字は戻す
-                fontSize: '0.7rem'
-            }}
-        >
-            {data?.label || '?'}
-        </Typography>
-    </Box>
+        <span className="text-xs font-bold -rotate-45">{data?.label || '?'}</span>
+    </div>
 );
 
-// その他のシンプルノード
+// Simple node for API/LLM calls
 const SimpleNode = ({ data }: { data: any }) => (
-    <Box sx={{ p: 1, textAlign: 'center', position: 'relative', minWidth: 60, minHeight: 30 }}>
+    <div className="p-2 text-center min-w-[60px] min-h-[30px] relative">
         <CommonHandles />
-        {data?.label || ''}
-    </Box>
+        <span className="text-xs">{data?.label || ''}</span>
+    </div>
 );
 
-// スイムレーンノード：描画はFlowVisualization内のrendererで行うが、念のため
-// スイムレーンノード
+// Swimlane node
 const SwimlaneNode = ({ data }: { data: any }) => (
-    <Box sx={{ position: 'relative', width: '100%', height: '100%' }}>
-        {data?.label}
-    </Box>
+    <div className="relative w-full h-full">
+        <div className="absolute left-0 top-0 bottom-0 w-9 bg-white/40 border-r border-blue-300 flex items-center justify-center" style={{ writingMode: 'vertical-rl', textOrientation: 'upright' }}>
+            <span className="text-sm font-bold text-blue-700 tracking-widest">{data?.label || 'レーン'}</span>
+        </div>
+    </div>
 );
-
-// nodeTypesの定義
-const nodeTypes = {
-    approval: ApprovalNode,
-    apiCall: SimpleNode,
-    llmCall: SimpleNode,
-    start: CycleNode,
-    end: CycleNode,
-    parallel: GatewayNode,
-    join: GatewayNode,
-    branch: GatewayNode,
-    swimlane: SwimlaneNode,
-};
 
 interface FlowVisualizationProps {
     nodes: any[];
     edges: any[];
-    currentNodeId?: string | string[] | null; // 配列も許容
+    currentNodeId?: string | string[] | null;
     completedStepIds?: Set<string> | string[];
     height?: number;
     showBackground?: boolean;
@@ -142,20 +77,15 @@ export default function FlowVisualization({
     showBackground = false,
     onNodeClick,
 }: FlowVisualizationProps) {
-    const completedStepIds = completedStepIdsInput instanceof Set 
-        ? completedStepIdsInput 
-        : new Set(completedStepIdsInput);
-
-    // currentNodeIdを正規化してSetにする（複数現在地対応）
+    const completedStepIds = completedStepIdsInput instanceof Set ? completedStepIdsInput : new Set(completedStepIdsInput);
     const currentStepIds = useMemo(() => {
         if (!currentNodeId) return new Set<string>();
-        if (Array.isArray(currentNodeId)) return new Set(currentNodeId);
-        return new Set([currentNodeId as string]);
+        return new Set(Array.isArray(currentNodeId) ? currentNodeId : [currentNodeId]);
     }, [currentNodeId]);
 
     const { displayNodes, displayEdges } = useMemo(() => {
         const displayNodes = rawNodes.map((node: any) => {
-            // スイムレーン
+            // Swimlane
             if (node.type === 'swimlane') {
                 return {
                     ...node,
@@ -167,38 +97,6 @@ export default function FlowVisualization({
                         width: node.style?.width || node.data?.width || 800,
                         height: node.style?.height || node.data?.height || 200,
                     },
-                    data: {
-                        ...node.data,
-                        label: (
-                            <Box sx={{
-                                position: 'absolute',
-                                left: 0,
-                                top: 0,
-                                bottom: 0,
-                                width: 36,
-                                bgcolor: 'rgba(255,255,255,0.4)',
-                                borderRight: '1px solid #90caf9',
-                                display: 'flex',
-                                flexDirection: 'column',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                writingMode: 'vertical-rl',
-                                textOrientation: 'upright',
-                            }}>
-                                <Typography
-                                    variant="body2"
-                                    sx={{
-                                        fontWeight: 'bold',
-                                        fontSize: '0.85rem',
-                                        color: '#1565c0',
-                                        letterSpacing: 2,
-                                    }}
-                                >
-                                    {node.data?.label || 'レーン'}
-                                </Typography>
-                            </Box>
-                        ),
-                    },
                 };
             }
 
@@ -207,191 +105,63 @@ export default function FlowVisualization({
             const isEnd = node.type === 'end';
             const isGateway = ['parallel', 'join', 'branch'].includes(node.type);
 
-            // 修正: 完了判定。ただし、現在地が開始ノード（つまり差し戻し中）の場合、開始ノード以外は完了とみなさない
-            // または、ゲートウェイの場合、通過済みフラグだけでは不十分（差し戻しで戻ってきた場合）。
-            // currentStepIdsに開始ノードが含まれている(=差し戻し状態)なら、開始ノード以外の完了フラグは無視する戦略をとる。
-            const isBackToStart = currentStepIds.size > 0 && Array.from(currentStepIds).some(id => {
+            const isBackToStart = Array.from(currentStepIds).some((id) => {
                 const n = rawNodes.find((rn: any) => rn.id === id);
                 return n?.type === 'start';
             });
 
             let isCompleted = completedStepIds.has(node.id);
 
-            // ゲートウェイ（特にJoin）は履歴に残らないことが多いため、
-            // 「自分の下流にあるノードが完了済み」または「自分が現在地より前にある」場合に完了とみなす推論ロジックを追加。
+            // Infer completion for gateways/end nodes
             if (!isCompleted && (isGateway || isEnd)) {
-                // 簡易判定: 出力先エッジのターゲットがcompletedStepIdsまたはcurrentStepIdsに含まれているか
-                const outgoingEdges = rawEdges.filter((e: any) => e.source === node.id);
-                // ENDノードは出力がないため、入力元が完了しているかで判定
                 if (isEnd) {
-                     const incomingEdges = rawEdges.filter((e: any) => e.target === node.id);
-                     const isReached = incomingEdges.some((e: any) => completedStepIds.has(e.source));
-                     if (isReached) isCompleted = true;
+                    const incomingEdges = rawEdges.filter((e: any) => e.target === node.id);
+                    if (incomingEdges.some((e: any) => completedStepIds.has(e.source))) isCompleted = true;
                 } else {
-                    const isPassed = outgoingEdges.some((e: any) => {
-                        return completedStepIds.has(e.target) || currentStepIds.has(e.target);
-                    });
-                    if (isPassed) {
-                        isCompleted = true;
-                    }
+                    const outgoingEdges = rawEdges.filter((e: any) => e.source === node.id);
+                    if (outgoingEdges.some((e: any) => completedStepIds.has(e.target) || currentStepIds.has(e.target))) isCompleted = true;
                 }
             }
+            if (isBackToStart && !isStart) isCompleted = false;
 
-            if (isBackToStart && !isStart) {
-                isCompleted = false;
-            }
+            // Colors
+            let bgColor = '#f5f5f5', borderColor = '#ccc', color = '#333';
+            if (isCurrent) { bgColor = '#e3f2fd'; borderColor = '#2196f3'; color = '#0d47a1'; }
+            else if (isStart) { bgColor = isCompleted ? '#eceff1' : '#fff'; borderColor = isCompleted ? '#455a64' : '#607d8b'; }
+            else if (isEnd) { bgColor = isCompleted ? '#ffebee' : '#fafafa'; borderColor = isCompleted ? '#d32f2f' : '#ef5350'; color = isCompleted ? '#b71c1c' : '#e53935'; }
+            else if (isCompleted) { bgColor = '#e8f5e9'; borderColor = '#4caf50'; }
 
-            let bgColor = '#f5f5f5';
-            let borderColor = '#ccc';
-            let color = '#333';
+            let nodeStyle: any = { background: bgColor, border: `2px solid ${borderColor}`, color };
+            if (isStart || isEnd) nodeStyle = { ...nodeStyle, borderRadius: '50%', width: 40, height: 40, display: 'flex', alignItems: 'center', justifyContent: 'center' };
+            else if (isGateway) { nodeStyle = { background: 'transparent', border: 'none', width: 50, height: 50, display: 'flex', alignItems: 'center', justifyContent: 'center' }; node.data = { ...node.data, bgColor, borderColor }; }
+            else nodeStyle = { ...nodeStyle, borderRadius: 8, padding: 0, minWidth: 100 };
 
-            // ロジック修正: 差し戻し等の場合、完了していても現在地なら現在地の色（青）を優先
-            if (isCurrent) {
-                bgColor = '#e3f2fd';
-                borderColor = '#2196f3';
-                color = '#0d47a1';
-            } else if (isStart) {
-                // 開始ノード: 完了でも緑にはせず、常にニュートラル（白/グレー）にして区別する
-                 // ユーザー要望「開始と完了がどちらも緑でわかりにくい」に対応
-                bgColor = '#fff';
-                borderColor = '#607d8b'; // Blue Grey
-                if (isCompleted) {
-                    // 完了している場合はボーダーを濃くする程度で、緑背景にはしない
-                    bgColor = '#eceff1';
-                    borderColor = '#455a64';
-                }
-            } else if (isEnd) {
-                // 終了ノード: 完了したら赤を濃くする、または「到達」を示す
-                if (isCompleted) {
-                    bgColor = '#ffebee';
-                    borderColor = '#d32f2f'; // 濃い赤
-                    color = '#b71c1c';
-                } else {
-                    bgColor = '#fafafa'; // 未到達は薄く
-                    borderColor = '#ef5350';
-                    color = '#e53935';
-                }
-            } else if (isCompleted) {
-                bgColor = '#e8f5e9';
-                borderColor = '#4caf50';
-            }
-
-            // 形状ごとのスタイル調整
-            let nodeStyle: any = {
-                background: bgColor,
-                border: `2px solid ${borderColor}`,
-                color: color,
-            };
-
-            if (isStart || isEnd) {
-                nodeStyle = {
-                    ...nodeStyle,
-                    borderRadius: '50%',
-                    width: 40,
-                    height: 40,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    // 開始・終了ノードの個別スタイル上書き
-                    ...(isStart ? {
-                        background: bgColor,
-                        border: `2px solid ${borderColor}`,
-                    } : {}),
-                    ...(isEnd ? {
-                         background: bgColor,
-                         border: `2px solid ${borderColor}`,
-                    } : {}),
-                };
-            } else if (isGateway) {
-                 // Gatewayはコンポーネント側で回転させるため、親divは透明にする
-                 nodeStyle = {
-                     background: 'transparent',
-                     border: 'none',
-                     width: 50,
-                     height: 50,
-                     display: 'flex',
-                     alignItems: 'center',
-                     justifyContent: 'center',
-                 };
-                 // 内部コンポーネントに色情報を渡す
-                 node.data = { ...node.data, bgColor, borderColor };
-            } else {
-                // 通常ノード（承認など）
-                nodeStyle = {
-                    ...nodeStyle,
-                    borderRadius: 8,
-                    padding: 0, // パディングは内部コンポーネントで制御
-                    minWidth: 100,
-                };
-            }
-
-            return {
-                ...node,
-                zIndex: 1,
-                style: nodeStyle,
-                data: {
-                    ...node.data,
-                    // 担当者をflowDefinitionから解決する必要があるが、
-                    // 現状のprops.nodesにはassigneeDisplayが含まれていない可能性がある。
-                    // flow-designerのApprovalNodeではdata.assigneeDisplayを持っている。
-                    // アプリケーション詳細ではflowDefinition.nodesを渡している。
-                    // backend/src/modules/applications/applications.service.tsでtasksのassignedToDisplayは解決しているが、
-                    // flowNodesのdataには反映されていないかもしれない。
-                    // 一旦そのまま表示する。
-                    bgColor,
-                    borderColor,
-                    isCurrent,
-                    isCompleted,
-                },
-            };
+            return { ...node, zIndex: 1, style: nodeStyle, data: { ...node.data, bgColor, borderColor, isCurrent, isCompleted } };
         });
-
 
         const displayEdges = rawEdges.map((edge: any) => {
             const sourceCompleted = completedStepIds.has(edge.source) || edge.source === 'start';
             const targetCompleted = completedStepIds.has(edge.target);
             const targetIsCurrent = currentStepIds.has(edge.target);
-            
-            // 差し戻し状態で開始に戻っている場合、エッジもリセット
-            const isBackToStart = currentStepIds.size > 0 && Array.from(currentStepIds).some(id => {
-                const n = rawNodes.find((rn: any) => rn.id === id);
-                return n?.type === 'start';
-            });
-            
+            const isBackToStart = Array.from(currentStepIds).some((id) => rawNodes.find((n: any) => n.id === id)?.type === 'start');
             let isTraversed = sourceCompleted && (targetCompleted || targetIsCurrent);
-            if (isBackToStart) {
-                isTraversed = false;
-            }
-
+            if (isBackToStart) isTraversed = false;
             const leadsToTarget = sourceCompleted && targetIsCurrent;
 
             let label = edge.label;
-            // ラベルがなく、ソースハンドルがある場合（分岐など）、ノードの設定やデフォルトから推論
             if (!label && edge.sourceHandle) {
-                const sourceNode = rawNodes.find((n: any) => n.id === edge.source);
-                if (sourceNode?.type === 'branch') {
-                    if (edge.sourceHandle === 'yes') {
-                        label = sourceNode.data?.yesLabel || 'Yes';
-                    } else if (edge.sourceHandle === 'no') {
-                        label = sourceNode.data?.noLabel || 'No';
-                    }
-                } else {
-                    // その他のノード（デフォルト）
-                    if (edge.sourceHandle === 'yes') label = 'Yes';
-                    if (edge.sourceHandle === 'no') label = 'No';
-                }
+                const sn = rawNodes.find((n: any) => n.id === edge.source);
+                if (sn?.type === 'branch') label = edge.sourceHandle === 'yes' ? (sn.data?.yesLabel || 'Yes') : edge.sourceHandle === 'no' ? (sn.data?.noLabel || 'No') : undefined;
+                else { if (edge.sourceHandle === 'yes') label = 'Yes'; if (edge.sourceHandle === 'no') label = 'No'; }
             }
 
             return {
                 ...edge,
-                label, // ラベルを設定
-                labelStyle: { fill: '#333', fontWeight: 700 }, // ラベルの視認性を向上 
-                labelBgStyle: { fill: 'rgba(255, 255, 255, 0.8)' },
+                label,
+                labelStyle: { fill: '#333', fontWeight: 700 },
+                labelBgStyle: { fill: 'rgba(255,255,255,0.8)' },
                 markerEnd: { type: MarkerType.ArrowClosed, color: isTraversed ? (leadsToTarget ? '#2196f3' : '#4caf50') : '#999' },
-                style: {
-                    strokeWidth: isTraversed ? 3 : 2,
-                    stroke: isTraversed ? (leadsToTarget ? '#2196f3' : '#4caf50') : '#999',
-                },
+                style: { strokeWidth: isTraversed ? 3 : 2, stroke: isTraversed ? (leadsToTarget ? '#2196f3' : '#4caf50') : '#999' },
                 animated: leadsToTarget,
             };
         });
@@ -399,7 +169,7 @@ export default function FlowVisualization({
         return { displayNodes, displayEdges };
     }, [rawNodes, rawEdges, currentStepIds, completedStepIds]);
 
-    const nodeTypesMemo = useMemo(() => ({
+    const nodeTypes = useMemo(() => ({
         approval: ApprovalNode,
         apiCall: SimpleNode,
         llmCall: SimpleNode,
@@ -413,24 +183,20 @@ export default function FlowVisualization({
 
     if (displayNodes.length === 0) {
         return (
-            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height, bgcolor: '#fafafa', borderRadius: 2 }}>
-                <Typography color="text.secondary">フロー情報がありません</Typography>
-            </Box>
+            <div className="flex items-center justify-center bg-muted/30 rounded-lg" style={{ height }}>
+                <span className="text-muted-foreground">フロー情報がありません</span>
+            </div>
         );
     }
 
     return (
-        <Box sx={{ height, bgcolor: '#fafafa', borderRadius: 2 }}>
+        <div className="bg-muted/30 rounded-lg" style={{ height }}>
             <ReactFlow
                 nodes={displayNodes}
                 edges={displayEdges}
-                nodeTypes={nodeTypesMemo}
+                nodeTypes={nodeTypes}
                 fitView
-                fitViewOptions={{ 
-                    padding: 0.2,
-                    maxZoom: 1,
-                    minZoom: 0.3,
-                }}
+                fitViewOptions={{ padding: 0.2, maxZoom: 1, minZoom: 0.3 }}
                 nodesDraggable={false}
                 nodesConnectable={false}
                 elementsSelectable={!!onNodeClick}
@@ -441,6 +207,6 @@ export default function FlowVisualization({
                 {showBackground && <Background />}
                 <Controls />
             </ReactFlow>
-        </Box>
+        </div>
     );
 }

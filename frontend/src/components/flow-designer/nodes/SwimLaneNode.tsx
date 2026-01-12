@@ -1,14 +1,12 @@
-'use client';
-
-import React, { useState } from 'react';
-import { NodeProps, useReactFlow, NodeResizer } from 'reactflow';
-import {
-    Box, Typography, IconButton, Dialog, DialogTitle, DialogContent,
-    DialogActions, TextField, Button, Select, MenuItem, FormControl, InputLabel,
-} from '@mui/material';
-import EditIcon from '@mui/icons-material/Edit';
-import PersonIcon from '@mui/icons-material/Person';
-import GroupIcon from '@mui/icons-material/Group';
+// SwimLaneNode - Converted from MUI to shadcn/ui
+import { useState } from 'react';
+import { useReactFlow, NodeResizer } from '@xyflow/react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Pencil, User, Users } from 'lucide-react';
 
 interface SwimLaneNodeProps {
     id: string;
@@ -24,7 +22,15 @@ interface SwimLaneNodeProps {
     };
 }
 
-// スイムレーンノード - BPMN Pool/Lane スタイル
+const LANE_COLORS = [
+    { label: '青', value: '#e3f2fd' },
+    { label: 'ピンク', value: '#fce4ec' },
+    { label: '緑', value: '#e8f5e9' },
+    { label: 'オレンジ', value: '#fff3e0' },
+    { label: '紫', value: '#f3e5f5' },
+    { label: 'シアン', value: '#e0f7fa' },
+];
+
 export default function SwimLaneNode({ id, data, selected }: SwimLaneNodeProps) {
     const [dialogOpen, setDialogOpen] = useState(false);
     const [label, setLabel] = useState(data.label || 'レーン');
@@ -33,7 +39,6 @@ export default function SwimLaneNode({ id, data, selected }: SwimLaneNodeProps) 
     const [color, setColor] = useState(data.color || '#e3f2fd');
     const [width, setWidth] = useState(data.width || 800);
     const [height, setHeight] = useState(data.height || 200);
-
     const { setNodes } = useReactFlow();
     const isReadOnly = data.readOnly === true;
 
@@ -42,210 +47,94 @@ export default function SwimLaneNode({ id, data, selected }: SwimLaneNodeProps) 
         setNodes((nds) =>
             nds.map((node) =>
                 node.id === id
-                    ? {
-                        ...node,
-                        data: {
-                            ...node.data,
-                            label,
-                            assignee,
-                            assigneeType,
-                            color,
-                            width,
-                            height,
-                        },
-                        style: {
-                            ...node.style,
-                            width,
-                            height,
-                        }
-                    }
+                    ? { ...node, data: { ...node.data, label, assignee, assigneeType, color, width, height }, style: { ...node.style, width, height } }
                     : node
             )
         );
         setDialogOpen(false);
     };
 
-    const LANE_COLORS = [
-        { label: '青', value: '#e3f2fd' },
-        { label: 'ピンク', value: '#fce4ec' },
-        { label: '緑', value: '#e8f5e9' },
-        { label: 'オレンジ', value: '#fff3e0' },
-        { label: '紫', value: '#f3e5f5' },
-        { label: 'シアン', value: '#e0f7fa' },
-    ];
-
     return (
         <>
-            {/* リサイズハンドル - readOnlyの場合は非表示 */}
-            {!isReadOnly && (
-                <NodeResizer
-                    color="#90caf9"
-                    isVisible={selected}
-                    minWidth={300}
-                    minHeight={100}
-                />
-            )}
-            <Box
-                sx={{
-                    width: '100%',
-                    height: '100%',
-                    background: data.color || '#e3f2fd',
-                    border: '2px solid #90caf9',
-                    borderRadius: 1,
-                    position: 'relative',
-                    zIndex: -10,
-                    cursor: isReadOnly ? 'pointer' : 'default',
-                }}
+            {!isReadOnly && <NodeResizer color="#90caf9" isVisible={selected} minWidth={300} minHeight={100} />}
+            <div
+                className="w-full h-full rounded border-2 border-blue-300 relative -z-10"
+                style={{ background: data.color || '#e3f2fd', cursor: isReadOnly ? 'pointer' : 'default' }}
                 onClick={isReadOnly ? () => setDialogOpen(true) : undefined}
             >
-                {/* レーンヘッダー（左側） */}
-                <Box
-                    sx={{
-                        position: 'absolute',
-                        left: 0,
-                        top: 0,
-                        bottom: 0,
-                        width: 40,
-                        bgcolor: 'rgba(0,0,0,0.05)',
-                        borderRight: '1px solid #90caf9',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        writingMode: 'vertical-lr',
-                        textOrientation: 'mixed',
-                    }}
-                >
-                    <Typography
-                        variant="body2"
-                        sx={{
-                            fontWeight: 'bold',
-                            userSelect: 'none',
-                        }}
-                    >
-                        {data.label}
-                    </Typography>
+                {/* Lane Header (left side) */}
+                <div className="absolute left-0 top-0 bottom-0 w-10 bg-black/5 border-r border-blue-300 flex flex-col items-center justify-center writing-vertical-lr">
+                    <span className="font-bold text-sm select-none" style={{ writingMode: 'vertical-lr' }}>{data.label}</span>
                     {data.assignee && (
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 1 }}>
-                            {data.assigneeType === 'user' ? (
-                                <PersonIcon sx={{ fontSize: 12 }} />
-                            ) : (
-                                <GroupIcon sx={{ fontSize: 12 }} />
-                            )}
-                            <Typography variant="caption" sx={{ fontSize: 10 }}>
-                                {data.assignee}
-                            </Typography>
-                        </Box>
+                        <div className="flex items-center gap-0.5 mt-1">
+                            {data.assigneeType === 'user' ? <User className="h-3 w-3" /> : <Users className="h-3 w-3" />}
+                            <span className="text-[10px]">{data.assignee}</span>
+                        </div>
                     )}
-                </Box>
-
-                {/* 編集ボタン - readOnlyの場合は非表示 */}
+                </div>
                 {!isReadOnly && (
-                    <IconButton
-                        size="small"
+                    <button
+                        className="absolute top-1 right-1 w-6 h-6 bg-white rounded shadow flex items-center justify-center hover:bg-gray-100"
                         onClick={() => setDialogOpen(true)}
                         onMouseDown={(e) => e.stopPropagation()}
-                        sx={{
-                            position: 'absolute',
-                            top: 5,
-                            right: 5,
-                            bgcolor: 'white',
-                            boxShadow: 1,
-                            '&:hover': { bgcolor: '#f5f5f5' },
-                        }}
                     >
-                        <EditIcon sx={{ fontSize: 14 }} />
-                    </IconButton>
+                        <Pencil className="h-3.5 w-3.5 text-gray-600" />
+                    </button>
                 )}
-            </Box>
+            </div>
 
-            {/* Unified Dialog */}
-            <Dialog open={dialogOpen} onClose={() => setDialogOpen(false)} maxWidth="sm" fullWidth>
-                <DialogTitle>{isReadOnly ? 'スイムレーン設定 (読取専用)' : 'スイムレーン設定'}</DialogTitle>
-                <DialogContent>
-                    <TextField
-                        label="レーン名"
-                        value={label}
-                        onChange={(e) => setLabel(e.target.value)}
-                        fullWidth
-                        size="small"
-                        sx={{ mt: 2, mb: 2 }}
-                        disabled={isReadOnly}
-                    />
-
-                    <FormControl fullWidth size="small" sx={{ mb: 2 }} disabled={isReadOnly}>
-                        <InputLabel>担当者タイプ</InputLabel>
-                        <Select
-                            value={assigneeType}
-                            onChange={(e) => setAssigneeType(e.target.value as any)}
-                            label="担当者タイプ"
-                        >
-                            <MenuItem value="role">ロール</MenuItem>
-                            <MenuItem value="department">部門</MenuItem>
-                            <MenuItem value="user">ユーザー</MenuItem>
-                        </Select>
-                    </FormControl>
-
-                    <TextField
-                        label="担当者/ロール名"
-                        value={assignee}
-                        onChange={(e) => setAssignee(e.target.value)}
-                        fullWidth
-                        size="small"
-                        placeholder={assigneeType === 'role' ? '例: 承認者' : assigneeType === 'department' ? '例: 経理部' : '例: user@example.com'}
-                        sx={{ mb: 2 }}
-                        disabled={isReadOnly}
-                    />
-
-                    <FormControl fullWidth size="small" sx={{ mb: 2 }} disabled={isReadOnly}>
-                        <InputLabel>レーン色</InputLabel>
-                        <Select
-                            value={color}
-                            onChange={(e) => setColor(e.target.value)}
-                            label="レーン色"
-                        >
-                            {LANE_COLORS.map((c) => (
-                                <MenuItem key={c.value} value={c.value}>
-                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                        <Box sx={{ width: 20, height: 20, bgcolor: c.value, borderRadius: 0.5, border: '1px solid #ccc' }} />
-                                        {c.label}
-                                    </Box>
-                                </MenuItem>
-                            ))}
-                        </Select>
-                    </FormControl>
-
-                    <Box sx={{ display: 'flex', gap: 2 }}>
-                        <TextField
-                            label="幅 (px)"
-                            type="number"
-                            value={width}
-                            onChange={(e) => setWidth(Number(e.target.value))}
-                            size="small"
-                            sx={{ flex: 1 }}
-                            disabled={isReadOnly}
-                        />
-                        <TextField
-                            label="高さ (px)"
-                            type="number"
-                            value={height}
-                            onChange={(e) => setHeight(Number(e.target.value))}
-                            size="small"
-                            sx={{ flex: 1 }}
-                            disabled={isReadOnly}
-                        />
-                    </Box>
+            <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+                <DialogContent className="sm:max-w-md">
+                    <DialogHeader><DialogTitle>{isReadOnly ? 'スイムレーン (読取専用)' : 'スイムレーン設定'}</DialogTitle></DialogHeader>
+                    <div className="space-y-4 py-2">
+                        <div className="space-y-1.5">
+                            <Label>レーン名</Label>
+                            <Input value={label} onChange={(e) => setLabel(e.target.value)} disabled={isReadOnly} />
+                        </div>
+                        <div className="space-y-1.5">
+                            <Label>担当者タイプ</Label>
+                            <Select value={assigneeType} onValueChange={(v) => setAssigneeType(v as any)} disabled={isReadOnly}>
+                                <SelectTrigger><SelectValue /></SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="role">ロール</SelectItem>
+                                    <SelectItem value="department">部門</SelectItem>
+                                    <SelectItem value="user">ユーザー</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+                        <div className="space-y-1.5">
+                            <Label>担当者/ロール名</Label>
+                            <Input
+                                value={assignee}
+                                onChange={(e) => setAssignee(e.target.value)}
+                                placeholder={assigneeType === 'role' ? '例: 承認者' : assigneeType === 'department' ? '例: 経理部' : '例: user@example.com'}
+                                disabled={isReadOnly}
+                            />
+                        </div>
+                        <div className="space-y-1.5">
+                            <Label>レーン色</Label>
+                            <Select value={color} onValueChange={setColor} disabled={isReadOnly}>
+                                <SelectTrigger><SelectValue /></SelectTrigger>
+                                <SelectContent>
+                                    {LANE_COLORS.map((c) => (
+                                        <SelectItem key={c.value} value={c.value}>
+                                            <div className="flex items-center gap-2"><div className="w-4 h-4 rounded border" style={{ backgroundColor: c.value }} />{c.label}</div>
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                        <div className="grid grid-cols-2 gap-3">
+                            <div className="space-y-1.5"><Label>幅 (px)</Label><Input type="number" value={width} onChange={(e) => setWidth(Number(e.target.value))} disabled={isReadOnly} /></div>
+                            <div className="space-y-1.5"><Label>高さ (px)</Label><Input type="number" value={height} onChange={(e) => setHeight(Number(e.target.value))} disabled={isReadOnly} /></div>
+                        </div>
+                    </div>
+                    <DialogFooter>
+                        {isReadOnly ? <Button onClick={() => setDialogOpen(false)}>閉じる</Button> : (
+                            <><Button variant="outline" onClick={() => setDialogOpen(false)}>キャンセル</Button><Button onClick={handleSave}>保存</Button></>
+                        )}
+                    </DialogFooter>
                 </DialogContent>
-                <DialogActions>
-                    {isReadOnly ? (
-                        <Button onClick={() => setDialogOpen(false)} variant="contained">閉じる</Button>
-                    ) : (
-                        <>
-                            <Button onClick={() => setDialogOpen(false)}>キャンセル</Button>
-                            <Button variant="contained" onClick={handleSave}>保存</Button>
-                        </>
-                    )}
-                </DialogActions>
             </Dialog>
         </>
     );

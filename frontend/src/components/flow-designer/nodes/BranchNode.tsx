@@ -1,15 +1,14 @@
-'use client';
+// BranchNode - Converted from MUI to shadcn/ui
+import { useState } from 'react';
+import { Handle, Position, useReactFlow } from '@xyflow/react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Separator } from '@/components/ui/separator';
+import { Pencil } from 'lucide-react';
 
-import React, { useState } from 'react';
-import { Handle, Position, useReactFlow } from 'reactflow';
-import {
-    Box, Typography, IconButton, Dialog, DialogTitle, DialogContent,
-    DialogActions, TextField, Button, Select, MenuItem, FormControl, InputLabel,
-    Divider
-} from '@mui/material';
-import EditIcon from '@mui/icons-material/Edit';
-
-// BPMN-style Gateway/Branch Node (Diamond shape)
 export default function BranchNode({ id, data }: { id: string; data: any }) {
     const [dialogOpen, setDialogOpen] = useState(false);
     const [conditionField, setConditionField] = useState(data.conditionField || '');
@@ -27,17 +26,7 @@ export default function BranchNode({ id, data }: { id: string; data: any }) {
         setNodes((nds) =>
             nds.map((node) =>
                 node.id === id
-                    ? {
-                        ...node,
-                        data: {
-                            ...node.data,
-                            conditionField,
-                            conditionOperator,
-                            conditionValue,
-                            yesLabel,
-                            noLabel
-                        }
-                    }
+                    ? { ...node, data: { ...node.data, conditionField, conditionOperator, conditionValue, yesLabel, noLabel } }
                     : node
             )
         );
@@ -45,245 +34,102 @@ export default function BranchNode({ id, data }: { id: string; data: any }) {
     };
 
     const getOperatorLabel = (op: string) => {
-        switch (op) {
-            case '==': return '=';
-            case '!=': return '≠';
-            case '>': return '>';
-            case '<': return '<';
-            case '>=': return '≥';
-            case '<=': return '≤';
-            case 'contains': return '∋';
-            default: return op;
-        }
+        const labels: Record<string, string> = { '==': '=', '!=': '≠', '>': '>', '<': '<', '>=': '≥', '<=': '≤', contains: '∋' };
+        return labels[op] || op;
     };
 
     return (
         <>
-            {/* Diamond shape container */}
-            <Box
-                sx={{
-                    width: 80,
-                    height: 80,
-                    position: 'relative',
-                }}
-            >
+            <div className="relative w-20 h-20">
                 {/* Diamond shape */}
-                <Box
+                <div
+                    className="absolute w-14 h-14 top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 rotate-45 bg-gradient-to-br from-orange-400 to-orange-600 rounded shadow-lg border-2 border-white/50 cursor-pointer"
                     onClick={() => setDialogOpen(true)}
-                    sx={{
-                        width: 56,
-                        height: 56,
-                        position: 'absolute',
-                        top: '50%',
-                        left: '50%',
-                        transform: 'translate(-50%, -50%) rotate(45deg)',
-                        background: 'linear-gradient(135deg, #ff9800 0%, #f57c00 100%)',
-                        boxShadow: '0 4px 12px rgba(255, 152, 0, 0.4)',
-                        border: '2px solid rgba(255,255,255,0.5)',
-                        borderRadius: 1,
-                        cursor: 'pointer',
-                    }}
                 />
-
-                {/* Content (not rotated) */}
-                <Box
-                    sx={{
-                        position: 'absolute',
-                        top: '50%',
-                        left: '50%',
-                        transform: 'translate(-50%, -50%)',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        alignItems: 'center',
-                        zIndex: 1,
-                        pointerEvents: 'none',
-                    }}
-                >
-                    <Typography
-                        variant="caption"
-                        sx={{
-                            color: 'white',
-                            fontWeight: 'bold',
-                            textShadow: '0 1px 2px rgba(0,0,0,0.5)',
-                            fontSize: 10,
-                        }}
-                    >
+                {/* Content */}
+                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-10 pointer-events-none">
+                    <span className="text-[10px] text-white font-bold drop-shadow-md">
                         {data.conditionField ? getOperatorLabel(data.conditionOperator || '==') : '?'}
-                    </Typography>
-                </Box>
-
-                {/* Edit button - hide in readOnly mode */}
+                    </span>
+                </div>
+                {/* Edit button */}
                 {!isReadOnly && (
-                    <IconButton
-                        size="small"
-                        onClick={() => setDialogOpen(true)}
-                        sx={{
-                            position: 'absolute',
-                            top: -8,
-                            right: -8,
-                            bgcolor: 'white',
-                            boxShadow: 1,
-                            p: 0.3,
-                            '&:hover': { bgcolor: 'grey.100' },
-                        }}
-                    >
-                        <EditIcon sx={{ fontSize: 12 }} />
-                    </IconButton>
+                    <button className="absolute -top-2 -right-2 w-5 h-5 bg-white rounded-full shadow flex items-center justify-center hover:bg-gray-100" onClick={() => setDialogOpen(true)}>
+                        <Pencil className="w-3 h-3 text-gray-600" />
+                    </button>
                 )}
-
                 {/* Handles */}
-                <Handle
-                    type="target"
-                    position={Position.Left}
-                    style={{
-                        background: '#e65100',
-                        width: 10,
-                        height: 10,
-                        border: '2px solid white',
-                        left: -5,
-                    }}
-                />
-                <Handle
-                    type="source"
-                    position={Position.Right}
-                    id="yes"
-                    style={{
-                        background: '#4caf50',
-                        width: 10,
-                        height: 10,
-                        border: '2px solid white',
-                        right: -5,
-                    }}
-                />
-                <Handle
-                    type="source"
-                    position={Position.Bottom}
-                    id="no"
-                    style={{
-                        background: '#f44336',
-                        width: 10,
-                        height: 10,
-                        border: '2px solid white',
-                        bottom: -5,
-                    }}
-                />
+                <Handle type="target" position={Position.Left} className="!bg-orange-700 !w-2.5 !h-2.5 !border-2 !border-white !-left-1" />
+                <Handle type="source" position={Position.Right} id="yes" className="!bg-green-500 !w-2.5 !h-2.5 !border-2 !border-white !-right-1" />
+                <Handle type="source" position={Position.Bottom} id="no" className="!bg-red-500 !w-2.5 !h-2.5 !border-2 !border-white !-bottom-1" />
+                {/* Labels */}
+                <span className="absolute -right-8 top-1/2 -translate-y-1/2 text-[9px] font-bold text-green-500">{data.yesLabel || 'はい'}</span>
+                <span className="absolute -bottom-5 left-1/2 -translate-x-1/2 text-[9px] font-bold text-red-500">{data.noLabel || 'いいえ'}</span>
+            </div>
 
-                {/* Labels for yes/no */}
-                <Typography
-                    variant="caption"
-                    sx={{
-                        position: 'absolute',
-                        right: -30,
-                        top: '50%',
-                        transform: 'translateY(-50%)',
-                        color: '#4caf50',
-                        fontWeight: 'bold',
-                        fontSize: 9,
-                    }}
-                >
-                    {data.yesLabel || 'はい'}
-                </Typography>
-                <Typography
-                    variant="caption"
-                    sx={{
-                        position: 'absolute',
-                        bottom: -18,
-                        left: '50%',
-                        transform: 'translateX(-50%)',
-                        color: '#f44336',
-                        fontWeight: 'bold',
-                        fontSize: 9,
-                    }}
-                >
-                    {data.noLabel || 'いいえ'}
-                </Typography>
-            </Box>
-
-            {/* Unified Settings Dialog */}
-            <Dialog open={dialogOpen} onClose={() => setDialogOpen(false)} maxWidth="sm" fullWidth>
-                <DialogTitle>{isReadOnly ? '分岐条件の設定 (読取専用)' : '分岐条件の設定'}</DialogTitle>
-                <DialogContent>
-                    <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                        フォームの値に基づいて分岐を設定します
-                    </Typography>
-
-                    <FormControl fullWidth sx={{ mb: 2 }} disabled={isReadOnly}>
-                        <InputLabel>条件フィールド</InputLabel>
-                        <Select
-                            value={conditionField}
-                            onChange={(e) => setConditionField(e.target.value)}
-                            label="条件フィールド"
-                        >
-                            <MenuItem value="">
-                                <em>選択してください</em>
-                            </MenuItem>
-                            {formFields.map((field: any) => (
-                                <MenuItem key={field.id} value={field.id}>
-                                    {field.label || field.id}
-                                </MenuItem>
-                            ))}
-                        </Select>
-                    </FormControl>
-
-                    <Box sx={{ display: 'flex', gap: 2, mb: 2 }}>
-                        <FormControl sx={{ minWidth: 120 }} disabled={isReadOnly}>
-                            <InputLabel>演算子</InputLabel>
-                            <Select
-                                value={conditionOperator}
-                                onChange={(e) => setConditionOperator(e.target.value)}
-                                label="演算子"
-                            >
-                                <MenuItem value="==">等しい (=)</MenuItem>
-                                <MenuItem value="!=">等しくない (≠)</MenuItem>
-                                <MenuItem value=">">より大きい (&gt;)</MenuItem>
-                                <MenuItem value="<">より小さい (&lt;)</MenuItem>
-                                <MenuItem value=">=">以上 (≥)</MenuItem>
-                                <MenuItem value="<=">以下 (≤)</MenuItem>
-                                <MenuItem value="contains">含む</MenuItem>
+            <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+                <DialogContent className="sm:max-w-md">
+                    <DialogHeader>
+                        <DialogTitle>{isReadOnly ? '分岐条件 (読取専用)' : '分岐条件の設定'}</DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-4 py-2">
+                        <p className="text-sm text-muted-foreground">フォームの値に基づいて分岐を設定します</p>
+                        <div className="space-y-1.5">
+                            <Label>条件フィールド</Label>
+                            <Select value={conditionField} onValueChange={setConditionField} disabled={isReadOnly}>
+                                <SelectTrigger><SelectValue placeholder="選択してください" /></SelectTrigger>
+                                <SelectContent>
+                                    {formFields.map((field: any) => (
+                                        <SelectItem key={field.id} value={field.id}>{field.label || field.id}</SelectItem>
+                                    ))}
+                                </SelectContent>
                             </Select>
-                        </FormControl>
-                        <TextField
-                            label="比較値"
-                            value={conditionValue}
-                            onChange={(e) => setConditionValue(e.target.value)}
-                            fullWidth
-                            placeholder="例: 100000, はい"
-                            disabled={isReadOnly}
-                        />
-                    </Box>
-
-                    <Divider sx={{ my: 2 }} />
-
-                    <Typography variant="subtitle2" gutterBottom>出力ラベル</Typography>
-                    <Box sx={{ display: 'flex', gap: 2 }}>
-                        <TextField
-                            label="条件一致時 (右)"
-                            value={yesLabel}
-                            onChange={(e) => setYesLabel(e.target.value)}
-                            size="small"
-                            sx={{ flex: 1 }}
-                            disabled={isReadOnly}
-                        />
-                        <TextField
-                            label="条件不一致時 (下)"
-                            value={noLabel}
-                            onChange={(e) => setNoLabel(e.target.value)}
-                            size="small"
-                            sx={{ flex: 1 }}
-                            disabled={isReadOnly}
-                        />
-                    </Box>
+                        </div>
+                        <div className="grid grid-cols-2 gap-3">
+                            <div className="space-y-1.5">
+                                <Label>演算子</Label>
+                                <Select value={conditionOperator} onValueChange={setConditionOperator} disabled={isReadOnly}>
+                                    <SelectTrigger><SelectValue /></SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="==">等しい (=)</SelectItem>
+                                        <SelectItem value="!=">等しくない (≠)</SelectItem>
+                                        <SelectItem value=">">より大きい (&gt;)</SelectItem>
+                                        <SelectItem value="<">より小さい (&lt;)</SelectItem>
+                                        <SelectItem value=">=">以上 (≥)</SelectItem>
+                                        <SelectItem value="<=">以下 (≤)</SelectItem>
+                                        <SelectItem value="contains">含む</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                            <div className="space-y-1.5">
+                                <Label>比較値</Label>
+                                <Input value={conditionValue} onChange={(e) => setConditionValue(e.target.value)} placeholder="例: 100000" disabled={isReadOnly} />
+                            </div>
+                        </div>
+                        <Separator />
+                        <p className="text-sm font-medium">出力ラベル</p>
+                        <div className="grid grid-cols-2 gap-3">
+                            <div className="space-y-1.5">
+                                <Label className="text-green-600">条件一致時 (右)</Label>
+                                <Input value={yesLabel} onChange={(e) => setYesLabel(e.target.value)} disabled={isReadOnly} />
+                            </div>
+                            <div className="space-y-1.5">
+                                <Label className="text-red-600">条件不一致時 (下)</Label>
+                                <Input value={noLabel} onChange={(e) => setNoLabel(e.target.value)} disabled={isReadOnly} />
+                            </div>
+                        </div>
+                    </div>
+                    <DialogFooter>
+                        {isReadOnly ? (
+                            <Button onClick={() => setDialogOpen(false)}>閉じる</Button>
+                        ) : (
+                            <>
+                                <Button variant="outline" onClick={() => setDialogOpen(false)}>キャンセル</Button>
+                                <Button onClick={handleSave}>保存</Button>
+                            </>
+                        )}
+                    </DialogFooter>
                 </DialogContent>
-                <DialogActions>
-                    {isReadOnly ? (
-                        <Button onClick={() => setDialogOpen(false)} variant="contained">閉じる</Button>
-                    ) : (
-                        <>
-                            <Button onClick={() => setDialogOpen(false)}>キャンセル</Button>
-                            <Button variant="contained" onClick={handleSave}>保存</Button>
-                        </>
-                    )}
-                </DialogActions>
             </Dialog>
         </>
     );

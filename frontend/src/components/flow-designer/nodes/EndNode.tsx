@@ -1,45 +1,17 @@
-'use client';
+// EndNode - Converted from MUI to Tailwind
+import { Handle, Position } from '@xyflow/react';
 
-import React from 'react';
-import { Handle, Position } from 'reactflow';
-import { Box, Typography } from '@mui/material';
-
-// BPMN-style End Node (Circle with thick border)
 export default function EndNode({ data }: { data: any }) {
     return (
-        <Box
-            sx={{
-                width: 60,
-                height: 60,
-                borderRadius: '50%',
-                background: 'linear-gradient(135deg, #ef5350 0%, #c62828 100%)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                boxShadow: '0 4px 12px rgba(239, 83, 80, 0.4)',
-                border: '3px solid #fff',
-            }}
-        >
+        <div className="w-[60px] h-[60px] rounded-full bg-gradient-to-br from-red-400 to-red-700 flex items-center justify-center shadow-lg border-[3px] border-white">
             <Handle
                 type="target"
                 position={Position.Left}
-                style={{
-                    background: '#c62828',
-                    width: 10,
-                    height: 10,
-                    border: '2px solid white',
-                }}
+                className="!bg-red-700 !w-2.5 !h-2.5 !border-2 !border-white"
             />
-            <Typography
-                variant="caption"
-                sx={{
-                    color: 'white',
-                    fontWeight: 'bold',
-                    textShadow: '0 1px 2px rgba(0,0,0,0.3)',
-                }}
-            >
+            <span className="text-xs text-white font-bold drop-shadow-sm">
                 {data.label || '終了'}
-            </Typography>
-        </Box>
+            </span>
+        </div>
     );
 }
