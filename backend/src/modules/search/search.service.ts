@@ -10,7 +10,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 
 @Injectable()
 export class SearchService implements ISearchService, OnModuleInit {
-  private readonly logger = new Logger(SearchService.name);
+  private readonly logger = new Logger('[Indexer] SearchService');
   private searchMode: 'postgres' | 'elasticsearch';
 
   constructor(

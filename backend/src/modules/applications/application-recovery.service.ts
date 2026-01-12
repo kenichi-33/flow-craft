@@ -24,7 +24,7 @@ export class ApplicationRecoveryService {
                 updatedAt: {
                     lt: new Date(Date.now() - 5 * 60 * 1000), // Older than 5 minutes to avoid race with active processing
                 },
-                tasks: {
+                workflowTasks: {
                     none: {
                         status: 'PENDING',
                     },

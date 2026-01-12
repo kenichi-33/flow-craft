@@ -11,22 +11,24 @@ import { Badge } from '@/components/ui/badge';
 import { UserDisplay } from '@/components/common/UserDisplay';
 import { User as UserIcon, Users, Shield } from 'lucide-react';
 
-interface Task {
+interface WorkflowTask {
     id: string;
     stepId: string;
-    stepName?: string;
-    assignedTo?: string;
-    assignedToInfo?: any;
-    assignedToDisplay?: string;
+    type: string;
     status: string;
+    assignedTo?: string;
+    assignedToDisplay?: string;
+    assignedToInfo?: any;
+    result?: any;
+    error?: string;
     createdAt: string;
     updatedAt?: string;
     completedAt?: string;
+    history?: any[];
 }
 
 interface TaskListProps {
-    tasks?: Task[];
-    serviceTasks?: any[];
+    workflowTasks?: WorkflowTask[];
     flowNodes?: any[];
     flowEdges?: any[];
     applicationInfo?: {
@@ -144,8 +146,7 @@ const formatDateTime = (dateString: string | undefined) => {
 };
 
 export default function TaskList({ 
-    tasks = [], 
-    serviceTasks = [], 
+    workflowTasks = [], 
     flowNodes = [], 
     flowEdges = [], 
     applicationInfo, 
@@ -153,12 +154,12 @@ export default function TaskList({
 }: TaskListProps) {
     const allSteps = useMemo(() => {
         if (!flowNodes || flowNodes.length === 0) {
-            return tasks.map(task => ({
+            return workflowTasks.filter(t => t.type === 'approval').map(task => ({
                 ...task,
                 nodeData: null,
                 nodeType: 'approval',
                 stepId: task.stepId,
-                stepName: task.stepName || '承認',
+                stepName: '承認',
                 order: 0
             }));
         }
@@ -194,8 +195,8 @@ export default function TaskList({
         };
 
         const steps = displayNodes.map(node => {
-            const task = tasks.find(t => t.stepId === node.id && t.status !== 'CANCELED'); // Show actvive/completed, hide canceled? Or show all.
-            const serviceTask = serviceTasks?.find(t => t.stepId === node.id);
+            // Find related workflow task
+            const relatedTask = workflowTasks?.find(t => t.stepId === node.id && t.status !== 'CANCELED');
             
             // Start Node
             if (node.type === 'start') {
@@ -231,51 +232,43 @@ export default function TaskList({
                 };
             }
 
-            // Service Task
-            if (['apiCall', 'llmCall'].includes(node.type)) {
-                return {
-                    id: serviceTask?.id || `pending-service-${node.id}`,
-                    stepId: node.id,
-                    stepName: node.data?.label || (node.type === 'apiCall' ? 'API実行' : 'AI処理'),
-                    assignedTo: 'system',
-                    assignedToDisplay: 'システム',
-                    status: serviceTask?.status || 'WAITING',
-                    createdAt: serviceTask?.createdAt || '',
-                    updatedAt: serviceTask?.updatedAt || undefined,
-                    completedAt: undefined,
-                    nodeData: node.data,
-                    nodeType: node.type,
-                    order: getNodeOrder(node.id, node.type),
-                };
-            }
-            
-            const stepHistory = history?.filter(h => h.stepId === node.id) || [];
-
-            // Approval Task
+            // Service Task or Approval Task
             return {
-                id: task?.id || `pending-${node.id}`,
+                id: relatedTask?.id || `pending-${node.id}`,
                 stepId: node.id,
-                stepName: node.data?.label || node.id,
-                assignedTo: task?.assignedTo,
-                assignedToInfo: task?.assignedToInfo,
-                assignedToDisplay: task?.assignedToDisplay,
-                status: task?.status || 'WAITING',
-                createdAt: task?.createdAt || '',
-                updatedAt: task?.updatedAt,
-                completedAt: task?.completedAt, // Backend might not send completedAt for tasks?
-                // Actually ApplicationDetail definition for tasks doesn't have completedAt/updatedAt explicitly listed in previous file, 
-                // but getWorkflowStatus returns tasks included which are ApprovalTask model.
-                // Assuming createdAt is reliably there.
+                stepName: node.data?.label || (['apiCall', 'llmCall'].includes(node.type) ? (node.type === 'apiCall' ? 'API実行' : 'AI処理') : node.id),
+                assignedTo: relatedTask?.assignedTo || (['apiCall', 'llmCall'].includes(node.type) ? 'system' : undefined),
+                assignedToInfo: relatedTask?.assignedToInfo,
+                assignedToDisplay: relatedTask?.assignedToDisplay || (['apiCall', 'llmCall'].includes(node.type) ? 'システム' : undefined),
+                status: relatedTask?.status || 'WAITING',
+                createdAt: relatedTask?.createdAt || '',
+                updatedAt: relatedTask?.updatedAt,
+                completedAt: relatedTask?.completedAt || (['COMPLETED', 'FAILED', 'REJECTED', 'APPROVED'].includes(relatedTask?.status || '') ? relatedTask?.updatedAt : undefined),
                 nodeData: node.data,
                 nodeType: node.type,
                 order: getNodeOrder(node.id, node.type),
-                history: stepHistory,
+                history: [
+                    ...(history?.filter(h => h.stepId === node.id) || []),
+                    ...(
+                        // 承認タスクのシステムログ（メール送信等）はユーザーにとって紛らわしいため表示しない
+                        // API呼び出しやLLM呼び出しのエラー/結果のみを表示
+                        (node.type !== 'approval') 
+                        ? (relatedTask?.history?.map(h => ({
+                            id: h.id,
+                            action: h.status,
+                            actorId: 'SYSTEM',
+                            comment: h.error ? `Error: ${h.error}` : (h.result ? 'Success' : ''),
+                            createdAt: h.executedAt,
+                        })) || [])
+                        : []
+                    )
+                ].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()),
             };
         });
 
         return steps.sort((a, b) => a.order - b.order);
         
-    }, [tasks, serviceTasks, flowNodes, flowEdges, applicationInfo, history]);
+    }, [workflowTasks, flowNodes, flowEdges, applicationInfo, history]);
 
     if (allSteps.length === 0) {
         return <div className="text-center p-4 text-muted-foreground">ステップがありません</div>;

@@ -7,7 +7,7 @@ import { Application } from '@prisma/client';
 
 @Injectable()
 export class ElasticsearchSearchService implements ISearchService, OnModuleInit {
-  private readonly logger = new Logger(ElasticsearchSearchService.name);
+  private readonly logger = new Logger('[Indexer] ElasticsearchSearch');
   private client: Client;
   private readonly indexName = 'applications';
 

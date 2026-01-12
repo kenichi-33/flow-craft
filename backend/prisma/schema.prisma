@@ -60,10 +60,11 @@ model Application {
   applicationDefinition ApplicationDefinition? @relation(fields: [applicationDefinitionId], references: [id])
   formDefinition        FormDefinition         @relation(fields: [formDefinitionId], references: [id])
   flowDefinition        FlowDefinition         @relation(fields: [flowDefinitionId], references: [id])
-  tasks                 ApprovalTask[]
-  serviceTasks          ServiceTask[]
+
+  // 新統合テーブル
+  workflowTasks         WorkflowTask[]
+  workflowTaskHistories WorkflowTaskHistory[]
   history               ApprovalHistory[]
-  serviceTaskHistories  ServiceTaskHistory[]
 
   @@map("applications")
 }
@@ -76,23 +77,7 @@ enum ApplicationStatus {
   REMANDED
 }
 
-model ApprovalTask {
-  id                 String   @id @default(uuid())
-  applicationId      String   @map("application_id")
-  status             TaskStatus @default(PENDING)
-  stepId             String     @map("step_id") // 対応するノードID
-  assignedTo         String?  @map("assigned_to") // UserId or RoleId
-  assignedToDisplay  String?  @map("assigned_to_display") // 表示用の名前（例：営業第一課）
-  // スナップショット: 担当者情報 { type, username, firstName, lastName, email, department, ... }
-  assignedToInfo     Json?    @map("assigned_to_info")
-  dueDate            DateTime? @map("due_date")
-  createdAt          DateTime @default(now()) @map("created_at")
-  updatedAt          DateTime @default(now()) @updatedAt @map("updated_at")
 
-  application   Application @relation(fields: [applicationId], references: [id])
-
-  @@map("approval_tasks")
-}
 
 enum TaskStatus {
   PENDING
@@ -117,41 +102,56 @@ model ApprovalHistory {
   @@map("approval_histories")
 }
 
-model ServiceTask {
-  id            String   @id @default(uuid())
-  applicationId String   @map("application_id")
-  stepId        String   @map("step_id")
-  type          String
+
+
+// 新統合テーブル: ServiceTask と ApprovalTask を統合
+model WorkflowTask {
+  id            String     @id @default(uuid())
+  applicationId String     @map("application_id")
+  stepId        String     @map("step_id")
+  type          String     // approval, apiCall, llmCall, etc.
   status        TaskStatus @default(PENDING)
+  
+  // 承認タスク用（共通フィールド化）
+  assignedTo        String?   @map("assigned_to")
+  assignedToDisplay String?   @map("assigned_to_display")
+  assignedToInfo    Json?     @map("assigned_to_info")
+  dueDate           DateTime? @map("due_date")
+  
+  // タスク設定スナップショット（ノード設定を保存）
+  config        Json?
+  
+  // 実行結果
   result        Json?
   error         String?
   retries       Int      @default(0)
+  
   createdAt     DateTime @default(now()) @map("created_at")
   updatedAt     DateTime @updatedAt @map("updated_at")
 
   application   Application @relation(fields: [applicationId], references: [id])
-  history       ServiceTaskHistory[]
+  history       WorkflowTaskHistory[]
 
-  @@map("service_tasks")
+  @@map("workflow_tasks")
 }
 
-// サービスタスク実行履歴（再実行時も全件保存）
-model ServiceTaskHistory {
-  id            String   @id @default(uuid())
-  serviceTaskId String   @map("service_task_id")
-  applicationId String   @map("application_id")
-  stepId        String   @map("step_id")
+model WorkflowTaskHistory {
+  id            String     @id @default(uuid())
+  taskId        String     @map("task_id")
+  applicationId String     @map("application_id")
+  stepId        String     @map("step_id")
   type          String
   status        TaskStatus
   result        Json?
   error         String?
-  executedAt    DateTime @default(now()) @map("executed_at")
+  executedAt    DateTime   @default(now()) @map("executed_at")
 
-  serviceTask   ServiceTask @relation(fields: [serviceTaskId], references: [id])
-  application   Application @relation(fields: [applicationId], references: [id])
+  task          WorkflowTask @relation(fields: [taskId], references: [id])
+  application   Application  @relation(fields: [applicationId], references: [id])
 
-  @@map("service_task_histories")
+  @@map("workflow_task_histories")
 }
+
 
 // 申請アプリ定義（フォームとフローを紐づける）
 model ApplicationDefinition {

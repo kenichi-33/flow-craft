@@ -44,16 +44,25 @@ interface ApplicationDetail {
         appName: string;
         description?: string;
     };
-    tasks?: {
+    workflowTasks?: {
         id: string;
-        status: string;
-        assignedTo: string;
-        assignedToInfo?: any;
-        assignedToDisplay?: string;
         stepId: string;
+        type: string;
+        status: string;
+        assignedTo?: string;
+        assignedToDisplay?: string;
+        assignedToInfo?: any;
+        result?: any;
+        error?: string;
         createdAt: string;
         updatedAt?: string;
         completedAt?: string;
+        history?: {
+            id: string;
+            status: string;
+            error?: string;
+            executedAt: string;
+        }[];
     }[];
     flowNodes?: any[];
     flowEdges?: any[];
@@ -67,21 +76,6 @@ interface ApplicationDetail {
         actedAt?: string;
         nodeName?: string;
         stepId?: string;
-    }[];
-    serviceTasks?: {
-        id: string;
-        stepId: string;
-        type: string;
-        status: string;
-        result?: any;
-        error?: string;
-        createdAt: string;
-        history?: {
-            id: string;
-            status: string;
-            error?: string;
-            executedAt: string;
-        }[];
     }[];
 }
 
@@ -209,7 +203,7 @@ export default function ApplicationDetailPage() {
             </div>
 
             {/* Pending Tasks Section (Legacy Style) */}
-            {application.tasks?.some(t => t.status === 'PENDING') && (
+            {application.workflowTasks?.some(t => t.type === 'approval' && t.status === 'PENDING') && (
                 <Card className="border-l-4 border-l-blue-500 shadow-md">
                     <CardHeader className="pb-3">
                         <CardTitle className="text-base font-semibold flex items-center gap-2">
@@ -218,7 +212,7 @@ export default function ApplicationDetailPage() {
                         </CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-3">
-                        {application.tasks.filter(t => t.status === 'PENDING').map(task => {
+                        {application.workflowTasks.filter(t => t.type === 'approval' && t.status === 'PENDING').map(task => {
                             const isAssigned = isUserAssignedToTask(task.assignedTo);
                             const stepNode = application.flowDefinition?.nodes?.find((n: any) => n.id === task.stepId);
                             const stepLabel = stepNode?.data?.label || task.stepId;
@@ -316,7 +310,7 @@ export default function ApplicationDetailPage() {
                             edges={application.flowEdges || application.flowDefinition?.edges || []}
                             currentNodeId={
                                 // For parallel execution: derive from pending tasks
-                                application.tasks?.filter((t: any) => t.status === 'PENDING').map((t: any) => t.stepId) || 
+                                application.workflowTasks?.filter((t: any) => t.type === 'approval' && t.status === 'PENDING').map((t: any) => t.stepId) || 
                                 (application.currentNodeId ? [application.currentNodeId] : [])
                             }
                             completedStepIds={application.history?.filter((h: any) => h.action !== 'REMAND').map((h: any) => h.stepId) || []}
@@ -333,8 +327,7 @@ export default function ApplicationDetailPage() {
                 </CardHeader>
                 <CardContent>
                     <TaskList 
-                        tasks={application.tasks}
-                        serviceTasks={application.serviceTasks}
+                        workflowTasks={application.workflowTasks}
                         flowNodes={application.flowNodes || application.flowDefinition?.nodes}
                         flowEdges={application.flowEdges || application.flowDefinition?.edges}
                         applicationInfo={application as any}
@@ -356,13 +349,13 @@ export default function ApplicationDetailPage() {
             )}
 
             {/* System History */}
-            {application.serviceTasks && application.serviceTasks.length > 0 && (
+            {application.workflowTasks && application.workflowTasks.filter(t => ['apiCall', 'llmCall'].includes(t.type)).length > 0 && (
                 <Card className="border-0 shadow-md">
                     <CardHeader>
                         <CardTitle className="text-lg">システム処理履歴</CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-4">
-                        {application.serviceTasks.map((task) => (
+                        {application.workflowTasks.filter(t => ['apiCall', 'llmCall'].includes(t.type)).map((task) => (
                             <div key={task.id} className={`p-4 rounded-lg border ${task.status === 'FAILED' ? 'bg-red-50/50 border-red-100' : 'bg-green-50/50 border-green-100'}`}>
                                 <div className="flex items-center justify-between mb-2">
                                     <div className="font-semibold text-sm">

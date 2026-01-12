@@ -79,8 +79,10 @@ export class TasksService {
             userId, userRoles = [], userGroups = [], userGroupCodes = []
         } = options;
 
-        // 基本検索条件
-        const where: Prisma.ApprovalTaskWhereInput = {};
+        // 基本検索条件（承認タスクのみ）
+        const where: Prisma.WorkflowTaskWhereInput = {
+            type: 'approval',  // 承認タスクのみ
+        };
 
         // ステータスフィルタ
         if (status) {
@@ -115,7 +117,7 @@ export class TasksService {
         }
 
         // ソート条件
-        const orderBy: Prisma.ApprovalTaskOrderByWithRelationInput = {};
+        const orderBy: Prisma.WorkflowTaskOrderByWithRelationInput = {};
         if (sortBy === 'status' || sortBy === 'createdAt' || sortBy === 'stepId') {
             orderBy[sortBy] = sortOrder;
         } else {
@@ -124,7 +126,7 @@ export class TasksService {
 
         // ページネーションなしの場合
         if (!page && !limit) {
-            const tasks = await this.prisma.approvalTask.findMany({
+            const tasks = await this.prisma.workflowTask.findMany({
                 where,
                 orderBy,
                 include: {
@@ -152,7 +154,7 @@ export class TasksService {
 
         // まず全件取得してフィルタリング（ユーザーフィルタがある場合）
         if (userId) {
-            const allTasks = await this.prisma.approvalTask.findMany({
+            const allTasks = await this.prisma.workflowTask.findMany({
                 where,
                 orderBy,
                 include: {
@@ -186,7 +188,7 @@ export class TasksService {
 
         // 通常のページネーション
         const [data, total] = await Promise.all([
-            this.prisma.approvalTask.findMany({
+            this.prisma.workflowTask.findMany({
                 where,
                 orderBy,
                 skip,
@@ -201,7 +203,7 @@ export class TasksService {
                     },
                 },
             }),
-            this.prisma.approvalTask.count({ where }),
+            this.prisma.workflowTask.count({ where }),
         ]);
 
         return {
@@ -216,7 +218,7 @@ export class TasksService {
     }
 
     async findOne(id: string) {
-        const task = await this.prisma.approvalTask.findUnique({
+        const task = await this.prisma.workflowTask.findUnique({
             where: { id },
             include: {
                 application: {
@@ -224,7 +226,9 @@ export class TasksService {
                         applicationDefinition: true,
                         formDefinition: true,
                         flowDefinition: true,
-                        tasks: true, // 並行タスクの状況を知るためにタスク一覧を追加
+                        workflowTasks: {
+                            where: { type: 'approval' },
+                        }, // 並行タスクの状況を知るためにタスク一覧を追加
                         history: {
                             orderBy: { actedAt: 'asc' }
                         }, // 承認履歴を含める（フローの完了状態判定に必要）
@@ -241,8 +245,9 @@ export class TasksService {
     }
 
     async findPending(assignedTo?: string) {
-        return this.prisma.approvalTask.findMany({
+        return this.prisma.workflowTask.findMany({
             where: {
+                type: 'approval',  // 承認タスクのみ
                 status: 'PENDING',
                 ...(assignedTo ? { assignedTo } : {}),
             },

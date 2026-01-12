@@ -215,14 +215,14 @@ export class ApplicationsService {
                 formDefinition: true,
                 flowDefinition: true,
                 applicationDefinition: true,
-                tasks: true,
                 history: {
                     orderBy: { actedAt: 'asc' },
                 },
-                serviceTasks: {
+                workflowTasks: {
+                    orderBy: { createdAt: 'desc' },
                     include: {
                         history: {
-                            orderBy: { executedAt: 'asc' },
+                            orderBy: { executedAt: 'desc' },
                         },
                     },
                 },

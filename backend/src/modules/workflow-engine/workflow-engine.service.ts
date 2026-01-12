@@ -6,10 +6,11 @@ import axios from 'axios';
 
 import { MailService } from '../notifications/mail.service';
 import { UsersService } from '../users/users.service';
+import { TaskExecuteJob, TaskCompleteJob } from './workers/task-handler.interface';
 
 @Injectable()
 export class WorkflowEngineService implements OnModuleInit {
-    private readonly logger = new Logger(WorkflowEngineService.name);
+    private readonly logger = new Logger('[Executor] WorkflowEngine');
     private readonly COMPONENT_NAME = 'WorkflowEngine';
     private readonly keycloakUrl = process.env.KEYCLOAK_URL || 'http://localhost:8080';
     private readonly realm = process.env.KEYCLOAK_REALM || 'workflow';
@@ -25,12 +26,29 @@ export class WorkflowEngineService implements OnModuleInit {
 
     async onModuleInit() {
         await this.queueService.registerHandler('WORKFLOW_NODE_PROCESS', this.handleNodeProcessingJob.bind(this));
-        this.logger.log('Registered WORKFLOW_NODE_PROCESS handler');
+        await this.queueService.registerHandler('TASK_COMPLETE', this.handleTaskComplete.bind(this));
+        this.logger.log('Registered WORKFLOW_NODE_PROCESS and TASK_COMPLETE handlers');
     }
 
     async handleNodeProcessingJob(job: { applicationId: string }) {
         this.logger.log(`Processing workflow node for application ${job.applicationId}`);
         await this.processNode(job.applicationId);
+    }
+
+    /**
+     * タスク完了通知を処理（Worker → Executor）
+     */
+    async handleTaskComplete(job: TaskCompleteJob) {
+        this.logger.log(`Task ${job.taskId} completed for application ${job.applicationId} (success: ${job.success})`);
+
+        if (job.success && job.shouldAdvance) {
+            // 成功かつ次に進む場合、ワークフローを進める
+            await this.advanceToNextNode(job.applicationId);
+        } else if (!job.success) {
+            // 失敗時のログ（リトライはWorker側で処理）
+            this.logger.warn(`Task ${job.taskId} failed: ${job.error}`);
+        }
+        // shouldAdvance = false の場合（承認タスク等）は何もしない（人間の操作を待つ）
     }
 
     /**
@@ -136,7 +154,7 @@ export class WorkflowEngineService implements OnModuleInit {
             where: { id: application.id },
             include: {
                 applicationDefinition: true,
-                tasks: true,
+                workflowTasks: { orderBy: { createdAt: 'desc' } },
             },
         });
     }
@@ -247,7 +265,7 @@ export class WorkflowEngineService implements OnModuleInit {
             where: { id: applicationId },
             include: {
                 applicationDefinition: true,
-                tasks: true,
+                workflowTasks: { orderBy: { createdAt: 'desc' } },
             },
         });
     }
@@ -334,7 +352,7 @@ export class WorkflowEngineService implements OnModuleInit {
                 },
             });
         } else if (nextNode.type === 'approval') {
-            // 承認ノード: タスクを生成
+            // 承認ノード: タスクをWorker経由で生成
             // applicant_manager等を実際のユーザーに解決
             const resolvedAssignee = await this.resolveAssignedTo(
                 nextNode.data?.assignee || null,
@@ -344,26 +362,16 @@ export class WorkflowEngineService implements OnModuleInit {
             // 担当者情報のスナップショットを取得
             const assignedToInfo = await this.usersService.resolveAssignedToSnapshot(resolvedAssignee || '');
 
-            await this.prisma.approvalTask.create({
-                data: {
-                    applicationId,
-                    stepId: nextNodeId,
-                    assignedTo: resolvedAssignee,
-                    assignedToDisplay: nextNode.data?.assigneeDisplay || null,
-                    assignedToInfo: assignedToInfo as any,
-                    status: 'PENDING',
-                },
-            });
-
-            // メール通知送信
-            if (nextNode.data?.notificationEnabled) {
-                this.sendNotificationEmail(
-                    resolvedAssignee,
-                    nextNode.data.notificationSubject,
-                    nextNode.data.notificationBody,
-                    application
-                ).catch(err => console.error('[WorkflowEngine] Failed to send email:', err));
-            }
+            // Worker経由でタスクを生成（メール通知もWorkerで実行）
+            await this.enqueueTask(
+                applicationId,
+                nextNode,
+                application.inputData as Record<string, any>,
+                application.applicantId,
+                resolvedAssignee,
+                nextNode.data?.assigneeDisplay || null,
+                assignedToInfo
+            );
 
             await this.prisma.application.update({
                 where: { id: applicationId },
@@ -454,6 +462,16 @@ export class WorkflowEngineService implements OnModuleInit {
                         where: { id: applicationId },
                         data: { status: 'APPROVED' },
                     });
+                    // 申請完了を履歴に記録
+                    await this.prisma.approvalHistory.create({
+                        data: {
+                            applicationId,
+                            actorId: 'SYSTEM',
+                            action: 'APPLICATION_COMPLETE',
+                            stepId: branchTargetId,
+                            comment: '申請が完了しました',
+                        },
+                    });
                 } else if (branchTarget?.type === 'approval') {
                     // applicant_manager等を実際のユーザーに解決
                     const resolvedBranchAssignee = await this.resolveAssignedTo(
@@ -463,16 +481,15 @@ export class WorkflowEngineService implements OnModuleInit {
 
                     const assignedToInfo = await this.usersService.resolveAssignedToSnapshot(resolvedBranchAssignee || '');
 
-                    await this.prisma.approvalTask.create({
-                        data: {
-                            applicationId,
-                            stepId: branchTargetId,
-                            assignedTo: resolvedBranchAssignee,
-                            assignedToDisplay: branchTarget.data?.assigneeDisplay || null,  // フローノードから表示名をコピー
-                            assignedToInfo: assignedToInfo as any,
-                            status: 'PENDING',
-                        },
-                    });
+                    await this.enqueueTask(
+                        applicationId,
+                        branchTarget,
+                        application.inputData as Record<string, any>,
+                        application.applicantId,
+                        resolvedBranchAssignee,
+                        branchTarget.data?.assigneeDisplay || null,
+                        assignedToInfo
+                    );
                 } else if (['apiCall', 'llmCall'].includes(branchTarget?.type)) {
                     // 分岐先がサービスタスクの場合は直接実行
                     await this.prisma.approvalHistory.create({
@@ -484,7 +501,7 @@ export class WorkflowEngineService implements OnModuleInit {
                             comment: `${branchTarget.type} 実行開始`,
                         },
                     });
-                    await this.executeServiceTask(applicationId, branchTarget, application.inputData);
+                    await this.enqueueServiceTask(applicationId, branchTarget, application.inputData as Record<string, any>, application.applicantId);
                 } else {
                     await this.advanceToNextNode(applicationId);
                 }
@@ -507,7 +524,7 @@ export class WorkflowEngineService implements OnModuleInit {
                 },
             });
 
-            await this.executeServiceTask(applicationId, nextNode, application.inputData);
+            await this.enqueueServiceTask(applicationId, nextNode, application.inputData as Record<string, any>, application.applicantId);
         } else if (nextNode.type === 'parallel') {
             // パラレルゲートウェイ: 分岐処理（全ての後続タスクを並行生成）
             // パラレルノード自体はタスクではないので、通過してすぐに後続を生成
@@ -529,30 +546,20 @@ export class WorkflowEngineService implements OnModuleInit {
 
                     const assignedToInfo = await this.usersService.resolveAssignedToSnapshot(resolvedAssignee || '');
 
-                    await this.prisma.approvalTask.create({
-                        data: {
-                            applicationId,
-                            stepId: targetNode.id,
-                            assignedTo: resolvedAssignee,
-                            assignedToDisplay: targetNode.data?.assigneeDisplay || null,
-                            assignedToInfo: assignedToInfo as any,
-                            status: 'PENDING',
-                        },
-                    });
+                    await this.enqueueTask(
+                        applicationId,
+                        targetNode,
+                        application.inputData as Record<string, any>,
+                        application.applicantId,
+                        resolvedAssignee,
+                        targetNode.data?.assigneeDisplay || null,
+                        assignedToInfo
+                    );
 
-                    // メール通知送信
-                    if (targetNode.data?.notificationEnabled) {
-                        this.sendNotificationEmail(
-                            resolvedAssignee,
-                            targetNode.data.notificationSubject,
-                            targetNode.data.notificationBody,
-                            application
-                        ).catch(err => console.error('[WorkflowEngine] Failed to send email:', err));
-                    }
                     createdTaskNodeIds.push(targetNode.id);
                     console.log(`[WorkflowEngine] Created parallel task for ${targetNode.id}`);
                 } else if (['apiCall', 'llmCall'].includes(targetNode.type)) {
-                    await this.executeServiceTask(applicationId, targetNode, application.inputData);
+                    await this.enqueueServiceTask(applicationId, targetNode, application.inputData as Record<string, any>, application.applicantId);
                 }
             }
 
@@ -586,7 +593,7 @@ export class WorkflowEngineService implements OnModuleInit {
             const sourceNodeIds = joinEdges.map((e: any) => e.source);
             
             // 前のノードに紐づく未完了タスクがあるかチェック
-            const pendingTasks = await this.prisma.approvalTask.count({
+            const pendingTasks = await this.prisma.workflowTask.count({
                 where: {
                     applicationId,
                     stepId: { in: sourceNodeIds },
@@ -625,7 +632,7 @@ export class WorkflowEngineService implements OnModuleInit {
         actorId: string;
         comment?: string;
     }) {
-        const task = await this.prisma.approvalTask.findUnique({
+        const task = await this.prisma.workflowTask.findUnique({
             where: { id: input.taskId },
             include: {
                 application: true,
@@ -640,6 +647,11 @@ export class WorkflowEngineService implements OnModuleInit {
             throw new BadRequestException('Task is already completed');
         }
 
+        // 承認タスクのみ実行可能
+        if (task.type !== 'approval') {
+            throw new BadRequestException('This task is not an approval task');
+        }
+
         // 権限チェック: 担当者のみがタスクを完了できる
         // assignedToは「user:username」「role:rolename」「group:/path」「applicant_manager」「applicant」などの形式
         const canExecute = await this.canUserExecuteTask(task, input.actorId);
@@ -648,7 +660,7 @@ export class WorkflowEngineService implements OnModuleInit {
         }
 
         // タスクを完了としてマーク（アクションはApprovalHistoryに記録済み）
-        await this.prisma.approvalTask.update({
+        await this.prisma.workflowTask.update({
             where: { id: input.taskId },
             data: { status: 'COMPLETED' },
         });
@@ -701,7 +713,7 @@ export class WorkflowEngineService implements OnModuleInit {
             
             // 重要: 並行して実行中の他のタスクをキャンセルする
             // 同じアプリケーションIDで、ステータスがPENDINGのタスクを全てCANCELEDにする
-            await this.prisma.approvalTask.updateMany({
+            await this.prisma.workflowTask.updateMany({
                 where: {
                     applicationId: task.applicationId,
                     status: 'PENDING',
@@ -713,7 +725,7 @@ export class WorkflowEngineService implements OnModuleInit {
             });
 
             // 差し戻しを実行したタスク自体も CANCELED にする（完了ではなく）
-            await this.prisma.approvalTask.update({
+            await this.prisma.workflowTask.update({
                 where: { id: task.id },
                 data: { status: 'CANCELED' }
             });
@@ -732,7 +744,7 @@ export class WorkflowEngineService implements OnModuleInit {
             where: { id: task.applicationId },
             include: {
                 applicationDefinition: true,
-                tasks: true,
+                workflowTasks: { orderBy: { createdAt: 'desc' } },
                 history: true,
             },
         });
@@ -748,10 +760,7 @@ export class WorkflowEngineService implements OnModuleInit {
                 applicationDefinition: true,
                 formDefinition: true,
                 flowDefinition: true,
-                tasks: {
-                    orderBy: { createdAt: 'desc' },
-                },
-                serviceTasks: {
+                workflowTasks: {
                     orderBy: { createdAt: 'desc' },
                     include: {
                         history: {
@@ -780,194 +789,45 @@ export class WorkflowEngineService implements OnModuleInit {
     }
 
     /**
-     * サービスタスクを実行
+     * タスクをWorkerキューに登録（統合テーブル使用）
      */
-    async executeServiceTask(applicationId: string, node: any, inputData: any, existingTaskId?: string) {
-        let task;
-        const taskData = {
+    async enqueueTask(applicationId: string, node: any, inputData: any, applicantId: string, assignedTo?: string | null, assignedToDisplay?: string | null, assignedToInfo?: any): Promise<void> {
+        // WorkflowTaskレコードを作成（configにノード設定をスナップショット保存）
+        const task = await this.prisma.workflowTask.create({
+            data: {
+                applicationId,
+                stepId: node.id,
+                type: node.type,
+                status: 'PENDING',
+                // 承認タスク用フィールド
+                assignedTo: assignedTo || null,
+                assignedToDisplay: assignedToDisplay || null,
+                assignedToInfo: assignedToInfo || null,
+                // ノード設定のスナップショット
+                config: node.data || {},
+            },
+        });
+
+        // Workerキューに登録
+        const job: TaskExecuteJob = {
+            taskId: task.id,
             applicationId,
-            stepId: node.id,
-            type: node.type,
-            status: 'PENDING' as any, // TaskStatus
-            updatedAt: new Date(),
+            nodeId: node.id,
+            nodeType: node.type,
+            nodeData: node.data || {},
+            inputData,
+            applicantId,
         };
 
-        if (existingTaskId) {
-            task = await this.prisma.serviceTask.update({
-                where: { id: existingTaskId },
-                data: { ...taskData, error: null, retries: { increment: 1 } },
-            });
-        } else {
-            task = await this.prisma.serviceTask.create({
-                data: taskData,
-            });
-        }
+        await this.queueService.enqueue('TASK_EXECUTE', job);
+        this.logger.log(`Enqueued task ${task.id} (type: ${node.type}) for application ${applicationId}`);
+    }
 
-        try {
-            let result: any = {};
-
-            if (node.type === 'apiCall') {
-                const url = this.replaceVariables(node.data.url, inputData);
-                const method = node.data.method || 'GET';
-                const headersStr = this.replaceVariables(node.data.headers || '{}', inputData);
-                const bodyStr = this.replaceVariables(node.data.body || '{}', inputData);
-
-                let parsedHeaders: Record<string, string> = {};
-                try { parsedHeaders = JSON.parse(headersStr); } catch { }
-
-                // HTTPヘッダーはASCIIのみ許可されるため、非ASCII文字をエンコード
-                const safeHeaders: Record<string, string> = {};
-                for (const [key, value] of Object.entries(parsedHeaders)) {
-                    // ヘッダー値に非ASCII文字がある場合はURLエンコード
-                    const isAscii = /^[\x00-\x7F]*$/.test(value);
-                    safeHeaders[key] = isAscii ? value : encodeURIComponent(value);
-                }
-
-                let bodyPayload: string | undefined = undefined;
-                if (method !== 'GET' && method !== 'HEAD') {
-                    try {
-                        const parsed = JSON.parse(bodyStr);
-                        bodyPayload = JSON.stringify(parsed);
-                    } catch {
-                        bodyPayload = bodyStr;
-                    }
-                }
-
-                console.log(`Executing API Call: ${method} ${url}`);
-                console.log(`Raw Headers:`, parsedHeaders);
-                console.log(`Safe Headers:`, safeHeaders);
-                console.log(`Body:`, bodyPayload);
-
-                // リクエスト送信
-                const response = await fetch(url, {
-                    method,
-                    headers: {
-                        'Content-Type': 'application/json; charset=utf-8',
-                        ...safeHeaders
-                    },
-                    body: bodyPayload,
-                });
-
-                const responseText = await response.text();
-                let responseData;
-                try {
-                    responseData = JSON.parse(responseText);
-                } catch {
-                    responseData = { text: responseText };
-                }
-
-                // Check success codes from node configuration
-                const successCodesStr = node.data.successCodes || '200,201,204';
-                const successCodesList = successCodesStr.split(',').map((c: string) => parseInt(c.trim(), 10)).filter((n: number) => !isNaN(n));
-                const isSuccess = successCodesList.includes(response.status);
-                const errorBehavior = node.data.errorBehavior || 'stop';
-
-                if (!isSuccess) {
-                    if (errorBehavior === 'stop') {
-                        throw new Error(`API Error: ${response.status} ${response.statusText} - ${responseText}`);
-                    } else {
-                        // Log error but continue
-                        console.warn(`API returned ${response.status} but continuing due to errorBehavior=continue`);
-                        result = { ...responseData, _statusCode: response.status, _isError: true };
-                    }
-                } else {
-                    result = { ...responseData, _statusCode: response.status };
-                }
-
-            } else if (node.type === 'llmCall') {
-                const prompt = this.replaceVariables(node.data.prompt || '', inputData);
-                console.log(`Executing Mock LLM Call with prompt: ${prompt}`);
-                // Mock Response
-                result = {
-                    response: `This is a mock response for prompt: "${prompt}". LLM integration is not yet configured.`,
-                    timestamp: new Date().toISOString()
-                };
-            }
-
-            // レスポンスマッピング処理
-            const responseMappingStr = node.data.responseMapping;
-            if (responseMappingStr) {
-                try {
-                    const mapping = JSON.parse(responseMappingStr);
-                    let inputDataUpdated = false;
-
-                    for (const [responsePath, formFieldId] of Object.entries(mapping)) {
-                        const value = this.getValueByPath(result, responsePath);
-                        if (value !== undefined) {
-                            console.log(`[WorkflowEngine] Mapping response value: ${responsePath} -> ${formFieldId} = ${value}`);
-                            inputData[formFieldId as string] = value;
-                            inputDataUpdated = true;
-                        }
-                    }
-
-                    if (inputDataUpdated) {
-                        await this.prisma.application.update({
-                            where: { id: applicationId },
-                            data: { inputData: inputData as Prisma.InputJsonValue },
-                        });
-                        console.log(`[WorkflowEngine] Updated application inputData based on response mapping`);
-                    }
-                } catch (e) {
-                    console.error('[WorkflowEngine] Failed to process response mapping:', e);
-                }
-            }
-
-            // 成功
-            await this.prisma.serviceTask.update({
-                where: { id: task.id },
-                data: { status: 'COMPLETED' as any, result },
-            });
-
-            // ServiceTaskHistoryに履歴を保存
-            await this.prisma.serviceTaskHistory.create({
-                data: {
-                    serviceTaskId: task.id,
-                    applicationId,
-                    stepId: node.id,
-                    type: node.type,
-                    status: 'COMPLETED',
-                    result,
-                },
-            });
-
-            // サービスタスク完了を履歴に記録
-            await this.prisma.approvalHistory.create({
-                data: {
-                    applicationId,
-                    actorId: 'SYSTEM',
-                    action: 'SERVICE_TASK_COMPLETE',
-                    stepId: node.id,
-                    comment: `${node.type} 実行完了`,
-                },
-            });
-
-            // 次のノードへ
-            await this.advanceToNextNode(applicationId);
-
-        } catch (error: any) {
-            console.error('Service Task Failed:', error);
-            await this.prisma.serviceTask.update({
-                where: { id: task.id },
-                data: {
-                    status: 'FAILED' as any,
-                    error: error.message || 'Unknown error',
-                },
-            });
-
-            // ServiceTaskHistoryに失敗履歴を保存
-            await this.prisma.serviceTaskHistory.create({
-                data: {
-                    serviceTaskId: task.id,
-                    applicationId,
-                    stepId: node.id,
-                    type: node.type,
-                    status: 'FAILED',
-                    error: error.message || 'Unknown error',
-                },
-            });
-
-            // 失敗時はフロー停止（ここで終了）
-        }
+    /**
+     * サービスタスクをWorkerキューに登録（互換性のためのラッパー）
+     */
+    async enqueueServiceTask(applicationId: string, node: any, inputData: any, applicantId: string): Promise<void> {
+        await this.enqueueTask(applicationId, node, inputData, applicantId);
     }
 
     /**
@@ -983,10 +843,10 @@ export class WorkflowEngineService implements OnModuleInit {
     }
 
     /**
-     * タスク再実行
+     * タスク再実行（Worker経由）
      */
-    async retryServiceTask(taskId: string) {
-        const task = await this.prisma.serviceTask.findUnique({
+    async retryTask(taskId: string) {
+        const task = await this.prisma.workflowTask.findUnique({
             where: { id: taskId },
             include: { application: { include: { flowDefinition: true } } }
         });
@@ -995,17 +855,46 @@ export class WorkflowEngineService implements OnModuleInit {
             throw new BadRequestException('Task is not in FAILED state');
         }
 
-        const nodes = task.application.flowDefinition.nodes as any[];
+        // スナップショット優先
+        const nodes = (task.application.flowNodes || task.application.flowDefinition.nodes || []) as any[];
         const node = nodes.find(n => n.id === task.stepId);
 
         if (!node) {
             throw new NotFoundException('Node not found in flow definition');
         }
 
-        // 再実行
-        await this.executeServiceTask(task.applicationId, node, task.application.inputData, taskId);
+        // タスクのステータスをPENDINGにリセットし、リトライ回数を増加
+        await this.prisma.workflowTask.update({
+            where: { id: taskId },
+            data: {
+                status: 'PENDING',
+                error: null,
+                retries: { increment: 1 },
+            },
+        });
+
+        // Workerキューに登録
+        const job: TaskExecuteJob = {
+            taskId: task.id,
+            applicationId: task.applicationId,
+            nodeId: node.id,
+            nodeType: node.type,
+            nodeData: task.config || node.data || {},
+            inputData: task.application.inputData as Record<string, any>,
+            applicantId: task.application.applicantId,
+        };
+
+        await this.queueService.enqueue('TASK_EXECUTE', job);
+        this.logger.log(`Enqueued retry for task ${taskId}`);
 
         return { success: true };
+    }
+
+    /**
+     * サービスタスク再実行（互換性のためのラッパー）
+     */
+    async retryServiceTask(taskId: string) {
+        return this.retryTask(taskId);
     }
 
     /**
@@ -1071,7 +960,7 @@ export class WorkflowEngineService implements OnModuleInit {
             where: { id: applicationId },
             include: {
                 applicationDefinition: true,
-                tasks: true,
+                workflowTasks: { orderBy: { createdAt: 'desc' } },
                 history: true,
             },
         });
