@@ -1,15 +1,22 @@
 import { Module, Global } from '@nestjs/common';
-import { ConfigModule } from '@nestjs/config';
+import { ConfigModule, ConfigService } from '@nestjs/config';
 import { QueueService } from './queue.service';
 import { PgBossQueueAdapter } from './adapters/pg-boss.adapter';
+import { KafkaAdapter } from './adapters/kafka.adapter';
 
-@Global() // Make it global so it can be used everywhere without imports
+@Global()
 @Module({
   imports: [ConfigModule],
   providers: [
+    PgBossQueueAdapter,
+    KafkaAdapter,
     {
       provide: 'QUEUE_ADAPTER',
-      useClass: PgBossQueueAdapter,
+      useFactory: (config: ConfigService, pgBoss: PgBossQueueAdapter, kafka: KafkaAdapter) => {
+        const type = config.get('QUEUE_TYPE');
+        return type === 'kafka' ? kafka : pgBoss;
+      },
+      inject: [ConfigService, PgBossQueueAdapter, KafkaAdapter],
     },
     QueueService,
   ],

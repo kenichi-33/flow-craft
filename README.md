@@ -58,7 +58,7 @@ graph TD
     
     subgraph Backend Services
         Backend -->|Query/Command| DB[("PostgreSQL")]
-        Backend -->|Queue| PgBoss[("Job Queue (pg-boss)")]
+        Backend -->|Queue| Queue[("Job Queue (pg-boss / Kafka)")]
     end
     
     subgraph External
@@ -84,25 +84,35 @@ Docker環境があれば、すぐにローカルで動作確認が可能です�
 - Docker Desktop
 - Docker Compose
 
-### 起動手順
+### 開発ワークフロー（推奨: Hybrid Mode）
+本プロジェクトでは、開発効率向上のため「インフラはDocker、アプリはホストマシン」で動かすハイブリッド構成を推奨しています。
 
-1. **リポジトリのクローン**
+1. **インフラの起動**
+   DB, Keycloak, MinIOなどを起動します（Backend/Frontendコンテナは起動しません）。
    ```bash
-   git clone <repository-url>
-   cd flow-craft
+   docker compose up -d
    ```
 
-2. **コンテナの起動**
+2. **バックエンドの起動**
    ```bash
-   docker-compose up -d
+   cd backend
+   npm run start:dev
    ```
-   初回起動時はデータベースの初期化やビルドに数分かかる場合があります。
+   - API: http://localhost:8080/api
+   - Swagger: http://localhost:8080/api/docs
 
-3. **アクセスの確認**
-   - **Frontend**: http://localhost:3000
-   - **Backend API**: http://localhost:8080/api
-   - **Backend API**: http://localhost:8080/api
-   - **Mailpit**: http://localhost:8025 (メール確認用)
+3. **フロントエンドの起動**
+   ```bash
+   cd frontend-new
+   npm run dev
+   ```
+   - App: http://localhost:3000
+
+### 補足: 完全Dockerモード
+従来の「すべてDockerで動かす」方法も可能です。その場合は `app` プロファイルを指定します。
+```bash
+docker compose --profile app up -d
+```
 
 ## 🔧 環境のメンテナンス
 
@@ -125,24 +135,35 @@ docker-compose down
 docker-compose up -d --build -V
 ```
 
-### Elasticsearch Mode (Optional)
-本システムは、デフォルトのPostgreSQL検索モードに加え、大規模データ向けのElasticsearchモードをサポートしています。
+### Queue Mode (Kafka / pg-boss)
+デフォルトではPostgreSQLベースの `pg-boss` を使用しますが、大規模環境向けに Kafka モードもサポートしています。
 
-1. **Elasticsearchの起動**
+1. **Kafkaの起動**
    ```bash
-   docker-compose --profile es up -d
+   docker compose --profile kafka up -d
    ```
 
 2. **バックエンド設定**
-   `backend/.env` (または環境変数) に以下を設定してください。
+   `backend/.env` に以下を設定します（デフォルトは pg-boss）。
+   ```env
+   QUEUE_TYPE=kafka
+   KAFKA_BROKERS=localhost:9092
+   ```
+
+### Elasticsearch Mode (Optional)
+デフォルトのPostgreSQL検索に加え、全文検索エンジンElasticsearchを利用可能です。
+
+1. **Elasticsearchの起動**
+   ```bash
+   docker compose --profile es up -d
+   ```
+
+2. **バックエンド設定**
+   `backend/.env` に以下を設定します。
    ```env
    SEARCH_MODE=elasticsearch
-   ELASTICSEARCH_NODE=http://elasticsearch:9200
+   ELASTICSEARCH_NODE=http://localhost:9200
    ```
-   ※ Docker環境でバックエンドと通信する場合、ホスト名は `elasticsearch` となります。
-
-3. **反映**
-   バックエンドを再起動すると、新規アプリケーション作成・更新時に自動的にElasticsearchへ同期されます。
 
 ## 📝 ライセンス
 
