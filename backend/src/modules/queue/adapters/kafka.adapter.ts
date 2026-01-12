@@ -1,32 +1,30 @@
 import { Injectable, OnModuleInit, OnModuleDestroy, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { Kafka, Producer, Consumer } from 'kafkajs';
+import { KafkaJS } from '@confluentinc/kafka-javascript';
 import { IQueueAdapter } from '../queue.interface';
 
 @Injectable()
 export class KafkaAdapter implements IQueueAdapter, OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(KafkaAdapter.name);
-  private kafka: Kafka;
-  private producer: Producer;
-  private consumer: Consumer;
+  private kafka: KafkaJS.Kafka;
+  private producer: KafkaJS.Producer;
+  private consumer: KafkaJS.Consumer;
   private isConnected = false;
   private readonly handlers = new Map<string, (payload: any) => Promise<void>>();
 
   constructor(private configHelper: ConfigService) {
-    const brokers = (this.configHelper.get<string>('KAFKA_BROKERS') || 'localhost:9092').split(',');
+    const brokers = this.configHelper.get<string>('KAFKA_BROKERS') || 'localhost:9092';
     
-    this.kafka = new Kafka({
-      clientId: this.configHelper.get<string>('KAFKA_CLIENT_ID') || 'flow-craft-backend',
-      brokers,
-      retry: {
-        initialRetryTime: 300,
-        retries: 5
-      }
+    this.kafka = new KafkaJS.Kafka({
+      'client.id': this.configHelper.get<string>('KAFKA_CLIENT_ID') || 'flow-craft-backend',
+      'bootstrap.servers': brokers,
+      'retry.backoff.ms': 300
     });
 
     this.producer = this.kafka.producer();
     this.consumer = this.kafka.consumer({ 
-      groupId: this.configHelper.get<string>('KAFKA_GROUP_ID') || 'flow-craft-consumer-group' 
+      'group.id': this.configHelper.get<string>('KAFKA_GROUP_ID') || 'flow-craft-consumer-group',
+      'auto.offset.reset': 'earliest'
     });
   }
 
@@ -94,7 +92,7 @@ export class KafkaAdapter implements IQueueAdapter, OnModuleInit, OnModuleDestro
     this.handlers.set(topic, handler);
     
     // Subscribe to topic
-    await this.consumer.subscribe({ topic, fromBeginning: false });
+    await this.consumer.subscribe({ topic });
     
     // If we haven't started running the consumer loop yet, start it now
     // Note: Kafka consumer.run should only be called once

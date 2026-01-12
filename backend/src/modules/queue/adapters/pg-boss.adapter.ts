@@ -7,6 +7,7 @@ import { IQueueAdapter } from '../queue.interface';
 export class PgBossQueueAdapter implements IQueueAdapter, OnModuleInit, OnModuleDestroy {
   private boss: PgBoss;
   private readonly logger = new Logger(PgBossQueueAdapter.name);
+  private readonly knownQueues = new Set<string>();
 
   constructor(private configService: ConfigService) {
     const databaseUrl = this.configService.getOrThrow<string>('DATABASE_URL');
@@ -44,6 +45,11 @@ export class PgBossQueueAdapter implements IQueueAdapter, OnModuleInit, OnModule
 
   async enqueue(topic: string, payload: any): Promise<void> {
     try {
+      if (!this.knownQueues.has(topic)) {
+        await this.boss.createQueue(topic);
+        this.knownQueues.add(topic);
+      }
+      
       await this.boss.send(topic, payload);
       this.logger.debug(`Job enqueued to ${topic}: ${JSON.stringify(payload)}`);
     } catch (error) {

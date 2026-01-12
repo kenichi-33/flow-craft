@@ -14,6 +14,11 @@ export class ElasticsearchSearchService implements ISearchService, OnModuleInit 
   constructor(private readonly configService: ConfigService) {}
 
   onModuleInit() {
+    const searchMode = this.configService.get('SEARCH_MODE');
+    if (searchMode !== 'elasticsearch') {
+      return;
+    }
+
     const node = this.configService.get<string>('ELASTICSEARCH_NODE');
     if (!node) {
       this.logger.warn('ELASTICSEARCH_NODE not set. Elasticsearch service will not function.');
