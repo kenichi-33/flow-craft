@@ -1,4 +1,4 @@
-import { IsString, IsNotEmpty, IsNumber, IsOptional, ValidateNested, IsEnum, IsObject } from 'class-validator';
+import { IsString, IsNotEmpty, IsNumber, IsOptional, ValidateNested, IsEnum, IsObject, IsArray } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export enum SearchOperator {
@@ -8,10 +8,14 @@ export enum SearchOperator {
   LT = 'lt',
   GTE = 'gte',
   LTE = 'lte',
-  // RANGE = 'range', // Future support
+  IN = 'in',
 }
 
-export class SearchCriterion {
+export class SearchFilter {
+  @IsString()
+  @IsNotEmpty()
+  field: string;
+
   @IsEnum(SearchOperator)
   operator: SearchOperator;
 
@@ -19,20 +23,47 @@ export class SearchCriterion {
   value: any;
 }
 
-export class SearchApplicationDto {
+export class SearchQueryDto {
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
-  applicationDefinitionId: string;
+  keyword?: string;
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => SearchFilter)
+  filters?: SearchFilter[];
 
   @IsOptional()
   @IsObject()
-  criteria?: Record<string, SearchCriterion>;
+  sort?: { field: string; order: 'asc' | 'desc' };
 
-  @IsNumber()
   @IsOptional()
+  @IsNumber()
   page?: number = 1;
 
-  @IsNumber()
   @IsOptional()
+  @IsNumber()
   limit?: number = 20;
+
+  // System Filters
+  @IsOptional()
+  @IsString()
+  applicationDefinitionId?: string;
+
+  @IsOptional()
+  @IsString()
+  applicantId?: string;
+
+  @IsOptional()
+  @IsArray()
+  status?: string[];
+
+  // Deprecated backward compatibility
+  @IsOptional()
+  criteria?: any;
 }
+
+// Alias for compatibility if needed during strict refactor
+export class SearchApplicationDto extends SearchQueryDto {}
+

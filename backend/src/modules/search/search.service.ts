@@ -35,11 +35,8 @@ export class SearchService implements ISearchService, OnModuleInit {
   private async handleIndexingJob(payload: { applicationId: string }): Promise<void> {
     this.logger.debug(`Processing indexing job for app: ${payload.applicationId}`);
     
-    // Only proceed if implementation requires explicit indexing (e.g. Elasticsearch)
-    // Postgres mode doesn't need indexing as it queries the live table.
-    if (this.searchMode !== 'elasticsearch') {
-      return; 
-    }
+    // Proceed for both Elasticsearch (external index) and Postgres (fullText column update)
+    // if (this.searchMode !== 'elasticsearch') { return; } // Removed restriction
 
     try {
       const app = await this.prisma.application.findUnique({

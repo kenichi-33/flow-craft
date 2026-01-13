@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Query } from '@nestjs/common';
+import { Controller, Get, Post, Body, Query, Param } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { UsersService } from './users.service';
 import axios from 'axios';
@@ -193,9 +193,14 @@ export class UsersController {
     }
 
     @Get('departments')
-    async getDepartments() {
-        // UsersServiceに委譲
-        return this.usersService.getAllDepartments();
+    getDepartments(@Query('root') root?: string) {
+        return this.usersService.getGroups(root);
+    }
+
+    @Get('groups/:id/members')
+    async getGroupMembers(@Param('id') id: string) {
+        console.log(`[UsersController] Fetching members for group ID: ${id}`);
+        return this.usersService.getGroupMembers(id);
     }
 
     @Get('check-assignment')

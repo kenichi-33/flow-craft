@@ -6,158 +6,208 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { ArrowLeft, Loader2, Info, Plus, Trash2, UserPlus, Building, Users, Folder } from 'lucide-react';
+import { ArrowLeft, Loader2, Plus, Trash2, UserPlus, Building, Users, Folder, Search, Shield } from 'lucide-react';
 import { useAuthStore } from '@/stores/useAuthStore';
+import { cn } from '@/lib/utils';
 
-interface Department { path: string; name: string; }
-interface Team { id: string; name: string; description?: string; members: { id: string; memberType: string; memberId: string }[]; }
+// Types
+interface KeycloakGroup { id: string; name: string; path: string; deptCode?: string; }
+interface LocalTeam { id: string; name: string; description?: string; members: { id: string; memberType: string; memberId: string; memberInfo?: any }[]; }
+interface UserSnapshot { username: string; firstName?: string; lastName?: string; email?: string; type: 'user' | 'group' | 'role' | 'other'; }
 
-function DepartmentsTab() {
-    const { data: departments, isLoading } = useQuery<Department[]>({ queryKey: ['departments'], queryFn: () => api.get('/users/departments') });
-    if (isLoading) return <div className="flex justify-center p-8"><Loader2 className="h-6 w-6 animate-spin" /></div>;
-    return (
-        <div className="space-y-4">
-            <Alert><Info className="h-4 w-4" /><AlertDescription>部署は会社の組織構造を表します。変更はKeycloak管理コンソールから行ってください。</AlertDescription></Alert>
-            {(!departments || departments.length === 0) ? (
-                <p className="text-muted-foreground text-center py-8">部署が登録されていません</p>
-            ) : (
-                <div className="space-y-1">
-                    {departments.map((dept) => (
-                        <div key={dept.path} className="flex items-center gap-3 p-3 rounded-lg hover:bg-muted/50" style={{ paddingLeft: `${(dept.path.split('/').length - 1) * 16}px` }}>
-                            {dept.path === '/Company' ? <Building className="h-4 w-4 text-primary" /> : <Folder className="h-4 w-4 text-muted-foreground" />}
-                            <span className="font-medium">{dept.name}</span>
-                            <span className="text-xs text-muted-foreground">{dept.path}</span>
-                        </div>
-                    ))}
-                </div>
-            )}
-        </div>
-    );
-}
+type SelectionType = 
+    | { type: 'company'; group: KeycloakGroup }
+    | { type: 'shared'; group: KeycloakGroup }
+    | { type: 'custom'; team: LocalTeam };
 
-function TeamsTab() {
+export default function AdminTeamsPage() {
     const queryClient = useQueryClient();
     const hasRole = useAuthStore((s) => s.hasRole);
     const isAdmin = hasRole('wf_admin');
+    
+    // Selection State
+    const [selection, setSelection] = useState<SelectionType | null>(null);
+
+    // Data Queries
+    const { data: companyGroups, isLoading: isCompanyLoading } = useQuery<KeycloakGroup[]>({ 
+        queryKey: ['groups', 'company'], 
+        queryFn: async () => {
+            const data: any = await api.get('/users/departments?root=/Company');
+            return data.filter((g: any) => g.path.startsWith('/Company'));
+        }
+    });
+    const { data: sharedTeams, isLoading: isSharedLoading } = useQuery<KeycloakGroup[]>({ 
+        queryKey: ['groups', 'teams'], 
+        queryFn: async () => {
+            const data: any = await api.get('/users/departments?root=/Teams');
+            // Filter out anything that isn't strictly under /Teams (or is /Teams itself if you want root)
+            // User said "Company is displayed in Shared Teams". This implies the API returned Company groups.
+            return data.filter((g: any) => g.path.startsWith('/Teams'));
+        }
+    });
+    const { data: localTeams, isLoading: isLocalLoading } = useQuery<LocalTeam[]>({ 
+        queryKey: ['teams'], 
+        queryFn: () => api.get('/teams') 
+    });
+
+    // Mutations
+    const createTeamMutation = useMutation({ 
+        mutationFn: (d: any) => api.post('/teams', d), 
+        onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['teams'] }); setCreateOpen(false); } 
+    });
+    const deleteTeamMutation = useMutation({ 
+        mutationFn: (id: string) => api.delete(`/teams/${id}`), 
+        onSuccess: (_, variables) => { 
+            queryClient.invalidateQueries({ queryKey: ['teams'] }); 
+            if (selection?.type === 'custom' && selection.team.id === variables) setSelection(null); 
+        } 
+    });
+
+    // Dialog States
     const [createOpen, setCreateOpen] = useState(false);
-    const [memberOpen, setMemberOpen] = useState(false);
-    const [selectedTeam, setSelectedTeam] = useState<string | null>(null);
-    const [newName, setNewName] = useState('');
-    const [newDesc, setNewDesc] = useState('');
-    const [memberId, setMemberId] = useState('');
-    const [memberType, setMemberType] = useState<'user' | 'department'>('user');
-    const [searchQuery, setSearchQuery] = useState('');
+    const [newTeamName, setNewTeamName] = useState('');
+    const [newTeamDesc, setNewTeamDesc] = useState('');
 
-    const { data: teams, isLoading } = useQuery<Team[]>({ queryKey: ['teams'], queryFn: () => api.get('/teams') });
-    const { data: departments } = useQuery<Department[]>({ queryKey: ['departments'], queryFn: () => api.get('/users/departments') });
-    const { data: searchResults } = useQuery<any[]>({ queryKey: ['user-search', searchQuery], queryFn: () => api.get(`/users/search?q=${encodeURIComponent(searchQuery)}&limit=10`).then((r: any) => r.data || r), enabled: searchQuery.length > 0 });
+    // --- Sidebar Components ---
 
-    const createMutation = useMutation({ mutationFn: (d: any) => api.post('/teams', d), onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['teams'] }); setCreateOpen(false); setNewName(''); setNewDesc(''); } });
-    const deleteMutation = useMutation({ mutationFn: (id: string) => api.delete(`/teams/${id}`), onSuccess: () => queryClient.invalidateQueries({ queryKey: ['teams'] }) });
-    const addMemberMutation = useMutation({ mutationFn: (d: any) => api.post(`/teams/${d.teamId}/members`, d), onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['teams'] }); setMemberOpen(false); setMemberId(''); setSearchQuery(''); } });
-    const removeMemberMutation = useMutation({ mutationFn: (d: any) => api.delete(`/teams/${d.teamId}/members/${d.memberId}`), onSuccess: () => queryClient.invalidateQueries({ queryKey: ['teams'] }) });
+    const renderGroupItem = (group: KeycloakGroup, type: 'company' | 'shared') => {
+        const isSelected = selection?.type === type && selection.group.id === group.id;
+        const depth = group.path.split('/').length - 2; // Adjust indentation
+        
+        return (
+            <Button
+                key={group.id}
+                variant={isSelected ? "secondary" : "ghost"}
+                className={cn("w-full justify-start h-9 px-2", isSelected && "font-medium")}
+                style={{ paddingLeft: `${Math.max(8, depth * 12 + 8)}px` }}
+                onClick={() => setSelection({ type, group })}
+            >
+                {type === 'company' ? <Building className="mr-2 h-4 w-4 text-muted-foreground" /> : <Folder className="mr-2 h-4 w-4 text-emerald-500" />}
+                <span className="truncate">{group.name}</span>
+            </Button>
+        );
+    };
 
-    if (isLoading) return <div className="flex justify-center p-8"><Loader2 className="h-6 w-6 animate-spin" /></div>;
+    const renderLocalTeamItem = (team: LocalTeam) => {
+        const isSelected = selection?.type === 'custom' && selection.team.id === team.id;
+        return (
+            <Button
+                key={team.id}
+                variant={isSelected ? "secondary" : "ghost"}
+                className={cn("w-full justify-start h-9 px-2 group", isSelected && "font-medium")}
+                onClick={() => setSelection({ type: 'custom', team })}
+            >
+                <Users className="mr-2 h-4 w-4 text-blue-500" />
+                <span className="truncate flex-1 text-left">{team.name}</span>
+            </Button>
+        );
+    };
 
     return (
-        <div className="space-y-4">
-            <Alert><Info className="h-4 w-4" /><AlertDescription>チームはプロジェクトや業務グループなど、任意に作成できるグループです。</AlertDescription></Alert>
-            {isAdmin && (
-                <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-                    <DialogTrigger asChild><Button><Plus className="h-4 w-4 mr-2" />新規チーム作成</Button></DialogTrigger>
-                    <DialogContent>
-                        <DialogHeader><DialogTitle>新規チーム作成</DialogTitle></DialogHeader>
-                        <div className="space-y-4 py-4">
-                            <div className="space-y-2"><Label>チーム名</Label><Input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="例: プロジェクトA" /></div>
-                            <div className="space-y-2"><Label>説明（任意）</Label><Textarea value={newDesc} onChange={(e) => setNewDesc(e.target.value)} rows={2} /></div>
-                        </div>
-                        <DialogFooter>
-                            <Button variant="outline" onClick={() => setCreateOpen(false)}>キャンセル</Button>
-                            <Button onClick={() => createMutation.mutate({ name: newName, description: newDesc || undefined })} disabled={!newName || createMutation.isPending}>作成</Button>
-                        </DialogFooter>
-                    </DialogContent>
-                </Dialog>
-            )}
-            {(!teams || teams.length === 0) ? (
-                <p className="text-muted-foreground text-center py-8">チームがまだ作成されていません</p>
-            ) : (
-                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                    {teams.map((team) => (
-                        <Card key={team.id} className="border-0 shadow-sm">
-                            <CardHeader className="pb-2">
-                                <div className="flex items-center gap-2"><Users className="h-5 w-5 text-primary" /><CardTitle className="text-lg">{team.name}</CardTitle></div>
-                                {team.description && <p className="text-sm text-muted-foreground">{team.description}</p>}
-                            </CardHeader>
-                            <CardContent>
-                                <p className="text-sm font-medium mb-2">メンバー ({team.members?.length || 0})</p>
-                                {team.members && team.members.length > 0 ? (
-                                    <div className="space-y-1">
-                                        {team.members.map((m) => (
-                                            <div key={m.id} className="flex items-center justify-between text-sm p-1 rounded hover:bg-muted/50">
-                                                <div className="flex items-center gap-2">
-                                                    {m.memberType === 'user' ? <Avatar className="h-6 w-6"><AvatarFallback className="text-xs">{((m as any).memberInfo?.displayName || m.memberId)[0].toUpperCase()}</AvatarFallback></Avatar> : <Folder className="h-4 w-4" />}
-                                                    <span>{(m as any).memberInfo?.displayName || m.memberId}</span>
-                                                    {(m as any).memberInfo?.department && <span className="text-xs text-muted-foreground">{(m as any).memberInfo.department}</span>}
-                                                    <Badge variant="outline" className="text-xs">{m.memberType === 'user' ? 'ユーザー' : '部署'}</Badge>
-                                                </div>
-                                                {isAdmin && <Button variant="ghost" size="sm" onClick={() => removeMemberMutation.mutate({ teamId: team.id, memberId: m.memberId })}><Trash2 className="h-3 w-3" /></Button>}
-                                            </div>
-                                        ))}
-                                    </div>
-                                ) : <p className="text-sm text-muted-foreground">メンバーなし</p>}
-                            </CardContent>
-                            {isAdmin && (
-                                <CardFooter className="gap-2">
-                                    <Button variant="outline" size="sm" onClick={() => { setSelectedTeam(team.id); setMemberOpen(true); }}><UserPlus className="h-3 w-3 mr-1" />追加</Button>
-                                    <Button variant="ghost" size="sm" className="text-destructive" onClick={() => deleteMutation.mutate(team.id)}><Trash2 className="h-3 w-3 mr-1" />削除</Button>
-                                </CardFooter>
-                            )}
-                        </Card>
-                    ))}
+        <div className="flex h-[calc(100vh-4rem)] flex-col gap-4">
+             {/* Header */}
+            <div className="flex items-center gap-4 px-4 py-2 border-b h-14 shrink-0">
+                <Button variant="ghost" size="icon" asChild><Link to="/admin"><ArrowLeft className="h-4 w-4" /></Link></Button>
+                <div className="flex-1">
+                    <h2 className="text-lg font-semibold tracking-tight">組織・チーム管理</h2>
                 </div>
-            )}
+            </div>
 
-            <Dialog open={memberOpen} onOpenChange={setMemberOpen}>
-                <DialogContent>
-                    <DialogHeader><DialogTitle>メンバー追加</DialogTitle><DialogDescription>ユーザーまたは部署を追加できます</DialogDescription></DialogHeader>
-                    <div className="space-y-4 py-4">
-                        <div className="flex gap-2">
-                            <Button variant={memberType === 'user' ? 'default' : 'outline'} onClick={() => { setMemberType('user'); setMemberId(''); }}>ユーザー</Button>
-                            <Button variant={memberType === 'department' ? 'default' : 'outline'} onClick={() => { setMemberType('department'); setMemberId(''); }}>部署</Button>
-                        </div>
-                        {memberType === 'user' ? (
+            <div className="flex flex-1 overflow-hidden">
+                {/* Sidebar */}
+                <div className="w-72 border-r flex flex-col bg-muted/10">
+                    <div className="flex-1 overflow-auto">
+                        <div className="p-4 space-y-6">
+                            {/* Section 1: Company */}
                             <div className="space-y-2">
-                                <Input placeholder="ユーザー名で検索..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
-                                {searchResults && searchResults.length > 0 && (
-                                    <div className="border rounded-md max-h-48 overflow-auto">
-                                        {searchResults.map((u: any) => (
-                                            <div key={u.username} className={`p-2 cursor-pointer hover:bg-muted ${memberId === u.username ? 'bg-muted' : ''}`} onClick={() => setMemberId(u.username)}>
-                                                {u.displayName || u.username} <span className="text-xs text-muted-foreground">@{u.username}</span>
-                                            </div>
-                                        ))}
-                                    </div>
-                                )}
-                                {memberId && <Badge>選択中: {memberId}</Badge>}
+                                <h3 className="text-sm font-medium text-muted-foreground px-2 flex items-center gap-2">
+                                    <Building className="h-4 w-4" /> 組織 (Company)
+                                </h3>
+                                <div className="space-y-0.5">
+                                    {isCompanyLoading ? <div className="p-2"><Loader2 className="h-4 w-4 animate-spin" /></div> : 
+                                     companyGroups?.map(g => renderGroupItem(g, 'company'))}
+                                    {companyGroups?.length === 0 && <p className="text-xs text-muted-foreground px-4 py-2">データがありません</p>}
+                                </div>
                             </div>
-                        ) : (
-                            <div className="border rounded-md max-h-48 overflow-auto">
-                                {(departments || []).map((d) => (
-                                    <div key={d.path} className={`p-2 cursor-pointer hover:bg-muted ${memberId === d.path ? 'bg-muted' : ''}`} onClick={() => setMemberId(d.path)}>
-                                        {d.name} <span className="text-xs text-muted-foreground">{d.path}</span>
-                                    </div>
-                                ))}
+
+                            {/* Section 2: Shared Teams */}
+                            <div className="space-y-2">
+                                <h3 className="text-sm font-medium text-muted-foreground px-2 flex items-center gap-2">
+                                    <Shield className="h-4 w-4" /> 共有チーム (Shared)
+                                </h3>
+                                <div className="space-y-0.5">
+                                    {isSharedLoading ? <div className="p-2"><Loader2 className="h-4 w-4 animate-spin" /></div> : 
+                                     sharedTeams?.map(g => renderGroupItem(g, 'shared'))}
+                                    {(!sharedTeams || sharedTeams.length === 0) && <p className="text-xs text-muted-foreground px-4 py-2">データがありません</p>}
+                                </div>
                             </div>
-                        )}
+
+                            {/* Section 3: Custom Teams */}
+                            <div className="space-y-2">
+                                <div className="flex items-center justify-between px-2">
+                                    <h3 className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                                        <Users className="h-4 w-4" /> カスタムチーム
+                                    </h3>
+                                    {isAdmin && (
+                                        <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setCreateOpen(true)}>
+                                            <Plus className="h-4 w-4" />
+                                        </Button>
+                                    )}
+                                </div>
+                                <div className="space-y-0.5">
+                                    {isLocalLoading ? <div className="p-2"><Loader2 className="h-4 w-4 animate-spin" /></div> :
+                                     localTeams?.map(t => renderLocalTeamItem(t))}
+                                    {(!localTeams || localTeams.length === 0) && <p className="text-xs text-muted-foreground px-4 py-2">チームを作成してください</p>}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Main Content */}
+                <div className="flex-1 overflow-auto bg-background">
+                    {selection ? (
+                        <TeamDetailView 
+                            selection={selection} 
+                            isAdmin={isAdmin} 
+                            onDeleteTeam={() => deleteTeamMutation.mutate(selection.type === 'custom' ? selection.team.id : '')}
+                            customTeamOverride={selection.type === 'custom' ? localTeams?.find(t => t.id === selection.team.id) : undefined}
+                        />
+                    ) : (
+                        <div className="flex h-full items-center justify-center text-muted-foreground">
+                            <div className="text-center">
+                                <Users className="h-12 w-12 mx-auto mb-4 opacity-20" />
+                                <p>左側のメニューからグループまたはチームを選択してください</p>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            </div>
+
+            {/* Create Team Dialog */}
+            <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>新規チーム作成</DialogTitle>
+                        <DialogDescription>ワークフローで使用する独自のチームを作成します</DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-4 py-4">
+                        <div className="space-y-2">
+                            <Label>チーム名</Label>
+                            <Input value={newTeamName} onChange={(e) => setNewTeamName(e.target.value)} placeholder="例: プロジェクトA" />
+                        </div>
+                        <div className="space-y-2">
+                            <Label>説明</Label>
+                            <Textarea value={newTeamDesc} onChange={(e) => setNewTeamDesc(e.target.value)} />
+                        </div>
                     </div>
                     <DialogFooter>
-                        <Button variant="outline" onClick={() => setMemberOpen(false)}>キャンセル</Button>
-                        <Button onClick={() => selectedTeam && addMemberMutation.mutate({ teamId: selectedTeam, memberType, memberId })} disabled={!memberId || addMemberMutation.isPending}>追加</Button>
+                        <Button variant="outline" onClick={() => setCreateOpen(false)}>キャンセル</Button>
+                        <Button onClick={() => createTeamMutation.mutate({ name: newTeamName, description: newTeamDesc })} disabled={!newTeamName || createTeamMutation.isPending}>作成</Button>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
@@ -165,16 +215,223 @@ function TeamsTab() {
     );
 }
 
-export default function AdminTeamsPage() {
+// --- Detail View Component ---
+
+// --- Detail View Component ---
+
+function TeamDetailView({ selection, isAdmin, onDeleteTeam, customTeamOverride }: { selection: SelectionType, isAdmin: boolean, onDeleteTeam: () => void, customTeamOverride?: LocalTeam }) {
+    const queryClient = useQueryClient();
+    
+    // Debugging 404: Log the ID we are requesting
+    if ((selection.type === 'company' || selection.type === 'shared') && (selection as any).group?.id) {
+         // console.log('Requests members for group ID:', (selection as any).group.id);
+    }
+    const { data: kcMembers, isLoading: isKcLoading, error: kcError } = useQuery<UserSnapshot[]>({
+        queryKey: ['group-members', (selection as any).group?.id],
+        queryFn: () => api.get(`/users/groups/${(selection as any).group.id}/members`),
+        enabled: selection.type !== 'custom' && !!(selection as any).group?.id
+    });
+
+    // Fetch Departments for linking (only for Custom Teams)
+    const { data: departments } = useQuery<KeycloakGroup[]>({
+        queryKey: ['departments-all'],
+        queryFn: () => api.get('/users/departments'),
+        enabled: selection.type === 'custom'
+    });
+
+    // Mutation for Local Team Members
+    const addMemberMutation = useMutation({ 
+        mutationFn: (d: any) => api.post(`/teams/${d.teamId}/members`, d), 
+        onSuccess: () => { 
+            queryClient.invalidateQueries({ queryKey: ['teams'] }); 
+            setAddMemberOpen(false); 
+            setMemberId(''); 
+            setSearchQuery('');
+        } 
+    });
+    const removeMemberMutation = useMutation({
+        mutationFn: (d: any) => api.delete(`/teams/${d.teamId}/members/${d.memberId}`),
+        onSuccess: () => queryClient.invalidateQueries({ queryKey: ['teams'] })
+    });
+
+    const [addMemberOpen, setAddMemberOpen] = useState(false);
+    const [memberType, setMemberType] = useState<'user' | 'department'>('user');
+    const [searchQuery, setSearchQuery] = useState('');
+    const [memberId, setMemberId] = useState<string>(''); // Stores username or department path
+    
+    const { data: searchResults } = useQuery<any[]>({ 
+        queryKey: ['user-search', searchQuery], 
+        queryFn: () => api.get(`/users/search?q=${encodeURIComponent(searchQuery)}&limit=10`).then((r: any) => r.data || r), 
+        enabled: addMemberOpen && memberType === 'user' && searchQuery.length > 0 
+    });
+
+    // Debugging: Log members for Company view
+    if (selection.type === 'company' && kcError) {
+        console.error('Failed to fetch company members:', kcError);
+    }
+
+    if (selection.type === 'custom') {
+        const team = customTeamOverride || selection.team;
+        return (
+            <div className="p-6 space-y-6">
+                <div className="flex items-start justify-between">
+                    <div>
+                        <div className="flex items-center gap-2 mb-1">
+                            <Badge variant="outline" className="text-blue-500 border-blue-200 bg-blue-50">Custom Team</Badge>
+                        </div>
+                        <h1 className="text-2xl font-bold">{team.name}</h1>
+                        {team.description && <p className="text-muted-foreground mt-1">{team.description}</p>}
+                    </div>
+                    {isAdmin && (
+                        <div className="flex gap-2">
+                             <Button onClick={() => { setMemberType('user'); setMemberId(''); setAddMemberOpen(true); }}><UserPlus className="h-4 w-4 mr-2" />メンバー追加</Button>
+                             <Button variant="ghost" size="icon" className="text-destructive hover:bg-destructive/10" onClick={onDeleteTeam}><Trash2 className="h-4 w-4" /></Button>
+                        </div>
+                    )}
+                </div>
+
+                <Card>
+                    <CardHeader><CardTitle>メンバー一覧 ({team.members?.length || 0})</CardTitle></CardHeader>
+                    <CardContent>
+                         {team.members && team.members.length > 0 ? (
+                            <div className="grid gap-2">
+                                {team.members.map((m) => (
+                                    <div key={m.id} className="flex items-center justify-between p-3 rounded-lg border bg-card text-card-foreground shadow-sm">
+                                        <div className="flex items-center gap-3">
+                                            {m.memberType === 'user' ? (
+                                                <Avatar>
+                                                    <AvatarFallback>{(m.memberInfo?.displayName || m.memberId).substring(0,2).toUpperCase()}</AvatarFallback>
+                                                </Avatar>
+                                            ) : (
+                                                <Folder className="h-8 w-8 text-muted-foreground p-1 bg-muted rounded-full" />
+                                            )}
+                                            <div>
+                                                <p className="font-medium">{m.memberInfo?.displayName || m.memberId}</p>
+                                                {m.memberInfo?.email && <p className="text-sm text-muted-foreground">{m.memberInfo.email}</p>}
+                                                {m.memberType === 'department' && <p className="text-xs text-muted-foreground">部署連携</p>}
+                                                <div className="text-xs text-muted-foreground">Type: {m.memberType}</div>
+                                            </div>
+                                            <Badge variant="secondary" className="ml-2">{m.memberType === 'user' ? 'User' : 'Dept'}</Badge>
+                                        </div>
+                                        {isAdmin && (
+                                            <Button variant="ghost" size="icon" onClick={() => removeMemberMutation.mutate({ teamId: team.id, memberId: m.memberId })}>
+                                                <Trash2 className="h-4 w-4 text-muted-foreground hover:text-destructive" />
+                                            </Button>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                         ) : <p className="text-muted-foreground text-center py-8">メンバーがいません</p>}
+                    </CardContent>
+                </Card>
+
+                {/* Add Member Dialog (Local) */}
+                 <Dialog open={addMemberOpen} onOpenChange={setAddMemberOpen}>
+                    <DialogContent>
+                        <DialogHeader><DialogTitle>メンバー追加</DialogTitle></DialogHeader>
+                        
+                        <div className="flex gap-2 mb-4">
+                            <Button variant={memberType === 'user' ? 'default' : 'outline'} onClick={() => { setMemberType('user'); setMemberId(''); }} size="sm">ユーザー</Button>
+                            <Button variant={memberType === 'department' ? 'default' : 'outline'} onClick={() => { setMemberType('department'); setMemberId(''); }} size="sm">部署 (Department)</Button>
+                        </div>
+
+                        <div className="space-y-4 py-4">
+                            {memberType === 'user' ? (
+                                <div className="space-y-2">
+                                    <Label>ユーザー検索</Label>
+                                    <div className="relative">
+                                        <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                                        <Input placeholder="名前またはID..." className="pl-8" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
+                                    </div>
+                                    {searchResults && (
+                                        <div className="border rounded-md max-h-48 overflow-auto mt-2">
+                                            {searchResults.map((u: any) => (
+                                                <div key={u.id} 
+                                                    className={cn("p-2 cursor-pointer hover:bg-muted flex justify-between", memberId === u.username && "bg-muted")} 
+                                                    onClick={() => setMemberId(u.username)}
+                                                >
+                                                    <span>{u.displayName || u.username}</span>
+                                                    <span className="text-xs text-muted-foreground">@{u.username}</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                    {memberId && <Badge>選択中: {memberId}</Badge>}
+                                </div>
+                            ) : (
+                                <div className="space-y-2">
+                                    <Label>部署選択</Label>
+                                    <div className="border rounded-md max-h-60 overflow-auto">
+                                        {departments?.map((d) => (
+                                            <div key={d.path} 
+                                                className={cn("p-2 cursor-pointer hover:bg-muted flex items-center gap-2", memberId === d.path && "bg-muted")}
+                                                onClick={() => setMemberId(d.path)}
+                                                style={{ paddingLeft: `${Math.max(8, (d.path.split('/').length - 1) * 12)}px` }}
+                                            >   
+                                                {d.path === '/Company' ? <Building className="h-3 w-3" /> : <Folder className="h-3 w-3 text-muted-foreground" />}
+                                                <span>{d.name}</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                    {memberId && <p className="text-xs text-muted-foreground mt-1">選択中: {memberId}</p>}
+                                </div>
+                            )}
+                        </div>
+                        <DialogFooter>
+                            <Button variant="outline" onClick={() => setAddMemberOpen(false)}>キャンセル</Button>
+                            <Button onClick={() => addMemberMutation.mutate({ teamId: team.id, memberType, memberId })} disabled={!memberId || addMemberMutation.isPending}>
+                                {addMemberMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : '追加'}
+                            </Button>
+                        </DialogFooter>
+                    </DialogContent>
+                </Dialog>
+            </div>
+        );
+    }
+    
+    // Keycloak View
+    const group = selection.group;
+    const typeLabel = selection.type === 'company' ? 'Organization Unit' : 'Shared Team';
+
     return (
-        <div className="space-y-6">
-            <Button variant="ghost" asChild><Link to="/admin"><ArrowLeft className="h-4 w-4 mr-2" />ダッシュボード</Link></Button>
-            <div><h2 className="text-3xl font-bold tracking-tight">組織・チーム管理</h2><p className="text-muted-foreground">部署とチームの管理</p></div>
-            <Tabs defaultValue="departments">
-                <TabsList><TabsTrigger value="departments"><Building className="h-4 w-4 mr-2" />部署（組織）</TabsTrigger><TabsTrigger value="teams"><Users className="h-4 w-4 mr-2" />チーム（任意）</TabsTrigger></TabsList>
-                <TabsContent value="departments" className="mt-4"><DepartmentsTab /></TabsContent>
-                <TabsContent value="teams" className="mt-4"><TeamsTab /></TabsContent>
-            </Tabs>
+        <div className="p-6 space-y-6">
+            <div className="flex items-start justify-between">
+                <div>
+                    <div className="flex items-center gap-2 mb-1">
+                        <Badge variant="outline" className={selection.type === 'company' ? "bg-orange-50 text-orange-600 border-orange-200" : "bg-purple-50 text-purple-600 border-purple-200"}>{typeLabel}</Badge>
+                        <span className="text-xs text-muted-foreground font-mono">{group.path}</span>
+                    </div>
+                    <h1 className="text-2xl font-bold">{group.name}</h1>
+                    {group.deptCode && <p className="text-muted-foreground mt-1">Code: {group.deptCode}</p>}
+                </div>
+            </div>
+
+            <Card>
+                <CardHeader>
+                    <CardTitle>メンバー一覧</CardTitle>
+                    <CardDescription>Keycloakで管理されているメンバーです（読み取り専用）</CardDescription>
+                </CardHeader>
+                <CardContent>
+                    {isKcLoading ? <div className="flex justify-center p-8"><Loader2 className="h-6 w-6 animate-spin" /></div> :
+                     kcMembers && kcMembers.length > 0 ? (
+                        <div className="grid gap-2">
+                            {kcMembers.map((m) => (
+                                <div key={m.username} className="flex items-center justify-between p-3 rounded-lg border bg-muted/40">
+                                    <div className="flex items-center gap-3">
+                                        <Avatar>
+                                            <AvatarFallback>{(m.firstName?.[0] || m.username[0]).toUpperCase()}</AvatarFallback>
+                                        </Avatar>
+                                        <div>
+                                            <p className="font-medium">{m.lastName} {m.firstName} <span className="text-xs text-muted-foreground font-normal">@{m.username}</span></p>
+                                            <p className="text-sm text-muted-foreground">{m.email}</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                     ) : <p className="text-muted-foreground text-center py-8">メンバーが見つかりません</p>}
+                </CardContent>
+            </Card>
         </div>
     );
 }

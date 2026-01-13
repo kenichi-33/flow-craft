@@ -69,9 +69,19 @@ export class UsersService {
 
     private deptCache: { data: any[]; expiresAt: number } | null = null;
 
-    public async getAllDepartments(): Promise<{ id: string; name: string; path: string; deptCode?: string }[]> {
+    /**
+     * 指定されたルートパス直下のグループツリーを取得する
+     * @param rootPath e.g. "/company" or "/teams". If undefined, returns all.
+     */
+    public async getGroups(rootPath?: string): Promise<{ id: string; name: string; path: string; deptCode?: string }[]> {
+        // キャッシュキーを分けるべきだが、簡易的に既存キャッシュを使うか、あるいは都度取得するか。
+        // ここでは都度取得のロジックを構成する（既存のgetAllDepartmentsをリファクタリングして再利用）
+        
+        // 既存キャッシュがあればそれを使う（全量キャッシュされている前提）
         if (this.deptCache && this.deptCache.expiresAt > Date.now()) {
-            return this.deptCache.data;
+            const all = this.deptCache.data;
+            if (!rootPath) return all;
+            return all.filter(g => g.path.startsWith(rootPath));
         }
 
         try {
@@ -82,30 +92,28 @@ export class UsersService {
             
             const results: { id: string; name: string; path: string; deptCode?: string }[] = [];
             
+            // 再帰処理関数
             const processGroups = async (groups: any[], parentToken: string) => {
                 for (const group of groups) {
+                    // グループ詳細取得
+                    let deptCode = undefined;
                     try {
                         const detailResponse = await axios.get(
                             `${this.keycloakUrl}/admin/realms/${this.realm}/groups/${group.id}`,
                             { headers: { Authorization: `Bearer ${parentToken}` } }
                         );
                         const attrs = detailResponse.data.attributes || {};
-                        const deptCode = attrs.deptCode?.[0];
-                        
-                        results.push({
-                            id: group.id,
-                            name: group.name,
-                            path: group.path,
-                            deptCode: deptCode
-                        });
+                        deptCode = attrs.deptCode?.[0];
                     } catch (e) {
-                         console.warn(`Failed to fetch group detail for ${group.id}`);
-                         results.push({
-                            id: group.id,
-                            name: group.name,
-                            path: group.path
-                        });
+                        console.warn(`Failed to fetch group detail for ${group.id}`);
                     }
+
+                    results.push({
+                        id: group.id,
+                        name: group.name,
+                        path: group.path,
+                        deptCode: deptCode
+                    });
                     
                     if (group.subGroupCount > 0) {
                         try {
@@ -123,16 +131,58 @@ export class UsersService {
             
             await processGroups(response.data, token);
 
+            // キャッシュ保存
             this.deptCache = {
                 data: results,
                 expiresAt: Date.now() + 1000 * 60 * 60, // 1時間
             };
 
-            return results;
+            if (!rootPath) return results;
+            return results.filter(g => g.path.startsWith(rootPath));
+
         } catch (error) {
-            console.error('Failed to get all departments:', error);
-            return this.deptCache ? this.deptCache.data : [];
+            console.error('Failed to get groups:', error);
+            // エラー時はキャッシュがあれば返す
+            if (this.deptCache) {
+                const all = this.deptCache.data;
+                if (!rootPath) return all;
+                return all.filter(g => g.path.startsWith(rootPath));
+            }
+            return [];
         }
+    }
+
+    /**
+     * 指定されたグループのメンバーを取得する
+     */
+    public async getGroupMembers(groupId: string): Promise<UserSnapshot[]> {
+        try {
+            const token = await this.getAdminToken();
+            const response = await axios.get<KeycloakUser[]>(
+                `${this.keycloakUrl}/admin/realms/${this.realm}/groups/${groupId}/members`,
+                { headers: { Authorization: `Bearer ${token}` } }
+            );
+
+            // 簡易的に変換して返す
+            return response.data.map(u => ({
+                username: u.username,
+                firstName: u.firstName,
+                lastName: u.lastName,
+                email: u.email,
+                type: 'user',
+                // departmentはここからは分からない（別途解決が必要だが、一旦省略）
+            }));
+        } catch (error) {
+            console.error(`Failed to fetch members for group ${groupId}:`, error);
+            return [];
+        }
+    }
+
+
+
+    // 既存互換用
+    public async getAllDepartments(): Promise<{ id: string; name: string; path: string; deptCode?: string }[]> {
+        return this.getGroups();
     }
 
     public async getDepartmentsMap(): Promise<Record<string, string>> {

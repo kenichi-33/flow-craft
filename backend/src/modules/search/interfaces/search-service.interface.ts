@@ -1,5 +1,5 @@
 import { Application } from '@prisma/client';
-import { SearchApplicationDto } from '../dto/search-application.dto';
+import { SearchQueryDto } from '../dto/search-application.dto';
 
 export interface SearchResult<T = any> {
   items: T[];
@@ -12,7 +12,7 @@ export interface ISearchService {
   /**
    * Search applications based on dynamic criteria.
    */
-  search(dto: SearchApplicationDto): Promise<SearchResult<Application>>;
+  search(dto: SearchQueryDto): Promise<SearchResult<Application>>;
 
   /**
    * Index or update an application in the search engine.

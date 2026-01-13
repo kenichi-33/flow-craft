@@ -1,11 +1,13 @@
 generator client {
-  provider = "prisma-client-js"
-  binaryTargets = ["native", "linux-musl-arm64-openssl-3.0.x"]
+  provider        = "prisma-client-js"
+  binaryTargets   = ["native", "linux-musl-arm64-openssl-3.0.x"]
+  previewFeatures = ["postgresqlExtensions"]
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  extensions = [pg_trgm]
 }
 
 model FormDefinition {
@@ -54,6 +56,9 @@ model Application {
   formSchema              Json?    @map("form_schema")
   flowNodes               Json?    @map("flow_nodes")
   flowEdges               Json?    @map("flow_edges")
+  searchMeta              Json?    @map("search_meta")     // 検索用メタデータ
+  fullText                String?  @map("full_text")       // 全文検索用テキスト
+
   createdAt               DateTime @default(now()) @map("created_at")
   updatedAt               DateTime @updatedAt @map("updated_at")
 
@@ -67,6 +72,7 @@ model Application {
   history               ApprovalHistory[]
 
   @@map("applications")
+  @@index([fullText(ops: raw("gin_trgm_ops"))], type: Gin, name: "application_full_text_idx")
 }
 
 enum ApplicationStatus {
