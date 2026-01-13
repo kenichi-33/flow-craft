@@ -57,67 +57,74 @@ export class GenericWorker implements OnModuleInit {
 
        // 4. 結果に応じてステータス更新
       if (result.success) {
-        const updateData: any = {
-            result: result.outputData || {},
-        };
-
-        this.logger.debug(`Task ${taskId} result success. shouldAdvance=${result.shouldAdvance} (type=${typeof result.shouldAdvance})`);
-
-        // shoudAdvanceがfalseでない場合のみ完了ステータスに更新
-        // (承認タスクなどはfalseを返すためPENDINGのまま維持される)
-        if (result.shouldAdvance !== false) {
-             updateData.status = TaskStatus.COMPLETED;
-             this.logger.debug(`Task ${taskId} marking as COMPLETED`);
-        } else {
-             this.logger.debug(`Task ${taskId} keeping as PENDING (shouldAdvance is false)`);
-        }
-
-        await this.prisma.workflowTask.update({
-          where: { id: taskId },
-          data: updateData,
-        });
-
-        if (result.outputData && Object.keys(result.outputData).length > 0) {
-          await this.prisma.application.update({
-            where: { id: applicationId },
-            data: {
-              inputData: { ...inputData, ...result.outputData },
-            },
-          });
-        }
-
-        // 実行履歴を記録 (システムタスクの再実行履歴など)
-        await this.prisma.workflowTaskHistory.create({
-            data: {
-                taskId,
-                applicationId,
-                stepId: nodeId,
-                type: nodeType,
-                status: updateData.status || TaskStatus.PENDING, // 完了していない場合はPENDINGとして記録(または直前の状態)
+        // トランザクションで一括更新
+        const txnResult = await this.prisma.$transaction(async (tx) => {
+            const updateData: any = {
                 result: result.outputData || {},
-                executedAt: new Date(),
+            };
+    
+            this.logger.debug(`Task ${taskId} result success. shouldAdvance=${result.shouldAdvance} (type=${typeof result.shouldAdvance})`);
+    
+            // shoudAdvanceがfalseでない場合のみ完了ステータスに更新
+            // (承認タスクなどはfalseを返すためPENDINGのまま維持される)
+            if (result.shouldAdvance !== false) {
+                 updateData.status = TaskStatus.COMPLETED;
+                 this.logger.debug(`Task ${taskId} marking as COMPLETED`);
+            } else {
+                 this.logger.debug(`Task ${taskId} keeping as PENDING (shouldAdvance is false)`);
             }
+    
+            await tx.workflowTask.update({
+              where: { id: taskId },
+              data: updateData,
+            });
+    
+            if (result.outputData && Object.keys(result.outputData).length > 0) {
+              await tx.application.update({
+                where: { id: applicationId },
+                data: {
+                  inputData: { ...inputData, ...result.outputData },
+                },
+              });
+            }
+    
+            // 実行履歴を記録 (システムタスクの再実行履歴など)
+            await tx.workflowTaskHistory.create({
+                data: {
+                    taskId,
+                    applicationId,
+                    stepId: nodeId,
+                    type: nodeType,
+                    status: updateData.status || TaskStatus.PENDING, // 完了していない場合はPENDINGとして記録(または直前の状態)
+                    result: result.outputData || {},
+                    executedAt: new Date(),
+                }
+            });
+            
+            return { updateData };
         });
       } else {
-        await this.prisma.workflowTask.update({
-          where: { id: taskId },
-          data: {
-            status: TaskStatus.FAILED,
-            error: result.error,
-          },
-        });
-
-        // 失敗履歴を記録
-        await this.prisma.workflowTaskHistory.create({
-            data: {
-                taskId,
-                applicationId,
-                stepId: nodeId,
-                type: nodeType,
+        await this.prisma.$transaction(async (tx) => {
+            await tx.workflowTask.update({
+              where: { id: taskId },
+              data: {
                 status: TaskStatus.FAILED,
                 error: result.error,
-                executedAt: new Date(),
-            }
+              },
+            });
+    
+            // 失敗履歴を記録
+            await tx.workflowTaskHistory.create({
+                data: {
+                    taskId,
+                    applicationId,
+                    stepId: nodeId,
+                    type: nodeType,
+                    status: TaskStatus.FAILED,
+                    error: result.error,
+                    executedAt: new Date(),
+                }
+            });
         });
       }
 
@@ -140,25 +147,27 @@ export class GenericWorker implements OnModuleInit {
       const errorMessage = error instanceof Error ? error.message : String(error);
       this.logger.error(`Task ${taskId} failed with error: ${errorMessage}`);
 
-      await this.prisma.workflowTask.update({
-        where: { id: taskId },
-        data: {
-          status: TaskStatus.FAILED,
-          error: errorMessage,
-        },
-      });
-
-      // 例外発生時の履歴記録
-      await this.prisma.workflowTaskHistory.create({
-          data: {
-              taskId,
-              applicationId,
-              stepId: nodeId,
-              type: nodeType,
+      await this.prisma.$transaction(async (tx) => {
+          await tx.workflowTask.update({
+            where: { id: taskId },
+            data: {
               status: TaskStatus.FAILED,
               error: errorMessage,
-              executedAt: new Date(),
-          }
+            },
+          });
+    
+          // 例外発生時の履歴記録
+          await tx.workflowTaskHistory.create({
+              data: {
+                  taskId,
+                  applicationId,
+                  stepId: nodeId,
+                  type: nodeType,
+                  status: TaskStatus.FAILED,
+                  error: errorMessage,
+                  executedAt: new Date(),
+              }
+          });
       });
 
       // 完了通知（失敗）

@@ -59,6 +59,7 @@ graph TD
     subgraph Backend Services
         Backend -->|Query/Command| DB[("PostgreSQL")]
         Backend -->|Queue| Queue[("Job Queue (pg-boss / Kafka)")]
+        Backend -->|Storage| S3[("Object Storage (MinIO)")]
     end
     
     subgraph External

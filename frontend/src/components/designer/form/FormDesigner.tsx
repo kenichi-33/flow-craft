@@ -97,7 +97,7 @@ export default function FormDesigner({ appId }: { appId: string }) {
             const properties = schema.properties || {};
             const layout = schema['x-layout'] || [];
             
-            const initialFields: FormField[] = Object.entries(properties).map(([fieldId, config]: [string, any]) => ({
+            const allFields: FormField[] = Object.entries(properties).map(([fieldId, config]: [string, any]) => ({
                 id: fieldId,
                 type: config.type || config['x-type'] || 'text',
                 label: config.title || config.label || '名称未設定',
@@ -120,15 +120,46 @@ export default function FormDesigner({ appId }: { appId: string }) {
                     label: prop.title || prop.label || key,
                 })) : undefined,
                 width: layout.find((l: any) => l.i === fieldId)?.w || 12,
+                children: [], // Initialize children
             }));
 
-            initialFields.sort((a, b) => {
+            // Hierarchy Reconstruction
+            const rootFields: FormField[] = [];
+            const fieldMap = new Map<string, FormField>();
+            allFields.forEach(f => fieldMap.set(f.id, f));
+
+            allFields.forEach(f => {
+                const config = properties[f.id];
+                const parentId = config['x-parent'];
+                
+                if (parentId && fieldMap.has(parentId)) {
+                    const parent = fieldMap.get(parentId)!;
+                    parent.children = parent.children || [];
+                    parent.children.push(f);
+                } else {
+                    rootFields.push(f);
+                }
+            });
+
+            // Sorting helper
+            const sortByLayout = (a: FormField, b: FormField) => {
                 const la = layout.find((l: any) => l.i === a.id) || { x: 0, y: 0 };
                 const lb = layout.find((l: any) => l.i === b.id) || { x: 0, y: 0 };
                 return la.y === lb.y ? la.x - lb.x : la.y - lb.y;
-            });
+            };
 
-            setFields(initialFields);
+            // Recursive sorting
+            const sortRecursive = (items: FormField[]) => {
+                items.sort(sortByLayout);
+                items.forEach(item => {
+                    if (item.children && item.children.length > 0) {
+                        sortRecursive(item.children);
+                    }
+                });
+            };
+
+            sortRecursive(rootFields);
+            setFields(rootFields);
         }
     }, [appDef, versions, isReadOnly, versionId]);
 

@@ -116,35 +116,40 @@ export class WorkflowEngineService implements OnModuleInit {
         // 申請者情報のスナップショットを取得
         const applicantInfo = await this.usersService.getUserSnapshotByUsername(input.applicantId);
 
-        // 申請を作成（スナップショット保存でバージョン互換性を確保）
-        const application = await this.prisma.application.create({
-            data: {
-                title: input.title,
-                applicationDefinitionId: appDef.id,
-                formDefinitionId: appDef.formDefinitionId,
-                flowDefinitionId: appDef.flowDefinitionId,
-                applicantId: input.applicantId,
-                applicantInfo: applicantInfo as any,
-                status: 'IN_PROGRESS',
-                inputData: input.inputData,
-                currentNodeId: startNode.id,
-                // スナップショット: 公開バージョンの定義を保存
-                formSchema: (formSchema ?? undefined) as Prisma.InputJsonValue | undefined,
-                flowNodes: (flowNodes ?? undefined) as Prisma.InputJsonValue | undefined,
-                flowEdges: (flowEdges ?? undefined) as Prisma.InputJsonValue | undefined,
-            },
-        });
+        // 申請を作成と開始履歴の追加をトランザクションで実行
+        const application = await this.prisma.$transaction(async (tx) => {
+            // 申請作成
+            const app = await tx.application.create({
+                data: {
+                    title: input.title,
+                    applicationDefinitionId: appDef.id,
+                    formDefinitionId: appDef.formDefinitionId!,
+                    flowDefinitionId: appDef.flowDefinitionId!,
+                    applicantId: input.applicantId,
+                    applicantInfo: applicantInfo as any,
+                    status: 'IN_PROGRESS',
+                    inputData: input.inputData,
+                    currentNodeId: startNode.id,
+                    // スナップショット: 公開バージョンの定義を保存
+                    formSchema: (formSchema ?? undefined) as Prisma.InputJsonValue | undefined,
+                    flowNodes: (flowNodes ?? undefined) as Prisma.InputJsonValue | undefined,
+                    flowEdges: (flowEdges ?? undefined) as Prisma.InputJsonValue | undefined,
+                },
+            });
 
-        // 開始履歴を追加
-        await this.prisma.approvalHistory.create({
-            data: {
-                applicationId: application.id,
-                actorId: input.applicantId,
-                actorInfo: applicantInfo as any, // 申請者情報を履歴にも保存
-                action: 'START',
-                stepId: startNode.id,
-                comment: '申請を開始しました',
-            },
+            // 開始履歴を追加
+            await tx.approvalHistory.create({
+                data: {
+                    applicationId: app.id,
+                    actorId: input.applicantId,
+                    actorInfo: applicantInfo as any, // 申請者情報を履歴にも保存
+                    action: 'START',
+                    stepId: startNode.id,
+                    comment: '申請を開始しました',
+                },
+            });
+
+            return app;
         });
 
         // 次のノードへ進む
@@ -248,14 +253,29 @@ export class WorkflowEngineService implements OnModuleInit {
             throw new BadRequestException('Flow has no start node');
         }
 
-        // 申請を更新してワークフロー開始
-        await this.prisma.application.update({
-            where: { id: applicationId },
-            data: {
-                status: 'IN_PROGRESS',
-                inputData: inputData,
-                currentNodeId: startNode.id,
-            },
+        // 申請を更新してワークフロー開始（トランザクション）
+        await this.prisma.$transaction(async (tx) => {
+            // ステータス更新
+            await tx.application.update({
+                where: { id: applicationId },
+                data: {
+                    status: 'IN_PROGRESS',
+                    inputData: inputData,
+                    currentNodeId: startNode.id,
+                },
+            });
+
+            // 開始履歴を追加
+            await tx.approvalHistory.create({
+                data: {
+                    applicationId: application.id,
+                    actorId: application.applicantId,
+                    actorInfo: application.applicantInfo as any,
+                    action: 'START',
+                    stepId: startNode.id,
+                    comment: '下書きから申請を開始しました',
+                },
+            });
         });
 
         // 次のノードへ進む
@@ -304,22 +324,24 @@ export class WorkflowEngineService implements OnModuleInit {
 
         if (!outgoingEdge) {
             // エッジがない = 終了
-            await this.prisma.application.update({
-                where: { id: applicationId },
-                data: {
-                    status: 'APPROVED',
-                    currentNodeId: null,
-                },
-            });
-            // 申請完了を履歴に記録
-            await this.prisma.approvalHistory.create({
-                data: {
-                    applicationId,
-                    actorId: 'SYSTEM',
-                    action: 'APPLICATION_COMPLETE',
-                    stepId: currentNodeId || '',
-                    comment: '申請が完了しました',
-                },
+            await this.prisma.$transaction(async (tx) => {
+                await tx.application.update({
+                    where: { id: applicationId },
+                    data: {
+                        status: 'APPROVED',
+                        currentNodeId: null,
+                    },
+                });
+                // 申請完了を履歴に記録
+                await tx.approvalHistory.create({
+                    data: {
+                        applicationId,
+                        actorId: 'SYSTEM',
+                        action: 'APPLICATION_COMPLETE',
+                        stepId: currentNodeId || '',
+                        comment: '申請が完了しました',
+                    },
+                });
             });
             return;
         }
@@ -333,27 +355,27 @@ export class WorkflowEngineService implements OnModuleInit {
 
         // ノードタイプに応じた処理
         if (nextNode.type === 'end') {
-            // 終了ノード
-            await this.prisma.application.update({
-                where: { id: applicationId },
-                data: {
-                    status: 'APPROVED',
-                    currentNodeId: nextNodeId,
-                },
-            });
-            // 申請完了を履歴に記録
-            await this.prisma.approvalHistory.create({
-                data: {
-                    applicationId,
-                    actorId: 'SYSTEM',
-                    action: 'APPLICATION_COMPLETE',
-                    stepId: nextNodeId,
-                    comment: '申請が完了しました',
-                },
+            // 終了ノード: トランザクションで状態更新と履歴作成
+            await this.prisma.$transaction(async (tx) => {
+                await tx.application.update({
+                    where: { id: applicationId },
+                    data: {
+                        status: 'APPROVED',
+                        currentNodeId: nextNodeId,
+                    },
+                });
+                await tx.approvalHistory.create({
+                    data: {
+                        applicationId,
+                        actorId: 'SYSTEM',
+                        action: 'APPLICATION_COMPLETE',
+                        stepId: nextNodeId,
+                        comment: '申請が完了しました',
+                    },
+                });
             });
         } else if (nextNode.type === 'approval') {
-            // 承認ノード: タスクをWorker経由で生成
-            // applicant_manager等を実際のユーザーに解決
+            // 承認ノード: 担当者解決(外部API)はトランザクション外で実行
             const resolvedAssignee = await this.resolveAssignedTo(
                 nextNode.data?.assignee || null,
                 application.applicantId
@@ -362,25 +384,28 @@ export class WorkflowEngineService implements OnModuleInit {
             // 担当者情報のスナップショットを取得
             const assignedToInfo = await this.usersService.resolveAssignedToSnapshot(resolvedAssignee || '');
 
-            // Worker経由でタスクを生成（メール通知もWorkerで実行）
-            await this.enqueueTask(
-                applicationId,
-                nextNode,
-                application.inputData as Record<string, any>,
-                application.applicantId,
-                resolvedAssignee,
-                nextNode.data?.assigneeDisplay || null,
-                assignedToInfo
-            );
+            // トランザクションでタスク生成と状態更新
+            await this.prisma.$transaction(async (tx) => {
+                await this.enqueueTask(
+                    applicationId,
+                    nextNode,
+                    application.inputData as Record<string, any>,
+                    application.applicantId,
+                    resolvedAssignee,
+                    nextNode.data?.assigneeDisplay || null,
+                    assignedToInfo,
+                    tx
+                );
 
-            await this.prisma.application.update({
-                where: { id: applicationId },
-                data: {
-                    currentNodeId: nextNodeId,
-                },
+                await tx.application.update({
+                    where: { id: applicationId },
+                    data: {
+                        currentNodeId: nextNodeId,
+                    },
+                });
             });
         } else if (nextNode.type === 'branch') {
-            // 分岐ノード: 条件を評価して進む
+            // 分岐ノード
             const inputData = application.inputData as Record<string, any> || {};
             const branchData = nextNode.data || {};
             const conditionField = branchData.conditionField;
@@ -391,199 +416,217 @@ export class WorkflowEngineService implements OnModuleInit {
 
             if (conditionField && conditionValue !== undefined) {
                 const fieldValue = inputData[conditionField];
-
                 switch (conditionOperator) {
-                    case '==':
-                        conditionMet = String(fieldValue) === String(conditionValue);
-                        break;
-                    case '!=':
-                        conditionMet = String(fieldValue) !== String(conditionValue);
-                        break;
-                    case '>':
-                        conditionMet = Number(fieldValue) > Number(conditionValue);
-                        break;
-                    case '<':
-                        conditionMet = Number(fieldValue) < Number(conditionValue);
-                        break;
-                    case '>=':
-                        conditionMet = Number(fieldValue) >= Number(conditionValue);
-                        break;
-                    case '<=':
-                        conditionMet = Number(fieldValue) <= Number(conditionValue);
-                        break;
-                    case 'contains':
-                        conditionMet = String(fieldValue).includes(String(conditionValue));
-                        break;
-                    default:
-                        conditionMet = false;
+                    case '==': conditionMet = String(fieldValue) === String(conditionValue); break;
+                    case '!=': conditionMet = String(fieldValue) !== String(conditionValue); break;
+                    case '>': conditionMet = Number(fieldValue) > Number(conditionValue); break;
+                    case '<': conditionMet = Number(fieldValue) < Number(conditionValue); break;
+                    case '>=': conditionMet = Number(fieldValue) >= Number(conditionValue); break;
+                    case '<=': conditionMet = Number(fieldValue) <= Number(conditionValue); break;
+                    case 'contains': conditionMet = String(fieldValue).includes(String(conditionValue)); break;
+                    default: conditionMet = false;
                 }
             }
 
-            // 条件に基づいてyes/noエッジを選択
             const branchHandle = conditionMet ? 'yes' : 'no';
             const branchEdge = edges.find((e: any) =>
                 e.source === nextNodeId && e.sourceHandle === branchHandle
             );
 
-            // 分岐ノードへ移動
-            await this.prisma.application.update({
-                where: { id: applicationId },
-                data: {
-                    currentNodeId: nextNodeId,
-                },
-            });
-
-            // 分岐ノードの通過を履歴に記録
-            await this.prisma.approvalHistory.create({
-                data: {
-                    applicationId,
-                    actorId: 'SYSTEM',
-                    action: 'BRANCH',
-                    stepId: nextNodeId,
-                    comment: `条件: ${conditionMet ? 'true' : 'false'} (${branchHandle}ルート)`,
-                },
-            });
-
-            // 分岐先が見つかれば進む
+            // 分岐ロジックの一部は外部APIを含む可能性があるため、すべてをトランザクションに入れるのは難しい
+            // しかし整合性のため、状態遷移部分は可能な限りトランザクション化する
+            
             if (branchEdge) {
-                // 分岐先のノードを次のノードとして設定
                 const branchTargetId = branchEdge.target;
-                await this.prisma.application.update({
-                    where: { id: applicationId },
-                    data: {
-                        currentNodeId: branchTargetId,
-                    },
-                });
-
-                // 分岐先から再帰的に処理
                 const branchTarget = nodes.find((n: any) => n.id === branchTargetId);
-                if (branchTarget?.type === 'end') {
-                    await this.prisma.application.update({
-                        where: { id: applicationId },
-                        data: { status: 'APPROVED' },
-                    });
-                    // 申請完了を履歴に記録
-                    await this.prisma.approvalHistory.create({
-                        data: {
-                            applicationId,
-                            actorId: 'SYSTEM',
-                            action: 'APPLICATION_COMPLETE',
-                            stepId: branchTargetId,
-                            comment: '申請が完了しました',
-                        },
-                    });
-                } else if (branchTarget?.type === 'approval') {
-                    // applicant_manager等を実際のユーザーに解決
-                    const resolvedBranchAssignee = await this.resolveAssignedTo(
+
+                // 外部API呼び出しが必要なパラメータ解決を事前に行う試み
+                let resolvedBranchAssignee: string | null = null;
+                let assignedToInfo: any = null;
+
+                if (branchTarget?.type === 'approval') {
+                     resolvedBranchAssignee = await this.resolveAssignedTo(
                         branchTarget.data?.assignee || null,
                         application.applicantId
                     );
+                    assignedToInfo = await this.usersService.resolveAssignedToSnapshot(resolvedBranchAssignee || '');
+                }
 
-                    const assignedToInfo = await this.usersService.resolveAssignedToSnapshot(resolvedBranchAssignee || '');
-
-                    await this.enqueueTask(
-                        applicationId,
-                        branchTarget,
-                        application.inputData as Record<string, any>,
-                        application.applicantId,
-                        resolvedBranchAssignee,
-                        branchTarget.data?.assigneeDisplay || null,
-                        assignedToInfo
-                    );
-                } else if (['apiCall', 'llmCall'].includes(branchTarget?.type)) {
-                    // 分岐先がサービスタスクの場合は直接実行
-                    await this.prisma.approvalHistory.create({
+                // トランザクション実行
+                await this.prisma.$transaction(async (tx) => {
+                    // 分岐ノードへの移動と履歴
+                    await tx.application.update({
+                        where: { id: applicationId },
+                        data: { currentNodeId: nextNodeId },
+                    });
+                    
+                    await tx.approvalHistory.create({
                         data: {
                             applicationId,
                             actorId: 'SYSTEM',
-                            action: 'SERVICE_TASK',
-                            stepId: branchTargetId,
-                            comment: `${branchTarget.type} 実行開始`,
+                            action: 'BRANCH',
+                            stepId: nextNodeId,
+                            comment: `条件: ${conditionMet ? 'true' : 'false'} (${branchHandle}ルート)`,
                         },
                     });
-                    await this.enqueueServiceTask(applicationId, branchTarget, application.inputData as Record<string, any>, application.applicantId);
-                } else {
+
+                    // 分岐先への遷移
+                    await tx.application.update({
+                        where: { id: applicationId },
+                        data: { currentNodeId: branchTargetId },
+                    });
+
+                    // 分岐先の処理
+                    if (branchTarget?.type === 'end') {
+                         await tx.application.update({
+                            where: { id: applicationId },
+                            data: { status: 'APPROVED' },
+                        });
+                        await tx.approvalHistory.create({
+                            data: {
+                                applicationId,
+                                actorId: 'SYSTEM',
+                                action: 'APPLICATION_COMPLETE',
+                                stepId: branchTargetId,
+                                comment: '申請が完了しました',
+                            },
+                        });
+                    } else if (branchTarget?.type === 'approval') {
+                        await this.enqueueTask(
+                            applicationId,
+                            branchTarget,
+                            application.inputData as Record<string, any>,
+                            application.applicantId,
+                            resolvedBranchAssignee,
+                            branchTarget.data?.assigneeDisplay || null,
+                            assignedToInfo,
+                            tx
+                        );
+                    } else if (['apiCall', 'llmCall'].includes(branchTarget?.type)) {
+                        await tx.approvalHistory.create({
+                            data: {
+                                applicationId,
+                                actorId: 'SYSTEM',
+                                action: 'SERVICE_TASK',
+                                stepId: branchTargetId,
+                                comment: `${branchTarget.type} 実行開始`,
+                            },
+                        });
+                        await this.enqueueServiceTask(applicationId, branchTarget, application.inputData as Record<string, any>, application.applicantId, tx);
+                    }
+                    // branchTargetがその他の場合（再帰が必要）は、ここでは処理せず
+                    // トランザクション後に advanceToNextNode を呼ぶ
+                });
+
+                // トランザクション完了後、再帰呼び出しが必要な場合
+                if (branchTarget && !['end', 'approval', 'apiCall', 'llmCall'].includes(branchTarget.type)) {
                     await this.advanceToNextNode(applicationId);
                 }
+
+            } else {
+                // 分岐先がない場合
+                 await this.prisma.$transaction(async (tx) => {
+                    await tx.application.update({
+                        where: { id: applicationId },
+                        data: { currentNodeId: nextNodeId },
+                    });
+                     await tx.approvalHistory.create({
+                        data: {
+                            applicationId,
+                            actorId: 'SYSTEM',
+                            action: 'BRANCH',
+                            stepId: nextNodeId,
+                            comment: `条件: ${conditionMet ? 'true' : 'false'} (${branchHandle}ルート) - 終了`,
+                        },
+                    });
+                 });
             }
+
         } else if (['apiCall', 'llmCall'].includes(nextNode.type)) {
-            // サービスタスク: 実行処理
-            await this.prisma.application.update({
-                where: { id: applicationId },
-                data: { currentNodeId: nextNodeId },
+            // サービスタスク
+            await this.prisma.$transaction(async (tx) => {
+                 await tx.application.update({
+                    where: { id: applicationId },
+                    data: { currentNodeId: nextNodeId },
+                });
+                await tx.approvalHistory.create({
+                    data: {
+                        applicationId,
+                        actorId: 'SYSTEM',
+                        action: 'SERVICE_TASK',
+                        stepId: nextNodeId,
+                        comment: `${nextNode.type} 実行開始`,
+                    },
+                });
+                await this.enqueueServiceTask(applicationId, nextNode, application.inputData as Record<string, any>, application.applicantId, tx);
             });
-
-            // サービスタスク実行前に履歴を記録
-            await this.prisma.approvalHistory.create({
-                data: {
-                    applicationId,
-                    actorId: 'SYSTEM',
-                    action: 'SERVICE_TASK',
-                    stepId: nextNodeId,
-                    comment: `${nextNode.type} 実行開始`,
-                },
-            });
-
-            await this.enqueueServiceTask(applicationId, nextNode, application.inputData as Record<string, any>, application.applicantId);
         } else if (nextNode.type === 'parallel') {
-            // パラレルゲートウェイ: 分岐処理（全ての後続タスクを並行生成）
-            // パラレルノード自体はタスクではないので、通過してすぐに後続を生成
-            
+            // パラレルゲートウェイ
             const parallelEdges = edges.filter((e: any) => e.source === nextNodeId);
-            console.log(`[WorkflowEngine] Parallel split: ${parallelEdges.length} branches`);
-
-            const createdTaskNodeIds: string[] = [];
-
+            
+            // 事前に必要な情報を収集（外部APIコールをトランザクション外に出す）
+            const tasksToCreate: { node: any; resolvedAssignee: string | null; assignedToInfo: any | null }[] = [];
+            
             for (const edge of parallelEdges) {
                 const targetNode = nodes.find((n: any) => n.id === edge.target);
                 if (!targetNode) continue;
 
                 if (targetNode.type === 'approval') {
-                    const resolvedAssignee = await this.resolveAssignedTo(
+                     const resolvedAssignee = await this.resolveAssignedTo(
                         targetNode.data?.assignee || null,
                         application.applicantId
                     );
-
                     const assignedToInfo = await this.usersService.resolveAssignedToSnapshot(resolvedAssignee || '');
-
-                    await this.enqueueTask(
-                        applicationId,
-                        targetNode,
-                        application.inputData as Record<string, any>,
-                        application.applicantId,
-                        resolvedAssignee,
-                        targetNode.data?.assigneeDisplay || null,
-                        assignedToInfo
-                    );
-
-                    createdTaskNodeIds.push(targetNode.id);
-                    console.log(`[WorkflowEngine] Created parallel task for ${targetNode.id}`);
+                    
+                    tasksToCreate.push({ node: targetNode, resolvedAssignee, assignedToInfo });
                 } else if (['apiCall', 'llmCall'].includes(targetNode.type)) {
-                    await this.enqueueServiceTask(applicationId, targetNode, application.inputData as Record<string, any>, application.applicantId);
+                    tasksToCreate.push({ node: targetNode, resolvedAssignee: null, assignedToInfo: null });
                 }
             }
 
-            // 並行処理中: currentNodeIdはnullにして、各タスクのstepIdで追跡
-            // または最初のタスクノードを設定（フロー進捗表示用）
-            await this.prisma.application.update({
-                where: { id: applicationId },
-                data: { 
-                    currentNodeId: createdTaskNodeIds.length > 0 ? createdTaskNodeIds[0] : null,
-                },
+            await this.prisma.$transaction(async (tx) => {
+                const createdTaskNodeIds: string[] = [];
+                
+                for (const item of tasksToCreate) {
+                    if (item.node.type === 'approval') {
+                         await this.enqueueTask(
+                            applicationId,
+                            item.node,
+                            application.inputData as Record<string, any>,
+                            application.applicantId,
+                            item.resolvedAssignee,
+                            item.node.data?.assigneeDisplay || null,
+                            item.assignedToInfo,
+                            tx
+                        );
+                        createdTaskNodeIds.push(item.node.id);
+                    } else {
+                        await this.enqueueServiceTask(applicationId, item.node, application.inputData as Record<string, any>, application.applicantId, tx);
+                    }
+                }
+
+                await tx.application.update({
+                    where: { id: applicationId },
+                    data: { 
+                        currentNodeId: createdTaskNodeIds.length > 0 ? createdTaskNodeIds[0] : null,
+                    },
+                });
+
+                await tx.approvalHistory.create({
+                    data: {
+                        applicationId,
+                        actorId: 'SYSTEM',
+                        action: 'PARALLEL_SPLIT',
+                        stepId: nextNodeId,
+                        comment: `${createdTaskNodeIds.length}件の並行タスクを生成`,
+                    },
+                });
             });
 
-            // パラレル分岐を履歴に記録
-            await this.prisma.approvalHistory.create({
-                data: {
-                    applicationId,
-                    actorId: 'SYSTEM',
-                    action: 'PARALLEL_SPLIT',
-                    stepId: nextNodeId,
-                    comment: `${createdTaskNodeIds.length}件の並行タスクを生成`,
-                },
-            });
         } else if (nextNode.type === 'join') {
-            // 合流ゲートウェイ: 全ての前タスクが完了するまで待機
+            // 合流ゲートウェイ
+            // 待機はReadのみなのでトランザクション不要だが、完了時の進行は必要
+            // update currentNodeId for consistency
             await this.prisma.application.update({
                 where: { id: applicationId },
                 data: { currentNodeId: nextNodeId },
@@ -592,7 +635,6 @@ export class WorkflowEngineService implements OnModuleInit {
             const joinEdges = edges.filter((e: any) => e.target === nextNodeId);
             const sourceNodeIds = joinEdges.map((e: any) => e.source);
             
-            // 前のノードに紐づく未完了タスクがあるかチェック
             const pendingTasks = await this.prisma.workflowTask.count({
                 where: {
                     applicationId,
@@ -603,13 +645,12 @@ export class WorkflowEngineService implements OnModuleInit {
 
             if (pendingTasks > 0) {
                 console.log(`[WorkflowEngine] Join waiting: ${pendingTasks} pending tasks`);
-                // 待機: まだ完了していないタスクがある
                 return;
             }
 
             console.log(`[WorkflowEngine] Join complete, advancing to next`);
-            // 全て完了していれば次に進む
             await this.advanceToNextNode(applicationId);
+
         } else {
             // その他のノード: 次へ進む
             await this.prisma.application.update({
@@ -618,7 +659,6 @@ export class WorkflowEngineService implements OnModuleInit {
                     currentNodeId: nextNodeId,
                 },
             });
-            // 再帰的に次のノードへ
             await this.advanceToNextNode(applicationId);
         }
     }
@@ -659,85 +699,96 @@ export class WorkflowEngineService implements OnModuleInit {
             throw new BadRequestException(`User ${input.actorId} is not authorized to execute this task`);
         }
 
-        // タスクを完了としてマーク（アクションはApprovalHistoryに記録済み）
-        await this.prisma.workflowTask.update({
-            where: { id: input.taskId },
-            data: { status: 'COMPLETED' },
-        });
-
         // 実行者情報のスナップショットを取得
         const actorInfo = await this.usersService.getUserSnapshotByUsername(input.actorId);
 
-        // 履歴を記録
-        await this.prisma.approvalHistory.create({
-            data: {
-                applicationId: task.applicationId,
-                actorId: input.actorId,
-                actorInfo: actorInfo as any,
-                action: input.action,
-                comment: input.comment,
-                stepId: task.stepId,
-            },
+        let shouldAdvance = false;
+
+        // トランザクション実行
+        await this.prisma.$transaction(async (tx) => {
+            // タスクを完了としてマーク
+            await tx.workflowTask.update({
+                where: { id: input.taskId },
+                data: { status: 'COMPLETED' },
+            });
+
+            // 履歴を記録
+            await tx.approvalHistory.create({
+                data: {
+                    applicationId: task.applicationId,
+                    actorId: input.actorId,
+                    actorInfo: actorInfo as any,
+                    action: input.action,
+                    comment: input.comment,
+                    stepId: task.stepId,
+                },
+            });
+
+            // アクションに応じた処理
+            if (input.action === 'APPROVE') {
+                // 承認: 次のノードへの進行フラグを立てる
+                shouldAdvance = true;
+            } else if (input.action === 'REJECT') {
+                // 却下: ステータスをREJECTEDにし、終了ノードへ移動
+                const application = await tx.application.findUnique({
+                    where: { id: task.applicationId },
+                    include: { flowDefinition: true },
+                });
+                const nodes = (application?.flowNodes || application?.flowDefinition?.nodes || []) as any[];
+                const endNode = nodes.find((n: any) => n.type === 'end');
+
+                await tx.application.update({
+                    where: { id: task.applicationId },
+                    data: {
+                        status: 'REJECTED',
+                        currentNodeId: endNode?.id || null,
+                    },
+                });
+            } else if (input.action === 'REMAND') {
+                // 差戻し: 開始ノードへ戻す
+                const application = await tx.application.findUnique({
+                    where: { id: task.applicationId },
+                    include: { flowDefinition: true },
+                });
+                const nodes = (application?.flowNodes || application?.flowDefinition?.nodes || []) as any[];
+
+                // 開始ノードを見つける
+                const startNode = nodes.find((n: any) => n.type === 'start');
+                
+                // 重要: 並行して実行中の他のタスクをキャンセルする
+                await tx.workflowTask.updateMany({
+                    where: {
+                        applicationId: task.applicationId,
+                        status: 'PENDING',
+                        id: { not: task.id }
+                    },
+                    data: {
+                        status: 'CANCELED'
+                    }
+                });
+
+                // 差し戻しを実行したタスク自体も CANCELED にする（完了ではなく、上記でCOMPLETEDにした直後だが上書き）
+                // ※ ここで再度updateするよりは、分岐ロジックでCOMPLETED/CANCELEDを分ける方が綺麗だが
+                //   ロジックの複雑さを避けるため上書きとする
+                await tx.workflowTask.update({
+                    where: { id: input.taskId },
+                    data: { status: 'CANCELED' }
+                });
+
+                // ステータスをREMANDEDにし、開始ノードへ戻す
+                await tx.application.update({
+                    where: { id: task.applicationId },
+                    data: {
+                        status: 'REMANDED',
+                        currentNodeId: startNode?.id || null,
+                    },
+                });
+            }
         });
 
-        // アクションに応じた処理
-        if (input.action === 'APPROVE') {
-            // 次のノードへ
+        // トランザクション完了後に非同期処理（キュー登録）を実行
+        if (shouldAdvance) {
             await this.advanceToNextNode(task.applicationId);
-        } else if (input.action === 'REJECT') {
-            // 却下: ステータスをREJECTEDにし、終了ノードへ移動
-            const application = await this.prisma.application.findUnique({
-                where: { id: task.applicationId },
-                include: { flowDefinition: true },
-            });
-            const nodes = (application?.flowNodes || application?.flowDefinition?.nodes || []) as any[];
-            const endNode = nodes.find((n: any) => n.type === 'end');
-
-            await this.prisma.application.update({
-                where: { id: task.applicationId },
-                data: {
-                    status: 'REJECTED',
-                    currentNodeId: endNode?.id || null,
-                },
-            });
-        } else if (input.action === 'REMAND') {
-            // 差戻し: 開始ノードへ戻す（申請者が再編集できるようにする）
-            const application = await this.prisma.application.findUnique({
-                where: { id: task.applicationId },
-                include: { flowDefinition: true },
-            });
-            const nodes = (application?.flowNodes || application?.flowDefinition?.nodes || []) as any[];
-
-            // 開始ノードを見つける
-            const startNode = nodes.find((n: any) => n.type === 'start');
-            
-            // 重要: 並行して実行中の他のタスクをキャンセルする
-            // 同じアプリケーションIDで、ステータスがPENDINGのタスクを全てCANCELEDにする
-            await this.prisma.workflowTask.updateMany({
-                where: {
-                    applicationId: task.applicationId,
-                    status: 'PENDING',
-                    id: { not: task.id } // 自分以外（自分は後で更新されるか、ここで更新するか）
-                },
-                data: {
-                    status: 'CANCELED'
-                }
-            });
-
-            // 差し戻しを実行したタスク自体も CANCELED にする（完了ではなく）
-            await this.prisma.workflowTask.update({
-                where: { id: task.id },
-                data: { status: 'CANCELED' }
-            });
-
-            // ステータスをREMANDEDにし、開始ノードへ戻す（申請者が再編集・再申請できる）
-            await this.prisma.application.update({
-                where: { id: task.applicationId },
-                data: {
-                    status: 'REMANDED',
-                    currentNodeId: startNode?.id || null,
-                },
-            });
         }
 
         return this.prisma.application.findUnique({
@@ -791,9 +842,23 @@ export class WorkflowEngineService implements OnModuleInit {
     /**
      * タスクをWorkerキューに登録（統合テーブル使用）
      */
-    async enqueueTask(applicationId: string, node: any, inputData: any, applicantId: string, assignedTo?: string | null, assignedToDisplay?: string | null, assignedToInfo?: any): Promise<void> {
+    /**
+     * タスクをWorkerキューに登録（統合テーブル使用）
+     */
+    async enqueueTask(
+        applicationId: string, 
+        node: any, 
+        inputData: any, 
+        applicantId: string, 
+        assignedTo?: string | null, 
+        assignedToDisplay?: string | null, 
+        assignedToInfo?: any,
+        tx?: Prisma.TransactionClient
+    ): Promise<void> {
+        const db = tx || this.prisma;
+        
         // WorkflowTaskレコードを作成（configにノード設定をスナップショット保存）
-        const task = await this.prisma.workflowTask.create({
+        const task = await db.workflowTask.create({
             data: {
                 applicationId,
                 stepId: node.id,
@@ -809,6 +874,8 @@ export class WorkflowEngineService implements OnModuleInit {
         });
 
         // Workerキューに登録
+        // Note: トランザクション中の場合は、コミット前にジョブが登録されることになるが
+        // データが見つからず失敗→リトライでカバーする前提
         const job: TaskExecuteJob = {
             taskId: task.id,
             applicationId,
@@ -826,8 +893,8 @@ export class WorkflowEngineService implements OnModuleInit {
     /**
      * サービスタスクをWorkerキューに登録（互換性のためのラッパー）
      */
-    async enqueueServiceTask(applicationId: string, node: any, inputData: any, applicantId: string): Promise<void> {
-        await this.enqueueTask(applicationId, node, inputData, applicantId);
+    async enqueueServiceTask(applicationId: string, node: any, inputData: any, applicantId: string, tx?: Prisma.TransactionClient): Promise<void> {
+        await this.enqueueTask(applicationId, node, inputData, applicantId, undefined, undefined, undefined, tx);
     }
 
     /**

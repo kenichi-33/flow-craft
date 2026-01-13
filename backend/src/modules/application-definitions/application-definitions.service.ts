@@ -236,54 +236,62 @@ export class ApplicationDefinitionsService {
     /**
      * Publish the app definition - creates a version snapshot and activates
      */
-    async publish(id: string, publishedBy?: string) {
-        const appDef = await this.prisma.applicationDefinition.findUnique({
-            where: { id },
-            include: {
-                formDefinition: true,
-                flowDefinition: true,
-            },
-        });
+    async publish(id: string, publishedBy?: string, tx?: Prisma.TransactionClient) {
+        const execute = async (prisma: Prisma.TransactionClient) => {
+            const appDef = await prisma.applicationDefinition.findUnique({
+                where: { id },
+                include: {
+                    formDefinition: true,
+                    flowDefinition: true,
+                },
+            });
 
-        if (!appDef) {
-            throw new NotFoundException(`ApplicationDefinition with ID ${id} not found`);
+            if (!appDef) {
+                throw new NotFoundException(`ApplicationDefinition with ID ${id} not found`);
+            }
+
+            // Get the highest existing version number for this app
+            const latestVersion = await prisma.appVersion.findFirst({
+                where: { applicationDefinitionId: id },
+                orderBy: { version: 'desc' },
+                select: { version: true },
+            });
+
+            // New version is max existing + 1, or 1 if no versions exist yet
+            const newVersion = latestVersion ? latestVersion.version + 1 : 1;
+
+            // Create version snapshot
+            await prisma.appVersion.create({
+                data: {
+                    applicationDefinitionId: id,
+                    version: newVersion,
+                    formSchema: appDef.formDefinition?.schema ?? {},
+                    flowNodes: appDef.flowDefinition?.nodes ?? [],
+                    flowEdges: appDef.flowDefinition?.edges ?? [],
+                    publishedBy: publishedBy ?? null,
+                },
+            });
+
+            // Update app definition with new version and status
+            return prisma.applicationDefinition.update({
+                where: { id },
+                data: {
+                    version: newVersion,
+                    status: AppDefStatus.ACTIVE,
+                    publishedAt: new Date(),
+                },
+                include: {
+                    formDefinition: true,
+                    flowDefinition: true,
+                },
+            });
+        };
+
+        if (tx) {
+            return execute(tx);
+        } else {
+            return this.prisma.$transaction(execute);
         }
-
-        // Get the highest existing version number for this app
-        const latestVersion = await this.prisma.appVersion.findFirst({
-            where: { applicationDefinitionId: id },
-            orderBy: { version: 'desc' },
-            select: { version: true },
-        });
-
-        // New version is max existing + 1, or 1 if no versions exist yet
-        const newVersion = latestVersion ? latestVersion.version + 1 : 1;
-
-        // Create version snapshot
-        await this.prisma.appVersion.create({
-            data: {
-                applicationDefinitionId: id,
-                version: newVersion,
-                formSchema: appDef.formDefinition?.schema ?? {},
-                flowNodes: appDef.flowDefinition?.nodes ?? [],
-                flowEdges: appDef.flowDefinition?.edges ?? [],
-                publishedBy: publishedBy ?? null,
-            },
-        });
-
-        // Update app definition with new version and status
-        return this.prisma.applicationDefinition.update({
-            where: { id },
-            data: {
-                version: newVersion,
-                status: AppDefStatus.ACTIVE,
-                publishedAt: new Date(),
-            },
-            include: {
-                formDefinition: true,
-                flowDefinition: true,
-            },
-        });
     }
 
     /**
@@ -317,52 +325,54 @@ export class ApplicationDefinitionsService {
      * Restore app to a previous version
      */
     async restore(id: string, targetVersion: number) {
-        const appDef = await this.prisma.applicationDefinition.findUnique({
-            where: { id },
-            include: {
-                formDefinition: true,
-                flowDefinition: true,
-            },
-        });
-
-        if (!appDef) {
-            throw new NotFoundException(`ApplicationDefinition with ID ${id} not found`);
-        }
-
-        // Find the version to restore
-        const versionToRestore = await this.prisma.appVersion.findUnique({
-            where: {
-                applicationDefinitionId_version: {
-                    applicationDefinitionId: id,
-                    version: targetVersion,
-                },
-            },
-        });
-
-        if (!versionToRestore) {
-            throw new NotFoundException(`Version ${targetVersion} not found`);
-        }
-
-        // Update form definition with restored schema
-        if (appDef.formDefinitionId && versionToRestore.formSchema) {
-            await this.prisma.formDefinition.update({
-                where: { id: appDef.formDefinitionId },
-                data: { schema: versionToRestore.formSchema },
-            });
-        }
-
-        // Update flow definition with restored nodes/edges
-        if (appDef.flowDefinitionId && versionToRestore.flowNodes) {
-            await this.prisma.flowDefinition.update({
-                where: { id: appDef.flowDefinitionId },
-                data: {
-                    nodes: versionToRestore.flowNodes,
-                    edges: versionToRestore.flowEdges || [],
+        return this.prisma.$transaction(async (tx) => {
+            const appDef = await tx.applicationDefinition.findUnique({
+                where: { id },
+                include: {
+                    formDefinition: true,
+                    flowDefinition: true,
                 },
             });
-        }
 
-        // Publish as new version (backup current + restore)
-        return this.publish(id, 'system-restore');
+            if (!appDef) {
+                throw new NotFoundException(`ApplicationDefinition with ID ${id} not found`);
+            }
+
+            // Find the version to restore
+            const versionToRestore = await tx.appVersion.findUnique({
+                where: {
+                    applicationDefinitionId_version: {
+                        applicationDefinitionId: id,
+                        version: targetVersion,
+                    },
+                },
+            });
+
+            if (!versionToRestore) {
+                throw new NotFoundException(`Version ${targetVersion} not found`);
+            }
+
+            // Update form definition with restored schema
+            if (appDef.formDefinitionId && versionToRestore.formSchema) {
+                await tx.formDefinition.update({
+                    where: { id: appDef.formDefinitionId },
+                    data: { schema: versionToRestore.formSchema },
+                });
+            }
+
+            // Update flow definition with restored nodes/edges
+            if (appDef.flowDefinitionId && versionToRestore.flowNodes) {
+                await tx.flowDefinition.update({
+                    where: { id: appDef.flowDefinitionId },
+                    data: {
+                        nodes: versionToRestore.flowNodes,
+                        edges: versionToRestore.flowEdges || [],
+                    },
+                });
+            }
+
+            // Publish as new version (backup current + restore)
+            return this.publish(id, 'system-restore', tx);
+        });
     }
 }

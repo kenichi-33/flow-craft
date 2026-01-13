@@ -31,62 +31,71 @@ export class ApplicationsService {
 
     async create(createApplicationDto: CreateApplicationDto) {
         const applicantInfo = await this.usersService.getUserSnapshotByUsername(createApplicationDto.applicantId);
-
-        const application = await this.prisma.application.create({
-            data: {
-                formDefinitionId: createApplicationDto.formDefinitionId,
-                flowDefinitionId: createApplicationDto.flowDefinitionId,
-                applicantId: createApplicationDto.applicantId,
-                applicantInfo: applicantInfo as any, // Json type workaround
-                inputData: (createApplicationDto.inputData || {}) as Prisma.InputJsonValue,
-                status: 'DRAFT',
-            },
-            include: {
-                formDefinition: true,
-                flowDefinition: true,
-            },
-        });
-
-        // Link uploaded files to this application
-        try {
-            const formDef = await this.prisma.formDefinition.findUnique({
-                where: { id: createApplicationDto.formDefinitionId },
+        
+        // トランザクション内でアプリケーション作成とファイル紐付けを実行
+        const application = await this.prisma.$transaction(async (tx) => {
+            const app = await tx.application.create({
+                data: {
+                    formDefinitionId: createApplicationDto.formDefinitionId,
+                    flowDefinitionId: createApplicationDto.flowDefinitionId,
+                    applicantId: createApplicationDto.applicantId,
+                    applicantInfo: applicantInfo as any, // Json type workaround
+                    inputData: (createApplicationDto.inputData || {}) as Prisma.InputJsonValue,
+                    status: 'DRAFT',
+                },
+                include: {
+                    formDefinition: true,
+                    flowDefinition: true,
+                },
             });
 
-            if (formDef && formDef.schema) {
-                const schema = formDef.schema as any;
-                const fileIds: string[] = [];
-                const inputData = createApplicationDto.inputData || {};
+            // Link uploaded files to this application
+            try {
+                const formDef = await tx.formDefinition.findUnique({
+                    where: { id: createApplicationDto.formDefinitionId },
+                });
 
-                // Find file fields in schema
-                if (schema.properties) {
-                    for (const [key, prop] of Object.entries(schema.properties) as [string, any][]) {
-                        if (prop.type === 'file' || prop['x-type'] === 'file') {
-                            const value = inputData[key];
-                            if (Array.isArray(value)) {
-                                fileIds.push(...value.filter(v => typeof v === 'string'));
-                            } else if (typeof value === 'string' && value) {
-                                fileIds.push(value);
+                if (formDef && formDef.schema) {
+                    const schema = formDef.schema as any;
+                    const fileIds: string[] = [];
+                    const inputData = createApplicationDto.inputData || {};
+
+                    // Find file fields in schema
+                    if (schema.properties) {
+                        for (const [key, prop] of Object.entries(schema.properties) as [string, any][]) {
+                            if (prop.type === 'file' || prop['x-type'] === 'file') {
+                                const value = inputData[key];
+                                if (Array.isArray(value)) {
+                                    fileIds.push(...value.filter(v => typeof v === 'string'));
+                                } else if (typeof value === 'string' && value) {
+                                    fileIds.push(value);
+                                }
                             }
                         }
                     }
-                }
 
-                if (fileIds.length > 0) {
-                    await this.prisma.file.updateMany({
-                        where: { id: { in: fileIds } },
-                        data: { applicationId: application.id },
-                    });
+                    if (fileIds.length > 0) {
+                        await tx.file.updateMany({
+                            where: { id: { in: fileIds } },
+                            data: { applicationId: app.id },
+                        });
+                    }
                 }
+            } catch (error) {
+                console.error('Failed to link files to application:', error);
+                // Transaction should probably imply consistency, but original code continued.
+                // If we want atomicity, we should throw here?
+                // Original comment said "Non-critical, continue".
+                // But in a transaction, if we catch and don't rethrow, the transaction commits.
+                // So this behavior preserves "Non-critical".
             }
-        } catch (error) {
-            console.error('Failed to link files to application:', error);
-            // Non-critical, continue
-        }
 
-        // Trigger async indexing
+            return app;
+        });
+ 
+        // Trigger async indexing (outside transaction)
         await this.queueService.enqueue('application-indexing', { applicationId: application.id });
-
+ 
         return application;
     }
 

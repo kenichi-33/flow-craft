@@ -45,9 +45,10 @@ export class ApplicationRecoveryService {
 
                 // Re-enqueue the processing job for the current node
                 // The worker is idempotent enough to handle re-processing or determining next step
-                await this.queueService.enqueue('workflow-node-process', {
+                // Re-enqueue the processing job for the current node
+                // The worker is idempotent enough to handle re-processing or determining next step
+                await this.queueService.enqueue('WORKFLOW_NODE_PROCESS', {
                     applicationId: app.id,
-                    nodeId: app.currentNodeId,
                 });
 
                 // Update timestamp to prevent immediate re-processing loop if queue is just slow
