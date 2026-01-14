@@ -9,7 +9,9 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useParams } from 'react-router-dom';
-import { Loader2, FileEdit, GitBranch, Save } from 'lucide-react';
+import { Loader2, FileEdit, GitBranch, Save, Search, Plus, Trash2 } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { toast } from 'sonner';
 
 interface AppDefinition {
     id: number;
@@ -23,6 +25,8 @@ interface AppDefinition {
     flowDefinition?: { nodes?: any[] };
     createdAt: string;
     updatedAt: string;
+    adminIds?: string[];
+    adminInfo?: any[];
 }
 
 export default function DesignerOverviewPage() {
@@ -42,6 +46,18 @@ export default function DesignerOverviewPage() {
     const [tags, setTags] = useState<string[]>([]);
     const [newTag, setNewTag] = useState('');
 
+    const [adminIds, setAdminIds] = useState<string[]>([]);
+    const [displayAdmins, setDisplayAdmins] = useState<any[]>([]); // To show names immediately
+    const [adminDialogOpen, setAdminDialogOpen] = useState(false);
+    const [adminSearchQuery, setAdminSearchQuery] = useState('');
+
+    // User Search Query
+    const { data: userSearchResults } = useQuery<any[]>({ 
+        queryKey: ['user-search', adminSearchQuery], 
+        queryFn: () => api.get(`/users/search?q=${encodeURIComponent(adminSearchQuery)}&limit=10`).then((r: any) => r.data || r), 
+        enabled: adminDialogOpen && adminSearchQuery.length > 0 
+    });
+
     // Initialize form when data loads
     useEffect(() => {
         if (app && !initialized) {
@@ -49,16 +65,26 @@ export default function DesignerOverviewPage() {
             setDescription(app.description || '');
             setStatus(app.status);
             setTags(app.tags || []);
+            setAdminIds(app.adminIds || []);
+            setDisplayAdmins(app.adminInfo || []);
             setInitialized(true);
         }
     }, [app, initialized]);
 
     const updateMutation = useMutation({
-        mutationFn: (data: { name: string; description?: string; status: string; tags: string[] }) =>
+        mutationFn: (data: { name: string; description?: string; status: string; tags: string[]; adminIds?: string[] }) =>
             api.put(`/application-definitions/${id}`, data),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['application-definition', id] });
+            toast.success("保存しました", {
+                description: "設定が正常に更新されました。",
+            });
         },
+        onError: () => {
+            toast.error("保存失敗", {
+                description: "設定の更新に失敗しました。",
+            });
+        }
     });
 
     const addTag = (e?: React.FormEvent) => {
@@ -72,6 +98,21 @@ export default function DesignerOverviewPage() {
 
     const removeTag = (tagToRemove: string) => {
         setTags(tags.filter(t => t !== tagToRemove));
+    };
+
+    const addAdmin = (user: any) => {
+        // user.id is the UUID
+        if (user.id && !adminIds.includes(user.id)) {
+            setAdminIds([...adminIds, user.id]);
+            setDisplayAdmins([...displayAdmins, { ...user, type: 'user' }]); // Add to display list
+            setAdminDialogOpen(false);
+            setAdminSearchQuery('');
+        }
+    };
+
+    const removeAdmin = (userId: string) => {
+        setAdminIds(adminIds.filter(id => id !== userId));
+        setDisplayAdmins(displayAdmins.filter(a => (a.id || a.username) !== userId && a.username !== userId)); // Handle both ID/Username mismatch
     };
 
     if (isLoading) return <div className="flex items-center justify-center h-64"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
@@ -129,6 +170,36 @@ export default function DesignerOverviewPage() {
                                 {tags.length === 0 && <span className="text-sm text-muted-foreground">タグは設定されていません</span>}
                             </div>
                         </div>
+                        
+                        {/* App Admins */}
+                        <div className="space-y-2">
+                            <div className="flex items-center justify-between">
+                                <Label>アプリ管理者</Label>
+                                <Button variant="outline" size="sm" onClick={() => setAdminDialogOpen(true)}>
+                                    <Plus className="h-3 w-3 mr-1" /> 追加
+                                </Button>
+                            </div>
+                            <div className="space-y-2 border rounded-md p-2 min-h-[4rem]">
+                                {displayAdmins.map(admin => (
+                                    <div key={admin.username} className="flex items-center justify-between p-2 bg-muted/50 rounded-md text-sm">
+                                        <div className="flex items-center gap-2">
+                                            <div className="h-6 w-6 rounded-full bg-primary/10 flex items-center justify-center text-primary text-xs font-bold">
+                                                {(admin.firstName?.[0] || admin.username[0]).toUpperCase()}
+                                            </div>
+                                            <div>
+                                                <span className="font-medium">{admin.lastName || ''} {admin.firstName || ''}</span>
+                                                <span className="text-xs text-muted-foreground ml-1">@{admin.username}</span>
+                                            </div>
+                                        </div>
+                                        <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground hover:text-destructive" onClick={() => removeAdmin(admin.id || admin.username)}>
+                                            <Trash2 className="h-3 w-3" />
+                                        </Button>
+                                    </div>
+                                ))}
+                                {displayAdmins.length === 0 && <p className="text-xs text-muted-foreground text-center py-2">管理者が指定されていません（作成者のみ編集可能）</p>}
+                            </div>
+                        </div>
+
                         <div className="space-y-2">
                             <Label>ステータス</Label>
                             <select value={status} onChange={(e) => setStatus(e.target.value as any)} className="w-full p-2 border rounded-md">
@@ -139,8 +210,8 @@ export default function DesignerOverviewPage() {
                             <p className="text-xs text-muted-foreground">「アーカイブ」にするとメニューから隠れます</p>
                         </div>
                         <div className="flex justify-end">
-                            <Button onClick={() => updateMutation.mutate({ name, description, status, tags })} disabled={updateMutation.isPending}>
-                                <Save className="h-4 w-4 mr-2" />基本情報を保存
+                            <Button onClick={() => updateMutation.mutate({ name, description, status, tags, adminIds })} disabled={updateMutation.isPending}>
+                                <Save className="h-4 w-4 mr-2" />設定を保存
                             </Button>
                         </div>
                     </CardContent>
@@ -190,6 +261,41 @@ export default function DesignerOverviewPage() {
                     </AlertDescription>
                 </Alert>
             )}
+
+            {/* Admin Add Dialog */}
+            <Dialog open={adminDialogOpen} onOpenChange={setAdminDialogOpen}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>管理者追加</DialogTitle>
+                        <DialogDescription>ユーザーを検索して管理者に追加します</DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-4 py-4">
+                        <div className="space-y-2">
+                            <Label>ユーザー検索</Label>
+                            <div className="relative">
+                                <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                                <Input placeholder="名前またはID..." className="pl-8" value={adminSearchQuery} onChange={(e) => setAdminSearchQuery(e.target.value)} />
+                            </div>
+                            {userSearchResults && (
+                                <div className="border rounded-md max-h-48 overflow-auto mt-2">
+                                    {userSearchResults.map((u: any) => (
+                                        <div key={u.id} 
+                                            className="p-2 cursor-pointer hover:bg-muted flex justify-between items-center" 
+                                            onClick={() => addAdmin(u)}
+                                        >
+                                            <div>
+                                                <span>{u.displayName || u.username}</span>
+                                                <span className="text-xs text-muted-foreground ml-2">@{u.username}</span>
+                                            </div>
+                                            {adminIds.includes(u.id) && <Badge variant="outline">追加済み</Badge>}
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }

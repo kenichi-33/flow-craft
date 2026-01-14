@@ -113,13 +113,20 @@ export class TasksService {
                 { application: { applicantId: { contains: search, mode: 'insensitive' } } },
                 { application: { applicationDefinition: { name: { contains: search, mode: 'insensitive' } } } },
                 { application: { title: { contains: search, mode: 'insensitive' } } },
+                // 担当者名検索 (Display名含む)
+                { assignedTo: { contains: search, mode: 'insensitive' } },
+                { assignedToDisplay: { contains: search, mode: 'insensitive' } },
             ];
         }
 
         // ソート条件
         const orderBy: Prisma.WorkflowTaskOrderByWithRelationInput = {};
-        if (sortBy === 'status' || sortBy === 'createdAt' || sortBy === 'stepId') {
+        if (sortBy === 'status' || sortBy === 'createdAt' || sortBy === 'stepId' || sortBy === 'dueDate') {
             orderBy[sortBy] = sortOrder;
+        } else if (sortBy === 'applicationName') {
+            orderBy.application = { applicationDefinition: { name: sortOrder } };
+        } else if (sortBy === 'title') {
+            orderBy.application = { title: sortOrder };
         } else {
             orderBy.createdAt = sortOrder;
         }

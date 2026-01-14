@@ -24,4 +24,8 @@ export class UpdateApplicationDefinitionDto {
 
     @IsOptional()
     tags?: string[];
+
+    @IsOptional()
+    @IsString({ each: true })
+    adminIds?: string[];
 }

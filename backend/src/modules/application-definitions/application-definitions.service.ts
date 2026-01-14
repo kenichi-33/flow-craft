@@ -44,14 +44,18 @@ export class ApplicationDefinitionsService {
         const { page, limit, search, sortBy = 'createdAt', sortOrder = 'desc' } = options;
 
         // 検索条件
-        const where: Prisma.ApplicationDefinitionWhereInput = search
-            ? {
-                OR: [
-                    { name: { contains: search, mode: 'insensitive' } },
-                    { description: { contains: search, mode: 'insensitive' } },
-                ],
-            }
-            : {};
+        const where: Prisma.ApplicationDefinitionWhereInput = {};
+        
+        if (search) {
+            where.OR = [
+                { name: { contains: search, mode: 'insensitive' } },
+                { description: { contains: search, mode: 'insensitive' } },
+            ];
+        }
+
+        if (options.tags && options.tags.length > 0) {
+            where.tags = { hasSome: options.tags };
+        }
 
         // ソート条件
         const orderBy: Prisma.ApplicationDefinitionOrderByWithRelationInput = {};
@@ -133,19 +137,35 @@ export class ApplicationDefinitionsService {
     }
 
     async findOne(id: string) {
+        // Cast to any to access adminIds until Prisma Client types are fully synced in IDE
         const appDef = await this.prisma.applicationDefinition.findUnique({
             where: { id },
             include: {
                 formDefinition: true,
                 flowDefinition: true,
             },
-        });
+        }) as any;
 
         if (!appDef) {
             throw new NotFoundException(`ApplicationDefinition with ID ${id} not found`);
         }
 
-        return appDef;
+        // Enrich with admin info
+        let adminInfo: any[] = [];
+        if (appDef.adminIds && appDef.adminIds.length > 0) {
+            adminInfo = await Promise.all(appDef.adminIds.map(async (adminId: string) => {
+                // Determine if it's a UUID or Username (Simple check)
+                // Keycloak IDs are UUIDs. 
+                // We'll try to fetch as ID. If it fails/returns unknown, we might try username?
+                // For now, assume IDs are stored.
+                return this.usersService.getUserSnapshot(adminId);
+            }));
+        }
+
+        return {
+            ...appDef,
+            adminInfo,
+        };
     }
 
     async update(id: string, updateDto: UpdateApplicationDefinitionDto, username: string) {

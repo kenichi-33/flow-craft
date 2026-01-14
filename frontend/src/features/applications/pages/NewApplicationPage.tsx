@@ -72,35 +72,34 @@ export default function NewApplicationPage() {
                 <motion.div 
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
-                    className="relative rounded-3xl overflow-hidden bg-gradient-to-br from-primary/90 via-primary/80 to-indigo-600 text-primary-foreground shadow-2xl"
+                    className="relative rounded-2xl overflow-hidden bg-gradient-to-br from-primary/90 via-primary/80 to-indigo-600 text-primary-foreground shadow-xl"
                 >
                     <div className="absolute inset-0 bg-[url('/grid-pattern.svg')] opacity-10"></div>
-                    <div className="relative z-10 p-10 md:p-16 text-center space-y-6">
+                    <div className="relative z-10 p-6 md:p-8 text-center space-y-4">
                         <motion.div 
                             initial={{ scale: 0.9, opacity: 0 }}
                             animate={{ scale: 1, opacity: 1 }}
                             transition={{ delay: 0.2 }}
-                            className="inline-flex items-center gap-2 bg-white/10 backdrop-blur-sm px-4 py-1.5 rounded-full text-sm font-medium border border-white/20"
+                            className="inline-flex items-center gap-2 bg-white/10 backdrop-blur-sm px-3 py-1 rounded-full text-xs font-medium border border-white/20"
                         >
-                            <Sparkles className="h-4 w-4 text-yellow-300" />
+                            <Sparkles className="h-3 w-3 text-yellow-300" />
                             <span>FlowCraft Portal</span>
                         </motion.div>
                         
-                        <h1 className="text-4xl md:text-5xl font-extrabold tracking-tight">
+                        <h1 className="text-2xl md:text-3xl font-extrabold tracking-tight">
                             新しい申請をはじめる
                         </h1>
-                        <p className="text-lg md:text-xl text-primary-foreground/90 max-w-2xl mx-auto font-light leading-relaxed">
-                            必要なアプリケーションを選択して、ワークフローを開始しましょう。<br className="hidden md:block"/>
-                            タグや検索機能を使って目的のフローを素早く見つけることができます。
+                        <p className="text-sm md:text-base text-primary-foreground/90 max-w-xl mx-auto font-light leading-relaxed">
+                            必要なアプリケーションを選択して、ワークフローを開始しましょう。
                         </p>
 
-                        <div className="max-w-xl mx-auto pt-6 relative">
+                        <div className="max-w-lg mx-auto pt-2 relative">
                             <div className="relative">
-                                <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground/80" />
+                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/80" />
                                 <Input
                                     type="text"
                                     placeholder="アプリ名やキーワードで検索..."
-                                    className="pl-12 h-14 rounded-2xl text-lg bg-background/95 text-foreground shadow-lg border-0 ring-offset-2 focus-visible:ring-offset-primary/50"
+                                    className="pl-9 h-10 rounded-xl text-base bg-background/95 text-foreground shadow-md border-0 ring-offset-2 focus-visible:ring-offset-primary/50"
                                     value={searchQuery}
                                     onChange={(e) => setSearchQuery(e.target.value)}
                                 />

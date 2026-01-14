@@ -26,6 +26,7 @@ interface Task {
     assigneeId: string;
     assignedTo?: string;
     assignedToInfo?: UserSnapshot;
+    dueDate?: string;
     createdAt: string;
     updatedAt: string;
     application: {
@@ -103,30 +104,88 @@ export default function TaskListPage() {
     const tasks = useMemo(() => tasksResponse?.data || [], [tasksResponse]);
 
     const columns: ColumnDef<Task>[] = useMemo(() => [
-        { id: 'applicationNumber', header: '申請ID', cell: ({ row }) => <strong>#{row.original.application?.applicationNumber || '-'}</strong> },
-        { id: 'appName', header: 'アプリ名', cell: ({ row }) => row.original.application?.applicationDefinition?.appName || row.original.application?.applicationDefinition?.name || '不明' },
-        { id: 'title', header: '件名', cell: ({ row }) => <span className="font-semibold">{row.original.application?.title || '無題'}</span> },
-        { id: 'applicantId', header: '申請者', cell: ({ row }) => <UserDisplay user={row.original.application?.applicantInfo} fallback={row.original.application?.applicantId} /> },
-        { id: 'assignedTo', header: '担当者', cell: ({ row }) => <UserDisplay user={row.original.assignedToInfo} fallback={formatAssignedTo(row.original.assignedTo || row.original.assigneeId)} /> },
+        {
+            id: 'applicationNumber',
+            header: ({ column }) => (
+                <Button variant="ghost" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")} className="p-0 hover:bg-transparent">
+                    申請ID
+                    <ArrowUpDown className="ml-2 h-4 w-4" />
+                </Button>
+            ),
+            cell: ({ row }) => <strong>#{row.original.application?.applicationNumber || '-'}</strong>
+        },
+        {
+            id: 'appName',
+            header: ({ column }) => (
+                <Button variant="ghost" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")} className="p-0 hover:bg-transparent">
+                    アプリ名
+                    <ArrowUpDown className="ml-2 h-4 w-4" />
+                </Button>
+            ),
+            cell: ({ row }) => row.original.application?.applicationDefinition?.appName || row.original.application?.applicationDefinition?.name || '不明'
+        },
+        {
+            id: 'title',
+            header: ({ column }) => (
+                <Button variant="ghost" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")} className="p-0 hover:bg-transparent">
+                    件名
+                    <ArrowUpDown className="ml-2 h-4 w-4" />
+                </Button>
+            ),
+            cell: ({ row }) => <span className="font-semibold">{row.original.application?.title || '無題'}</span>
+        },
+        {
+            id: 'applicantId',
+            header: ({ column }) => (
+                <Button variant="ghost" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")} className="p-0 hover:bg-transparent">
+                    申請者
+                    <ArrowUpDown className="ml-2 h-4 w-4" />
+                </Button>
+            ),
+            cell: ({ row }) => <UserDisplay user={row.original.application?.applicantInfo} fallback={row.original.application?.applicantId} />
+        },
+        {
+            id: 'assignedTo',
+            header: ({ column }) => (
+                <Button variant="ghost" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")} className="p-0 hover:bg-transparent">
+                    担当者
+                    <ArrowUpDown className="ml-2 h-4 w-4" />
+                </Button>
+            ),
+            cell: ({ row }) => <UserDisplay user={row.original.assignedToInfo} fallback={formatAssignedTo(row.original.assignedTo || row.original.assigneeId)} />
+        },
         { id: 'stepId', header: '現在のステップ', cell: ({ row }) => getStepLabel(row.original.stepId, row.original.application?.flowDefinition?.nodes) },
-        { accessorKey: 'status', header: 'ステータス', cell: ({ row }) => {
-            const s = row.getValue('status') as string;
-            return <Badge variant={s === 'PENDING' ? 'secondary' : s === 'COMPLETED' ? 'default' : 'destructive'}>{s === 'PENDING' ? '保留中' : s === 'COMPLETED' ? '完了' : s}</Badge>;
-        }},
+        { 
+            accessorKey: 'status', 
+            header: ({ column }) => (
+                <Button variant="ghost" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")} className="p-0 hover:bg-transparent">
+                    ステータス
+                    <ArrowUpDown className="ml-2 h-4 w-4" />
+                </Button>
+            ),
+            cell: ({ row }) => {
+                const s = row.getValue('status') as string;
+                return <Badge variant={s === 'PENDING' ? 'secondary' : s === 'COMPLETED' ? 'default' : 'destructive'}>{s === 'PENDING' ? '保留中' : s === 'COMPLETED' ? '完了' : s}</Badge>;
+            }
+        },
+        { 
+            id: 'dueDate', 
+            header: ({ column }) => (
+                <Button variant="ghost" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")} className="p-0 hover:bg-transparent">
+                    期限
+                    <ArrowUpDown className="ml-2 h-4 w-4" />
+                </Button>
+            ),
+            cell: ({ row }) => row.original.dueDate ? new Date(row.original.dueDate).toLocaleDateString('ja-JP') : '-'
+        },
         { 
             accessorKey: 'createdAt', 
-            header: ({ column }) => {
-                return (
-                    <Button
-                        variant="ghost"
-                        onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-                        className="-ml-4 hover:bg-transparent"
-                    >
-                        作成日時
-                        <ArrowUpDown className="ml-2 h-4 w-4" />
-                    </Button>
-                )
-            },
+            header: ({ column }) => (
+                <Button variant="ghost" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")} className="p-0 hover:bg-transparent">
+                    作成日時
+                    <ArrowUpDown className="ml-2 h-4 w-4" />
+                </Button>
+            ),
             cell: ({ row }) => new Date(row.getValue('createdAt') as string).toLocaleString('ja-JP') 
         },
         { 

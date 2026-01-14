@@ -2,22 +2,20 @@
 import React, { useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { useForm } from 'react-hook-form';
 import { api } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Collapsible, CollapsibleContent } from '@/components/ui/collapsible';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Loader2, Search, Filter, ChevronDown, ChevronUp, X, Plus } from 'lucide-react';
+import { Loader2, Search, Filter, ChevronDown, ChevronUp } from 'lucide-react';
 import { UserDisplay } from '@/components/common/UserDisplay';
+import { DynamicSearchForm, type SearchCriterion } from '@/components/model/form/search/DynamicSearchForm';
 
 // --- Types ---
-interface SearchCriterion { operator: string; value: any; }
 interface Application {
     id: string;
     applicationNumber: number;
@@ -51,139 +49,19 @@ const getStatusLabel = (status: string) => {
     }
 };
 
-const OPERATORS = [
-    { value: 'equals', label: '等しい (=)' },
-    { value: 'contains', label: '含む' },
-    { value: 'gt', label: 'より大きい (>)' },
-    { value: 'lt', label: 'より小さい (<)' },
-    { value: 'gte', label: '以上 (>=)' },
-    { value: 'lte', label: '以下 (<=)' },
-];
-
 const NON_INPUT_TYPES = ['label', 'group', 'divider', 'spacer', 'paragraph', 'html', 'button'];
-
-// --- Dynamic Search Form ---
-function DynamicSearchForm({ schema, onSubmit, isLoading }: { schema: any; onSubmit: (criteria: any) => void; isLoading: boolean }) {
-    const { register, handleSubmit, unregister, setValue } = useForm();
-    const [activeFilters, setActiveFilters] = useState<string[]>([]);
-    const [selectedFieldToAdd, setSelectedFieldToAdd] = useState<string>('');
-
-    if (!schema?.properties) return null;
-
-    const allFields = Object.entries(schema.properties)
-        .map(([id, config]: [string, any]) => ({ id, ...config }))
-        .filter((f) => !NON_INPUT_TYPES.includes(f.type));
-    const availableFields = allFields.filter((f) => !activeFilters.includes(f.id));
-
-    const handleAddField = () => {
-        if (selectedFieldToAdd) {
-            setActiveFilters([...activeFilters, selectedFieldToAdd]);
-            setSelectedFieldToAdd('');
-        }
-    };
-
-    const handleRemoveField = (fieldId: string) => {
-        setActiveFilters(activeFilters.filter((id) => id !== fieldId));
-        unregister(`${fieldId}_operator`);
-        unregister(`${fieldId}_value`);
-    };
-
-    const onFormSubmit = (data: any) => {
-        const criteria: Record<string, SearchCriterion> = {};
-        activeFilters.forEach((fieldId) => {
-            const field = allFields.find((f) => f.id === fieldId);
-            if (!field) return;
-            const operator = data[`${fieldId}_operator`];
-            const value = data[`${fieldId}_value`];
-            if (value !== undefined && value !== '' && value !== null) {
-                criteria[fieldId] = { operator: operator || 'equals', value: field.type === 'number' ? Number(value) : value };
-            }
-        });
-        onSubmit(criteria);
-    };
-
-    return (
-        <form onSubmit={handleSubmit(onFormSubmit)} className="space-y-4">
-            {activeFilters.length === 0 ? (
-                <p className="text-sm text-muted-foreground italic">検索条件が追加されていません。下のリストから条件を追加してください。</p>
-            ) : (
-                <div className="space-y-3">
-                    {activeFilters.map((fieldId) => {
-                        const field = allFields.find((f) => f.id === fieldId);
-                        if (!field) return null;
-                        return (
-                            <Card key={fieldId} className="relative">
-                                <Button type="button" variant="ghost" size="icon" className="absolute top-2 right-2 h-6 w-6" onClick={() => handleRemoveField(fieldId)}>
-                                    <X className="h-4 w-4" />
-                                </Button>
-                                <CardContent className="pt-4 pb-3">
-                                    <Label className="font-semibold">{field.title || field.label || field.id}</Label>
-                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-2">
-                                        <Select defaultValue={field.type === 'string' ? 'contains' : 'equals'} onValueChange={(v) => setValue(`${field.id}_operator`, v)}>
-                                            <SelectTrigger><SelectValue /></SelectTrigger>
-                                            <SelectContent>
-                                                {OPERATORS.map((op) => <SelectItem key={op.value} value={op.value}>{op.label}</SelectItem>)}
-                                            </SelectContent>
-                                        </Select>
-                                        <div className="md:col-span-2">
-                                            {['select', 'radio', 'checkbox'].includes(field.type) ? (
-                                                    <Select onValueChange={(v) => setValue(`${field.id}_value`, v === '__all__' ? '' : v)}>
-                                                    <SelectTrigger><SelectValue placeholder="選択..." /></SelectTrigger>
-                                                    <SelectContent>
-                                                        <SelectItem value="__all__">Any</SelectItem>
-                                                        {field.options?.map((opt: any) => {
-                                                            const val = typeof opt === 'string' ? opt : opt.value;
-                                                            const lbl = typeof opt === 'string' ? opt : opt.label;
-                                                            return <SelectItem key={val} value={val}>{lbl}</SelectItem>;
-                                                        })}
-                                                    </SelectContent>
-                                                </Select>
-                                            ) : (
-                                                <Input type={field.type === 'number' ? 'number' : field.type === 'date' ? 'date' : 'text'} placeholder="値を入力..." {...register(`${field.id}_value`)} />
-                                            )}
-                                        </div>
-                                    </div>
-                                </CardContent>
-                            </Card>
-                        );
-                    })}
-                </div>
-            )}
-
-            {/* Add Filter */}
-            <div className="flex gap-2 items-center p-3 bg-muted rounded-lg">
-                <Select value={selectedFieldToAdd} onValueChange={setSelectedFieldToAdd}>
-                    <SelectTrigger className="w-[200px]"><SelectValue placeholder="条件を追加..." /></SelectTrigger>
-                    <SelectContent>
-                        {availableFields.length === 0 ? (
-                            <SelectItem value="__empty__" disabled>全ての項目を追加済み</SelectItem>
-                        ) : (
-                            availableFields.map((field) => <SelectItem key={field.id} value={field.id}>{field.title || field.label || field.id}</SelectItem>)
-                        )}
-                    </SelectContent>
-                </Select>
-                <Button type="button" variant="outline" onClick={handleAddField} disabled={!selectedFieldToAdd}>
-                    <Plus className="h-4 w-4 mr-1" />追加
-                </Button>
-            </div>
-
-            <div className="flex justify-end">
-                <Button type="submit" disabled={isLoading}>
-                    {isLoading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Search className="h-4 w-4 mr-2" />}
-                    検索
-                </Button>
-            </div>
-        </form>
-    );
-}
 
 // --- Main Page ---
 export default function DesignerSearchPage() {
     const { id } = useParams();
     const [page, setPage] = useState(0);
     const [rowsPerPage, setRowsPerPage] = useState(10);
-    const [criteria, setCriteria] = useState<Record<string, SearchCriterion> | undefined>(undefined);
+    const [keyword, setKeyword] = useState('');
+    const [filterCriteria, setFilterCriteria] = useState<Record<string, SearchCriterion>>({}); // Draft filters
+    const [searchParams, setSearchParams] = useState<{ keyword: string; criteria: Record<string, SearchCriterion> | undefined }>({ keyword: '', criteria: undefined }); // Committed params
+    
     const [expandedRow, setExpandedRow] = useState<string | null>(null);
+    const [showAdvanced, setShowAdvanced] = useState(false);
 
     const { data: appDef, isLoading: isAppLoading, error: appError } = useQuery({
         queryKey: ['apps', id],
@@ -198,14 +76,28 @@ export default function DesignerSearchPage() {
     });
 
     const { data: searchResults, isLoading: isSearchLoading } = useQuery<SearchResult>({
-        queryKey: ['search-applications', id, page, rowsPerPage, criteria],
-        queryFn: async () => api.post('/search/applications', { applicationDefinitionId: id, criteria, page: page + 1, limit: rowsPerPage }),
+        queryKey: ['search-applications', id, page, rowsPerPage, searchParams],
+        queryFn: async () => api.post('/search/applications', { 
+            applicationDefinitionId: id, 
+            keyword: searchParams.keyword,
+            criteria: searchParams.criteria, 
+            page: page + 1, 
+            limit: rowsPerPage 
+        }),
         enabled: !!id,
         placeholderData: (prev) => prev,
     });
 
-    const handleSearch = (newCriteria: any) => { setCriteria(newCriteria); setPage(0); };
+    const handleSearch = () => { 
+        setSearchParams({ keyword, criteria: Object.keys(filterCriteria).length > 0 ? filterCriteria : undefined });
+        setPage(0); 
+    };
+
     const toggleRow = (rowId: string) => setExpandedRow(expandedRow === rowId ? null : rowId);
+
+    const handleFilterChange = React.useCallback((c: Record<string, SearchCriterion>) => {
+        setFilterCriteria(c);
+    }, []);
 
     const inputFields = formDef?.schema?.properties
         ? Object.entries(formDef.schema.properties).filter(([_, config]: [string, any]) => !NON_INPUT_TYPES.includes(config.type))
@@ -222,14 +114,46 @@ export default function DesignerSearchPage() {
                 <p className="text-muted-foreground">以下のフォームから条件を指定して申請データを検索できます。</p>
             </div>
 
-            <Card>
-                <CardHeader className="pb-3">
-                    <CardTitle className="text-lg flex items-center gap-2"><Filter className="h-5 w-5" />検索条件</CardTitle>
-                </CardHeader>
-                <CardContent>
-                    <DynamicSearchForm schema={formDef.schema} onSubmit={handleSearch} isLoading={isSearchLoading} />
-                </CardContent>
-            </Card>
+                <Card className="border-0 shadow-sm bg-muted/10 mb-6">
+                    <CardContent className="p-4 space-y-4">
+                        {/* Hybrid Search Bar */}
+                        <div className="flex flex-col md:flex-row gap-4">
+                           <div className="relative flex-1">
+                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+                                <Input
+                                    placeholder="キーワード検索（全文検索）..."
+                                    className="pl-10 h-10 text-base"
+                                    value={keyword}
+                                    onChange={(e) => setKeyword(e.target.value)}
+                                    onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+                                />
+                            </div>
+                            <Button 
+                                variant={showAdvanced ? "secondary" : "outline"} 
+                                onClick={() => setShowAdvanced(!showAdvanced)}
+                                className="flex gap-2 min-w-[140px]"
+                            >
+                                <Filter className="h-4 w-4" />
+                                詳細フィルタ
+                                {showAdvanced ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+                            </Button>
+                            <Button onClick={() => handleSearch()} disabled={isSearchLoading} className="min-w-[100px]">
+                                {isSearchLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : '検索'}
+                            </Button>
+                        </div>
+
+                        {/* Collapsible Advanced Search */}
+                        <Collapsible open={showAdvanced}>
+                            <CollapsibleContent className="pt-4 border-t mt-4 border-muted-foreground/20">
+                                <h3 className="text-sm font-semibold mb-3 text-muted-foreground">フィールド指定検索</h3>
+                                <DynamicSearchForm 
+                                    schema={formDef.schema} 
+                                    onChange={handleFilterChange} 
+                                />
+                            </CollapsibleContent>
+                        </Collapsible>
+                    </CardContent>
+                </Card>
 
             <Card>
                 <div className="overflow-x-auto">

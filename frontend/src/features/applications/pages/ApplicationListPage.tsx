@@ -21,7 +21,7 @@ import {
     TableRow,
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, Plus, Eye, Edit } from 'lucide-react';
+import { Loader2, Plus, Eye, Edit, ArrowUpDown, Search, ArrowUp, ArrowDown } from 'lucide-react';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { UserDisplay, type UserSnapshot } from '@/components/common/UserDisplay';
@@ -68,17 +68,17 @@ const statusConfig: Record<string, { label: string; variant: 'default' | 'second
 function getStepLabel(nodeId: string | undefined, nodes?: any[]): string {
     if (!nodeId || !nodes) return '-';
     const node = nodes.find((n: any) => n.id === nodeId);
-    return node?.data?.label || nodeId;
+    return node?.data?.label || nodeId || '-';
 }
 
 export default function ApplicationListPage() {
     const navigate = useNavigate();
-    const [sorting, setSorting] = useState<SortingState>([]);
+    const [sorting, setSorting] = useState<SortingState>([{ id: 'createdAt', desc: true }]);
     const [globalFilter, setGlobalFilter] = useState('');
     const [activeTab, setActiveTab] = useState('all');
 
     const [myApplications, setMyApplications] = useState(true);
-    const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 10 });
+    const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 15 });
     
     // Server-side fetching
     const { data: applicationsResponse, isLoading, error } = useQuery<ApplicationsResponse>({
@@ -88,7 +88,7 @@ export default function ApplicationListPage() {
              searchParams.append('limit', pagination.pageSize.toString());
              searchParams.append('page', (pagination.pageIndex + 1).toString());
              if (myApplications) searchParams.append('myApplications', 'true');
-             if (globalFilter) searchParams.append('search', globalFilter);
+             if (globalFilter) searchParams.append('search', globalFilter); // サーバー側で件名・申請者名等を検索
 
              if (sorting.length > 0) {
                  searchParams.append('sortBy', sorting[0].id);
@@ -96,13 +96,11 @@ export default function ApplicationListPage() {
              }
 
              if (activeTab === 'in_progress') {
-                 searchParams.append('status', 'IN_PROGRESS');
-                 searchParams.append('status', 'DRAFT');
+                 searchParams.append('status', 'IN_PROGRESS,DRAFT');
              } else if (activeTab === 'completed') {
                  searchParams.append('status', 'APPROVED');
              } else if (activeTab === 'rejected') {
-                 searchParams.append('status', 'REJECTED');
-                 searchParams.append('status', 'REMANDED');
+                 searchParams.append('status', 'REJECTED,REMANDED');
              }
 
              return api.get<ApplicationsResponse>(`/applications?${searchParams.toString()}`);
@@ -110,36 +108,60 @@ export default function ApplicationListPage() {
     });
 
     const applications = useMemo(() => applicationsResponse?.data || [], [applicationsResponse]);
-    // Client-side tab filtering is NO LONGER VALID if we paginate server-side. 
-    // We already moved tab filtering to API params above.
-    // So filteredByTab IS applications.
     const filteredByTab = applications; 
-
 
     const columns: ColumnDef<Application>[] = useMemo(() => [
         {
             accessorKey: 'applicationNumber',
-            header: '申請ID',
+            header: ({ column }) => (
+                <Button variant="ghost" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")} className="p-0 hover:bg-transparent">
+                    申請ID
+                    {column.getIsSorted() === "asc" ? <ArrowUp className="ml-2 h-4 w-4" /> : column.getIsSorted() === "desc" ? <ArrowDown className="ml-2 h-4 w-4" /> : <ArrowUpDown className="ml-2 h-4 w-4" />}
+                </Button>
+            ),
             cell: ({ row }) => <strong>#{row.original.applicationNumber}</strong>,
         },
         {
-            id: 'appName',
-            header: 'アプリ名',
+            id: 'applicationDefinition', // Sorting by relation needs special handling in backend, passed as 'applicationDefinition' (or AppName?)
+            // Backend maps 'applicationDefinition' to relation sort
+            accessorKey: 'applicationDefinition.name',
+            header: ({ column }) => (
+                <Button variant="ghost" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")} className="p-0 hover:bg-transparent">
+                    アプリ名
+                    {column.getIsSorted() === "asc" ? <ArrowUp className="ml-2 h-4 w-4" /> : column.getIsSorted() === "desc" ? <ArrowDown className="ml-2 h-4 w-4" /> : <ArrowUpDown className="ml-2 h-4 w-4" />}
+                </Button>
+            ),
             cell: ({ row }) => row.original.applicationDefinition?.name || '不明',
         },
         {
             accessorKey: 'title',
-            header: '件名',
+            header: ({ column }) => (
+                <Button variant="ghost" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")} className="p-0 hover:bg-transparent">
+                    件名
+                    {column.getIsSorted() === "asc" ? <ArrowUp className="ml-2 h-4 w-4" /> : column.getIsSorted() === "desc" ? <ArrowDown className="ml-2 h-4 w-4" /> : <ArrowUpDown className="ml-2 h-4 w-4" />}
+                </Button>
+            ),
             cell: ({ row }) => <span className="font-semibold">{row.original.title}</span>,
         },
         {
             id: 'applicantId',
-            header: '申請者',
+            accessorKey: 'applicantId',
+            header: ({ column }) => (
+                <Button variant="ghost" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")} className="p-0 hover:bg-transparent">
+                    申請者
+                    {column.getIsSorted() === "asc" ? <ArrowUp className="ml-2 h-4 w-4" /> : column.getIsSorted() === "desc" ? <ArrowDown className="ml-2 h-4 w-4" /> : <ArrowUpDown className="ml-2 h-4 w-4" />}
+                </Button>
+            ),
             cell: ({ row }) => <UserDisplay user={row.original.applicantInfo} fallback={row.original.applicantId} />,
         },
         {
             accessorKey: 'status',
-            header: 'ステータス',
+            header: ({ column }) => (
+                <Button variant="ghost" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")} className="p-0 hover:bg-transparent">
+                    ステータス
+                    {column.getIsSorted() === "asc" ? <ArrowUp className="ml-2 h-4 w-4" /> : column.getIsSorted() === "desc" ? <ArrowDown className="ml-2 h-4 w-4" /> : <ArrowUpDown className="ml-2 h-4 w-4" />}
+                </Button>
+            ),
             cell: ({ row }) => {
                 const status = row.getValue('status') as string;
                 const config = statusConfig[status] || { label: status, variant: 'outline' as const };
@@ -156,7 +178,12 @@ export default function ApplicationListPage() {
         },
         {
             accessorKey: 'createdAt',
-            header: '申請日時',
+            header: ({ column }) => (
+                <Button variant="ghost" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")} className="p-0 hover:bg-transparent">
+                    申請日時
+                    {column.getIsSorted() === "asc" ? <ArrowUp className="ml-2 h-4 w-4" /> : column.getIsSorted() === "desc" ? <ArrowDown className="ml-2 h-4 w-4" /> : <ArrowUpDown className="ml-2 h-4 w-4" />}
+                </Button>
+            ),
             cell: ({ row }) => new Date(row.getValue('createdAt') as string).toLocaleString('ja-JP'),
         },
         {
@@ -168,7 +195,7 @@ export default function ApplicationListPage() {
             id: 'actions',
             header: '操作',
             cell: ({ row }) => (
-                <div className="flex gap-1">
+                <div className="flex gap-1 justify-end">
                     {['REMANDED', 'DRAFT'].includes(row.original.status) ? (
                         <Button 
                             variant="default" 
@@ -190,16 +217,14 @@ export default function ApplicationListPage() {
 
     const table = useReactTable({
         data: applications, 
-        columns,
+        columns, 
         getCoreRowModel: getCoreRowModel(),
-        // getPaginationRowModel: getPaginationRowModel(), // Disable client pagination
         manualPagination: true,
         manualSorting: true,
         pageCount: applicationsResponse?.pagination.totalPages ?? -1,
         onPaginationChange: setPagination,
         onSortingChange: setSorting,
-        // onGlobalFilterChange: setGlobalFilter, // We handle this manually in state
-        state: { sorting, pagination }, // globalFilter is separate state passed to query
+        state: { sorting, pagination }, 
     });
 
     if (error) return <div className="flex items-center justify-center h-64"><p className="text-destructive">データの取得に失敗しました</p></div>;
@@ -212,31 +237,51 @@ export default function ApplicationListPage() {
                     <p className="text-muted-foreground">あなたの申請履歴を確認できます</p>
                 </div>
                 <div className="flex items-center gap-4">
-                     <div className="flex items-center gap-2 border p-2 rounded-md">
+                     <div className="flex items-center gap-2 border p-2 rounded-md bg-card">
                         <Checkbox id="my-apps" checked={myApplications} onCheckedChange={(c) => setMyApplications(!!c)} />
-                        <Label htmlFor="my-apps" className="cursor-pointer text-sm">自分の申請のみ</Label>
+                        <Label htmlFor="my-apps" className="cursor-pointer text-sm font-medium">自分の申請のみ</Label>
                     </div>
                     <Button asChild><Link to="/applications/new"><Plus className="h-4 w-4 mr-2" />新規申請</Link></Button>
                 </div>
             </div>
 
-            <Tabs value={activeTab} onValueChange={setActiveTab}>
-                <div className="flex items-center justify-between">
+            <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
+                <div className="flex items-center justify-between flex-wrap gap-4">
                     <TabsList>
                         <TabsTrigger value="all">すべて</TabsTrigger>
                         <TabsTrigger value="in_progress">進行中</TabsTrigger>
                         <TabsTrigger value="completed">完了</TabsTrigger>
                         <TabsTrigger value="rejected">却下・差戻し</TabsTrigger>
                     </TabsList>
-                    <Input placeholder="件名、アプリ名、申請者で検索..." value={globalFilter ?? ''} onChange={(e) => setGlobalFilter(e.target.value)} className="max-w-sm" />
+                    
+                    <div className="relative flex-1 max-w-sm">
+                        <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                        <Input 
+                            placeholder="件名、アプリ名、申請者で検索..." 
+                            value={globalFilter ?? ''} 
+                            onChange={(e) => setGlobalFilter(e.target.value)} 
+                            className="pl-9 w-full" 
+                        />
+                    </div>
                 </div>
-                <TabsContent value={activeTab} className="mt-4">
+
+                <TabsContent value={activeTab} className="mt-0">
                     <div className="rounded-lg border bg-card shadow-sm overflow-x-auto">
                         {isLoading ? (
                             <div className="flex items-center justify-center h-64"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>
                         ) : (
                             <Table>
-                                <TableHeader>{table.getHeaderGroups().map((hg) => (<TableRow key={hg.id}>{hg.headers.map((h) => (<TableHead key={h.id} className="whitespace-nowrap">{h.isPlaceholder ? null : flexRender(h.column.columnDef.header, h.getContext())}</TableHead>))}</TableRow>))}</TableHeader>
+                                <TableHeader>
+                                    {table.getHeaderGroups().map((hg) => (
+                                        <TableRow key={hg.id}>
+                                            {hg.headers.map((h) => (
+                                                <TableHead key={h.id} className="whitespace-nowrap">
+                                                    {h.isPlaceholder ? null : flexRender(h.column.columnDef.header, h.getContext())}
+                                                </TableHead>
+                                            ))}
+                                        </TableRow>
+                                    ))}
+                                </TableHeader>
                                 <TableBody>
                                     {table.getRowModel().rows?.length ? table.getRowModel().rows.map((row) => (
                                         <TableRow key={row.id} className="cursor-pointer hover:bg-muted/50" onClick={() => navigate(`/applications/${row.original.id}`)}>
@@ -249,10 +294,12 @@ export default function ApplicationListPage() {
                     </div>
                 </TabsContent>
             </Tabs>
+
             <div className="flex items-center justify-between py-4">
                 <p className="text-sm text-muted-foreground">{applicationsResponse?.pagination.total || 0} 件中 {filteredByTab.length} 件を表示</p>
                 <div className="flex items-center space-x-2">
                     <Button variant="outline" size="sm" onClick={() => table.previousPage()} disabled={!table.getCanPreviousPage()}>前へ</Button>
+                    <span className="text-sm flex items-center">{pagination.pageIndex + 1} / {Math.ceil((applicationsResponse?.pagination.total || 0) / pagination.pageSize) || 1}</span>
                     <Button variant="outline" size="sm" onClick={() => table.nextPage()} disabled={!table.getCanNextPage()}>次へ</Button>
                 </div>
             </div>

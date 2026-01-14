@@ -169,6 +169,7 @@ model ApplicationDefinition {
   status           AppDefStatus @default(DRAFT)
   version          Int          @default(1)
   tags             String[]     @default([])
+  adminIds         String[]     @default([]) @map("admin_ids") // アプリ管理者のユーザーIDリスト
   publishedAt      DateTime?    @map("published_at")
   createdBy        String?      @map("created_by")
   updatedBy        String?      @map("updated_by")

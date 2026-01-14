@@ -130,11 +130,8 @@ export class ApplicationsService {
 
         // ステータスフィルタ
         if (status) {
-            if (status.includes(',')) {
-                where.status = { in: status.split(',') as any[] };
-            } else {
-                where.status = status as any;
-            }
+            const statusList = status.split(',');
+            where.status = { in: statusList as any[] };
         }
 
         // 申請IDフィルタ
@@ -156,18 +153,27 @@ export class ApplicationsService {
             }
         }
 
-        // テキスト検索条件を追加
+        // テキスト検索条件を追加（件名、申請ID文字列、アプリ名）
+        // ※申請内容(inputData)は検索対象外とする
         if (search) {
             where.OR = [
                 { applicantId: { contains: search, mode: 'insensitive' } },
                 { applicationDefinition: { name: { contains: search, mode: 'insensitive' } } },
                 { title: { contains: search, mode: 'insensitive' } },
             ];
+            
+            // 数値であればID検索も試みる
+            const searchNum = parseInt(search, 10);
+            if (!isNaN(searchNum)) {
+                where.OR.push({ applicationNumber: searchNum });
+            }
         }
 
         // ソート条件
         const orderBy: Prisma.ApplicationOrderByWithRelationInput = {};
-        if (sortBy === 'applicationNumber' || sortBy === 'status' || sortBy === 'createdAt' || sortBy === 'updatedAt' || sortBy === 'applicantId') {
+        if (sortBy === 'applicationDefinition') {
+            orderBy.applicationDefinition = { name: sortOrder };
+        } else if (sortBy === 'applicationNumber' || sortBy === 'status' || sortBy === 'createdAt' || sortBy === 'updatedAt' || sortBy === 'applicantId' || sortBy === 'title') {
             orderBy[sortBy] = sortOrder;
         } else {
             orderBy.createdAt = sortOrder;
