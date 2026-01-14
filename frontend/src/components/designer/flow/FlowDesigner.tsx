@@ -158,7 +158,14 @@ export default function FlowDesigner({ appId }: { appId: string }) {
         const labelMap: Record<string, string> = { approval: '承認', branch: '条件分岐', end: '終了', swimlane: 'レーン' };
         const newNode: Node = {
             id, type, position,
-            data: { label: labelMap[type] || type, assignee: type === 'approval' ? '承認者' : undefined, formFields: type === 'branch' ? formFields : undefined, ...(type === 'swimlane' && { width: 800, height: 200, color: '#e3f2fd' }) },
+            data: { 
+                label: labelMap[type] || type, 
+                assignee: type === 'approval' ? 'role:wf_approver' : undefined,
+                assigneeType: type === 'approval' ? 'role' : undefined,
+                assigneeRole: type === 'approval' ? 'wf_approver' : undefined,
+                formFields: type === 'branch' ? formFields : undefined, 
+                ...(type === 'swimlane' && { width: 800, height: 200, color: '#e3f2fd' }) 
+            },
             ...(type === 'swimlane' && { style: { width: 800, height: 200 }, zIndex: -100 }),
         };
         setNodes(nds => nds.concat(newNode));

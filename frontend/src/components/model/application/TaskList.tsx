@@ -64,6 +64,8 @@ const getStatusBadge = (status: string, isStartNode: boolean, applicationStatus?
             return <Badge variant="outline" className="text-muted-foreground">待機中</Badge>;
         case 'CANCELED':
             return <Badge variant="outline" className="text-muted-foreground">キャンセル</Badge>;
+        case 'DRAFT':
+            return <Badge variant="outline" className="text-muted-foreground bg-gray-100">下書き</Badge>;
         default:
             return <Badge variant="outline">{status}</Badge>;
     }
@@ -206,7 +208,7 @@ export default function TaskList({
                     stepName: node.data?.label || '開始',
                     assignedTo: applicationInfo?.applicantId ? `user:${applicationInfo.applicantId}` : undefined,
                     assignedToInfo: applicationInfo?.applicantInfo,
-                    status: 'COMPLETED',
+                    status: applicationInfo?.status === 'DRAFT' ? 'DRAFT' : 'COMPLETED',
                     createdAt: applicationInfo?.createdAt || '',
                     updatedAt: applicationInfo?.createdAt,
                     nodeData: node.data,

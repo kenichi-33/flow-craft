@@ -31,6 +31,13 @@ const LANE_COLORS = [
     { label: 'シアン', value: '#e0f7fa' },
 ];
 
+const AVAILABLE_ROLES = [
+    { value: 'wf_user', label: '一般利用者' },
+    { value: 'wf_approver', label: '承認者' },
+    { value: 'wf_manager', label: '管理職' },
+    { value: 'wf_admin', label: 'システム管理者' },
+];
+
 export default function SwimLaneNode({ id, data, selected }: SwimLaneNodeProps) {
     const [dialogOpen, setDialogOpen] = useState(false);
     const [label, setLabel] = useState(data.label || 'レーン');
@@ -68,7 +75,11 @@ export default function SwimLaneNode({ id, data, selected }: SwimLaneNodeProps) 
                     {data.assignee && (
                         <div className="flex items-center gap-0.5 mt-1">
                             {data.assigneeType === 'user' ? <User className="h-3 w-3" /> : <Users className="h-3 w-3" />}
-                            <span className="text-[10px]">{data.assignee}</span>
+                            <span className="text-[10px]">
+                                {assigneeType === 'role' 
+                                    ? (AVAILABLE_ROLES.find(r => r.value === data.assignee)?.label || data.assignee)
+                                    : data.assignee}
+                            </span>
                         </div>
                     )}
                 </div>
@@ -93,7 +104,7 @@ export default function SwimLaneNode({ id, data, selected }: SwimLaneNodeProps) 
                         </div>
                         <div className="space-y-1.5">
                             <Label>担当者タイプ</Label>
-                            <Select value={assigneeType} onValueChange={(v) => setAssigneeType(v as any)} disabled={isReadOnly}>
+                            <Select value={assigneeType} onValueChange={(v) => { setAssigneeType(v as any); setAssignee(''); }} disabled={isReadOnly}>
                                 <SelectTrigger><SelectValue /></SelectTrigger>
                                 <SelectContent>
                                     <SelectItem value="role">ロール</SelectItem>
@@ -104,12 +115,25 @@ export default function SwimLaneNode({ id, data, selected }: SwimLaneNodeProps) 
                         </div>
                         <div className="space-y-1.5">
                             <Label>担当者/ロール名</Label>
-                            <Input
-                                value={assignee}
-                                onChange={(e) => setAssignee(e.target.value)}
-                                placeholder={assigneeType === 'role' ? '例: 承認者' : assigneeType === 'department' ? '例: 経理部' : '例: user@example.com'}
-                                disabled={isReadOnly}
-                            />
+                            {assigneeType === 'role' ? (
+                                <Select value={assignee} onValueChange={setAssignee} disabled={isReadOnly}>
+                                    <SelectTrigger><SelectValue placeholder="ロールを選択" /></SelectTrigger>
+                                    <SelectContent>
+                                        {AVAILABLE_ROLES.map((role) => (
+                                            <SelectItem key={role.value} value={role.value}>
+                                                {role.label} ({role.value})
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            ) : (
+                                <Input
+                                    value={assignee}
+                                    onChange={(e) => setAssignee(e.target.value)}
+                                    placeholder={assigneeType === 'department' ? '例: 経理部' : '例: user@example.com'}
+                                    disabled={isReadOnly}
+                                />
+                            )}
                         </div>
                         <div className="space-y-1.5">
                             <Label>レーン色</Label>
