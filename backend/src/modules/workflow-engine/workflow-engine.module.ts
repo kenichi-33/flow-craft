@@ -1,5 +1,6 @@
 import { Module, OnModuleInit } from '@nestjs/common';
 import { WorkflowEngineService } from './workflow-engine.service';
+import { WorkflowExecutorService } from './workflow-executor.service';
 import { WorkflowEngineController } from './workflow-engine.controller';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { UsersModule } from '../users/users.module';
@@ -18,6 +19,7 @@ import {
     controllers: [WorkflowEngineController],
     providers: [
         WorkflowEngineService,
+        WorkflowExecutorService,
         // Worker Infrastructure
         TaskHandlerRegistry,
         GenericWorker,

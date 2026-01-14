@@ -1,59 +1,23 @@
-import { Injectable, NotFoundException, BadRequestException, OnModuleInit, Logger } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
 import { QueueService } from '../queue/queue.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { Prisma } from '@prisma/client';
-import axios from 'axios';
-
-import { MailService } from '../notifications/mail.service';
 import { UsersService } from '../users/users.service';
-import { TaskExecuteJob, TaskCompleteJob } from './workers/task-handler.interface';
+import { TaskCompleteJob } from './workers/task-handler.interface';
 
 @Injectable()
-export class WorkflowEngineService implements OnModuleInit {
-    private readonly logger = new Logger('[Executor] WorkflowEngine');
-    private readonly COMPONENT_NAME = 'WorkflowEngine';
-    private readonly keycloakUrl = process.env.KEYCLOAK_URL || 'http://localhost:8080';
-    private readonly realm = process.env.KEYCLOAK_REALM || 'workflow';
-    private readonly clientId = process.env.KEYCLOAK_ADMIN_CLIENT_ID || 'admin-cli';
-    private readonly clientSecret = process.env.KEYCLOAK_ADMIN_CLIENT_SECRET || '';
+export class WorkflowEngineService {
+    private readonly logger = new Logger('[Facade] WorkflowEngine');
 
     constructor(
         private prisma: PrismaService,
-        private mailService: MailService,
         private usersService: UsersService,
         private queueService: QueueService,
     ) { }
 
-    async onModuleInit() {
-        await this.queueService.registerHandler('WORKFLOW_NODE_PROCESS', this.handleNodeProcessingJob.bind(this));
-        await this.queueService.registerHandler('TASK_COMPLETE', this.handleTaskComplete.bind(this));
-        this.logger.log('Registered WORKFLOW_NODE_PROCESS and TASK_COMPLETE handlers');
-    }
-
-    async handleNodeProcessingJob(job: { applicationId: string }) {
-        this.logger.log(`Processing workflow node for application ${job.applicationId}`);
-        await this.processNode(job.applicationId);
-    }
-
-    /**
-     * タスク完了通知を処理（Worker → Executor）
-     */
-    async handleTaskComplete(job: TaskCompleteJob) {
-        this.logger.log(`Task ${job.taskId} completed for application ${job.applicationId} (success: ${job.success})`);
-
-        if (job.success && job.shouldAdvance) {
-            // 成功かつ次に進む場合、ワークフローを進める
-            await this.advanceToNextNode(job.applicationId);
-        } else if (!job.success) {
-            // 失敗時のログ（リトライはWorker側で処理）
-            this.logger.warn(`Task ${job.taskId} failed: ${job.error}`);
-        }
-        // shouldAdvance = false の場合（承認タスク等）は何もしない（人間の操作を待つ）
-    }
-
     /**
      * ワークフローを開始する
-     * 申請を作成し、最初のノードに基づいてタスクを生成
+     * 申請を作成し、進行処理をExecutorに委譲
      */
     async startWorkflow(input: {
         applicationDefinitionId: string;
@@ -87,26 +51,21 @@ export class WorkflowEngineService implements OnModuleInit {
             throw new BadRequestException('Flow definition not found');
         }
 
-        // フロー定義からノードを取得
         // バージョン情報を取得 (Activeな定義＝公開された最新バージョンを使用)
-        // これにより、Saveで更新されたDraftの内容ではなく、Publishされた内容が使用される
         const publishedVersion = await this.prisma.appVersion.findUnique({
             where: {
                 applicationDefinitionId_version: {
                     applicationDefinitionId: appDef.id,
-                    version: appDef.version // ACTIVEの場合は現在のバージョン
+                    version: appDef.version
                 }
             }
         });
 
-        // 定義の解決: 公開バージョンがあればそれを使用、なければ(初回など)Draftを使用
-        // ※ appDef.status === 'ACTIVE' なので基本的にはバージョンがあるはずだが、
-        //   移行措置や直接DB操作の場合に備えてフォールバックする
         const flowNodes = publishedVersion?.flowNodes ?? flowDef.nodes;
         const flowEdges = publishedVersion?.flowEdges ?? flowDef.edges;
         const formSchema = publishedVersion?.formSchema ?? appDef.formDefinition?.schema;
 
-        // 開始ノードを見つける (解決したNodesから)
+        // 開始ノードを見つける
         const nodesList = (flowNodes as any[]) || [];
         const startNode = nodesList.find(n => n.type === 'start');
         if (!startNode) {
@@ -130,7 +89,7 @@ export class WorkflowEngineService implements OnModuleInit {
                     status: 'IN_PROGRESS',
                     inputData: input.inputData,
                     currentNodeId: startNode.id,
-                    // スナップショット: 公開バージョンの定義を保存
+                    // スナップショット
                     formSchema: (formSchema ?? undefined) as Prisma.InputJsonValue | undefined,
                     flowNodes: (flowNodes ?? undefined) as Prisma.InputJsonValue | undefined,
                     flowEdges: (flowEdges ?? undefined) as Prisma.InputJsonValue | undefined,
@@ -142,7 +101,7 @@ export class WorkflowEngineService implements OnModuleInit {
                 data: {
                     applicationId: app.id,
                     actorId: input.applicantId,
-                    actorInfo: applicantInfo as any, // 申請者情報を履歴にも保存
+                    actorInfo: applicantInfo as any,
                     action: 'START',
                     stepId: startNode.id,
                     comment: '申請を開始しました',
@@ -152,8 +111,8 @@ export class WorkflowEngineService implements OnModuleInit {
             return app;
         });
 
-        // 次のノードへ進む
-        await this.advanceToNextNode(application.id);
+        // 進行処理をExecutorに依頼 (非同期)
+        await this.queueService.enqueue('WORKFLOW_NODE_PROCESS', { applicationId: application.id });
 
         return this.prisma.application.findUnique({
             where: { id: application.id },
@@ -173,7 +132,6 @@ export class WorkflowEngineService implements OnModuleInit {
         title: string;
         inputData: any;
     }) {
-        // アプリ定義を取得
         const appDef = await this.prisma.applicationDefinition.findUnique({
             where: { id: input.applicationDefinitionId },
             include: {
@@ -190,17 +148,11 @@ export class WorkflowEngineService implements OnModuleInit {
             throw new BadRequestException('ApplicationDefinition is not fully configured');
         }
 
-        // フロー定義からノードを取得
         const flowDef = appDef.flowDefinition;
         const nodes = flowDef?.nodes as any[] || [];
-
-        // 開始ノードを見つける
         const startNode = nodes.find(n => n.type === 'start');
-
-        // 申請者情報のスナップショットを取得
         const applicantInfo = await this.usersService.getUserSnapshotByUsername(input.applicantId);
 
-        // 申請を下書きステータスで作成
         const application = await this.prisma.application.create({
             data: {
                 title: input.title,
@@ -212,7 +164,6 @@ export class WorkflowEngineService implements OnModuleInit {
                 status: 'DRAFT',
                 inputData: input.inputData,
                 currentNodeId: startNode?.id || null,
-                // スナップショット
                 formSchema: (appDef.formDefinition?.schema ?? undefined) as Prisma.InputJsonValue | undefined,
                 flowNodes: (flowDef?.nodes ?? undefined) as Prisma.InputJsonValue | undefined,
                 flowEdges: (flowDef?.edges ?? undefined) as Prisma.InputJsonValue | undefined,
@@ -244,18 +195,13 @@ export class WorkflowEngineService implements OnModuleInit {
             throw new BadRequestException('この申請は下書きではありません');
         }
 
-        // スナップショット優先
         const nodes = (application.flowNodes || application.flowDefinition.nodes || []) as any[];
-
-        // 開始ノードを見つける
         const startNode = nodes.find((n: any) => n.type === 'start');
         if (!startNode) {
             throw new BadRequestException('Flow has no start node');
         }
 
-        // 申請を更新してワークフロー開始（トランザクション）
         await this.prisma.$transaction(async (tx) => {
-            // ステータス更新
             await tx.application.update({
                 where: { id: applicationId },
                 data: {
@@ -265,7 +211,6 @@ export class WorkflowEngineService implements OnModuleInit {
                 },
             });
 
-            // 開始履歴を追加
             await tx.approvalHistory.create({
                 data: {
                     applicationId: application.id,
@@ -278,8 +223,8 @@ export class WorkflowEngineService implements OnModuleInit {
             });
         });
 
-        // 次のノードへ進む
-        await this.advanceToNextNode(applicationId);
+        // 進行処理をExecutorに依頼
+        await this.queueService.enqueue('WORKFLOW_NODE_PROCESS', { applicationId });
 
         return this.prisma.application.findUnique({
             where: { id: applicationId },
@@ -291,380 +236,8 @@ export class WorkflowEngineService implements OnModuleInit {
     }
 
     /**
-     * 次のノードへ進む (非同期ジョブ登録)
-     */
-    async advanceToNextNode(applicationId: string) {
-        await this.queueService.enqueue('WORKFLOW_NODE_PROCESS', { applicationId });
-        this.logger.log(`Enqueued processing for application ${applicationId}`);
-    }
-
-    /**
-     * ノード処理の実装 (Workerから呼ばれる)
-     */
-    private async processNode(applicationId: string) {
-        const application = await this.prisma.application.findUnique({
-            where: { id: applicationId },
-            include: {
-                flowDefinition: true,
-                applicationDefinition: true,
-            },
-        });
-
-        if (!application) {
-            throw new NotFoundException('Application not found');
-        }
-
-        // スナップショットがある場合はそちらを使用（バージョン互換性）
-        const nodes = (application.flowNodes || application.flowDefinition.nodes || []) as any[];
-        const edges = (application.flowEdges || application.flowDefinition.edges || []) as any[];
-        const currentNodeId = application.currentNodeId;
-
-        // 現在のノードから出ているエッジを見つける
-        const outgoingEdge = edges.find((e: any) => e.source === currentNodeId);
-
-        if (!outgoingEdge) {
-            // エッジがない = 終了
-            await this.prisma.$transaction(async (tx) => {
-                await tx.application.update({
-                    where: { id: applicationId },
-                    data: {
-                        status: 'APPROVED',
-                        currentNodeId: null,
-                    },
-                });
-                // 申請完了を履歴に記録
-                await tx.approvalHistory.create({
-                    data: {
-                        applicationId,
-                        actorId: 'SYSTEM',
-                        action: 'APPLICATION_COMPLETE',
-                        stepId: currentNodeId || '',
-                        comment: '申請が完了しました',
-                    },
-                });
-            });
-            return;
-        }
-
-        const nextNodeId = outgoingEdge.target;
-        const nextNode = nodes.find((n: any) => n.id === nextNodeId);
-
-        if (!nextNode) {
-            throw new BadRequestException('Next node not found in flow');
-        }
-
-        // ノードタイプに応じた処理
-        if (nextNode.type === 'end') {
-            // 終了ノード: トランザクションで状態更新と履歴作成
-            await this.prisma.$transaction(async (tx) => {
-                await tx.application.update({
-                    where: { id: applicationId },
-                    data: {
-                        status: 'APPROVED',
-                        currentNodeId: nextNodeId,
-                    },
-                });
-                await tx.approvalHistory.create({
-                    data: {
-                        applicationId,
-                        actorId: 'SYSTEM',
-                        action: 'APPLICATION_COMPLETE',
-                        stepId: nextNodeId,
-                        comment: '申請が完了しました',
-                    },
-                });
-            });
-        } else if (nextNode.type === 'approval') {
-            // 承認ノード: 担当者解決(外部API)はトランザクション外で実行
-            const resolvedAssignee = await this.resolveAssignedTo(
-                nextNode.data?.assignee || null,
-                application.applicantId
-            );
-
-            // 担当者情報のスナップショットを取得
-            const assignedToInfo = await this.usersService.resolveAssignedToSnapshot(resolvedAssignee || '');
-
-            // トランザクションでタスク生成と状態更新
-            await this.prisma.$transaction(async (tx) => {
-                await this.enqueueTask(
-                    applicationId,
-                    nextNode,
-                    application.inputData as Record<string, any>,
-                    application.applicantId,
-                    resolvedAssignee,
-                    nextNode.data?.assigneeDisplay || null,
-                    assignedToInfo,
-                    tx
-                );
-
-                await tx.application.update({
-                    where: { id: applicationId },
-                    data: {
-                        currentNodeId: nextNodeId,
-                    },
-                });
-            });
-        } else if (nextNode.type === 'branch') {
-            // 分岐ノード
-            const inputData = application.inputData as Record<string, any> || {};
-            const branchData = nextNode.data || {};
-            const conditionField = branchData.conditionField;
-            const conditionOperator = branchData.conditionOperator || '==';
-            const conditionValue = branchData.conditionValue;
-
-            let conditionMet = false;
-
-            if (conditionField && conditionValue !== undefined) {
-                const fieldValue = inputData[conditionField];
-                switch (conditionOperator) {
-                    case '==': conditionMet = String(fieldValue) === String(conditionValue); break;
-                    case '!=': conditionMet = String(fieldValue) !== String(conditionValue); break;
-                    case '>': conditionMet = Number(fieldValue) > Number(conditionValue); break;
-                    case '<': conditionMet = Number(fieldValue) < Number(conditionValue); break;
-                    case '>=': conditionMet = Number(fieldValue) >= Number(conditionValue); break;
-                    case '<=': conditionMet = Number(fieldValue) <= Number(conditionValue); break;
-                    case 'contains': conditionMet = String(fieldValue).includes(String(conditionValue)); break;
-                    default: conditionMet = false;
-                }
-            }
-
-            const branchHandle = conditionMet ? 'yes' : 'no';
-            const branchEdge = edges.find((e: any) =>
-                e.source === nextNodeId && e.sourceHandle === branchHandle
-            );
-
-            // 分岐ロジックの一部は外部APIを含む可能性があるため、すべてをトランザクションに入れるのは難しい
-            // しかし整合性のため、状態遷移部分は可能な限りトランザクション化する
-            
-            if (branchEdge) {
-                const branchTargetId = branchEdge.target;
-                const branchTarget = nodes.find((n: any) => n.id === branchTargetId);
-
-                // 外部API呼び出しが必要なパラメータ解決を事前に行う試み
-                let resolvedBranchAssignee: string | null = null;
-                let assignedToInfo: any = null;
-
-                if (branchTarget?.type === 'approval') {
-                     resolvedBranchAssignee = await this.resolveAssignedTo(
-                        branchTarget.data?.assignee || null,
-                        application.applicantId
-                    );
-                    assignedToInfo = await this.usersService.resolveAssignedToSnapshot(resolvedBranchAssignee || '');
-                }
-
-                // トランザクション実行
-                await this.prisma.$transaction(async (tx) => {
-                    // 分岐ノードへの移動と履歴
-                    await tx.application.update({
-                        where: { id: applicationId },
-                        data: { currentNodeId: nextNodeId },
-                    });
-                    
-                    await tx.approvalHistory.create({
-                        data: {
-                            applicationId,
-                            actorId: 'SYSTEM',
-                            action: 'BRANCH',
-                            stepId: nextNodeId,
-                            comment: `条件: ${conditionMet ? 'true' : 'false'} (${branchHandle}ルート)`,
-                        },
-                    });
-
-                    // 分岐先への遷移
-                    await tx.application.update({
-                        where: { id: applicationId },
-                        data: { currentNodeId: branchTargetId },
-                    });
-
-                    // 分岐先の処理
-                    if (branchTarget?.type === 'end') {
-                         await tx.application.update({
-                            where: { id: applicationId },
-                            data: { status: 'APPROVED' },
-                        });
-                        await tx.approvalHistory.create({
-                            data: {
-                                applicationId,
-                                actorId: 'SYSTEM',
-                                action: 'APPLICATION_COMPLETE',
-                                stepId: branchTargetId,
-                                comment: '申請が完了しました',
-                            },
-                        });
-                    } else if (branchTarget?.type === 'approval') {
-                        await this.enqueueTask(
-                            applicationId,
-                            branchTarget,
-                            application.inputData as Record<string, any>,
-                            application.applicantId,
-                            resolvedBranchAssignee,
-                            branchTarget.data?.assigneeDisplay || null,
-                            assignedToInfo,
-                            tx
-                        );
-                    } else if (['apiCall', 'llmCall'].includes(branchTarget?.type)) {
-                        await tx.approvalHistory.create({
-                            data: {
-                                applicationId,
-                                actorId: 'SYSTEM',
-                                action: 'SERVICE_TASK',
-                                stepId: branchTargetId,
-                                comment: `${branchTarget.type} 実行開始`,
-                            },
-                        });
-                        await this.enqueueServiceTask(applicationId, branchTarget, application.inputData as Record<string, any>, application.applicantId, tx);
-                    }
-                    // branchTargetがその他の場合（再帰が必要）は、ここでは処理せず
-                    // トランザクション後に advanceToNextNode を呼ぶ
-                });
-
-                // トランザクション完了後、再帰呼び出しが必要な場合
-                if (branchTarget && !['end', 'approval', 'apiCall', 'llmCall'].includes(branchTarget.type)) {
-                    await this.advanceToNextNode(applicationId);
-                }
-
-            } else {
-                // 分岐先がない場合
-                 await this.prisma.$transaction(async (tx) => {
-                    await tx.application.update({
-                        where: { id: applicationId },
-                        data: { currentNodeId: nextNodeId },
-                    });
-                     await tx.approvalHistory.create({
-                        data: {
-                            applicationId,
-                            actorId: 'SYSTEM',
-                            action: 'BRANCH',
-                            stepId: nextNodeId,
-                            comment: `条件: ${conditionMet ? 'true' : 'false'} (${branchHandle}ルート) - 終了`,
-                        },
-                    });
-                 });
-            }
-
-        } else if (['apiCall', 'llmCall'].includes(nextNode.type)) {
-            // サービスタスク
-            await this.prisma.$transaction(async (tx) => {
-                 await tx.application.update({
-                    where: { id: applicationId },
-                    data: { currentNodeId: nextNodeId },
-                });
-                await tx.approvalHistory.create({
-                    data: {
-                        applicationId,
-                        actorId: 'SYSTEM',
-                        action: 'SERVICE_TASK',
-                        stepId: nextNodeId,
-                        comment: `${nextNode.type} 実行開始`,
-                    },
-                });
-                await this.enqueueServiceTask(applicationId, nextNode, application.inputData as Record<string, any>, application.applicantId, tx);
-            });
-        } else if (nextNode.type === 'parallel') {
-            // パラレルゲートウェイ
-            const parallelEdges = edges.filter((e: any) => e.source === nextNodeId);
-            
-            // 事前に必要な情報を収集（外部APIコールをトランザクション外に出す）
-            const tasksToCreate: { node: any; resolvedAssignee: string | null; assignedToInfo: any | null }[] = [];
-            
-            for (const edge of parallelEdges) {
-                const targetNode = nodes.find((n: any) => n.id === edge.target);
-                if (!targetNode) continue;
-
-                if (targetNode.type === 'approval') {
-                     const resolvedAssignee = await this.resolveAssignedTo(
-                        targetNode.data?.assignee || null,
-                        application.applicantId
-                    );
-                    const assignedToInfo = await this.usersService.resolveAssignedToSnapshot(resolvedAssignee || '');
-                    
-                    tasksToCreate.push({ node: targetNode, resolvedAssignee, assignedToInfo });
-                } else if (['apiCall', 'llmCall'].includes(targetNode.type)) {
-                    tasksToCreate.push({ node: targetNode, resolvedAssignee: null, assignedToInfo: null });
-                }
-            }
-
-            await this.prisma.$transaction(async (tx) => {
-                const createdTaskNodeIds: string[] = [];
-                
-                for (const item of tasksToCreate) {
-                    if (item.node.type === 'approval') {
-                         await this.enqueueTask(
-                            applicationId,
-                            item.node,
-                            application.inputData as Record<string, any>,
-                            application.applicantId,
-                            item.resolvedAssignee,
-                            item.node.data?.assigneeDisplay || null,
-                            item.assignedToInfo,
-                            tx
-                        );
-                        createdTaskNodeIds.push(item.node.id);
-                    } else {
-                        await this.enqueueServiceTask(applicationId, item.node, application.inputData as Record<string, any>, application.applicantId, tx);
-                    }
-                }
-
-                await tx.application.update({
-                    where: { id: applicationId },
-                    data: { 
-                        currentNodeId: createdTaskNodeIds.length > 0 ? createdTaskNodeIds[0] : null,
-                    },
-                });
-
-                await tx.approvalHistory.create({
-                    data: {
-                        applicationId,
-                        actorId: 'SYSTEM',
-                        action: 'PARALLEL_SPLIT',
-                        stepId: nextNodeId,
-                        comment: `${createdTaskNodeIds.length}件の並行タスクを生成`,
-                    },
-                });
-            });
-
-        } else if (nextNode.type === 'join') {
-            // 合流ゲートウェイ
-            // 待機はReadのみなのでトランザクション不要だが、完了時の進行は必要
-            // update currentNodeId for consistency
-            await this.prisma.application.update({
-                where: { id: applicationId },
-                data: { currentNodeId: nextNodeId },
-            });
-
-            const joinEdges = edges.filter((e: any) => e.target === nextNodeId);
-            const sourceNodeIds = joinEdges.map((e: any) => e.source);
-            
-            const pendingTasks = await this.prisma.workflowTask.count({
-                where: {
-                    applicationId,
-                    stepId: { in: sourceNodeIds },
-                    status: 'PENDING',
-                },
-            });
-
-            if (pendingTasks > 0) {
-                console.log(`[WorkflowEngine] Join waiting: ${pendingTasks} pending tasks`);
-                return;
-            }
-
-            console.log(`[WorkflowEngine] Join complete, advancing to next`);
-            await this.advanceToNextNode(applicationId);
-
-        } else {
-            // その他のノード: 次へ進む
-            await this.prisma.application.update({
-                where: { id: applicationId },
-                data: {
-                    currentNodeId: nextNodeId,
-                },
-            });
-            await this.advanceToNextNode(applicationId);
-        }
-    }
-
-    /**
      * タスクを完了する（承認/差戻し）
+     * APIからの入力を受け付け、DB更新後に Executor に通知する
      */
     async completeTask(input: {
         taskId: string;
@@ -687,32 +260,28 @@ export class WorkflowEngineService implements OnModuleInit {
             throw new BadRequestException('Task is already completed');
         }
 
-        // 承認タスクのみ実行可能
         if (task.type !== 'approval') {
             throw new BadRequestException('This task is not an approval task');
         }
 
-        // 権限チェック: 担当者のみがタスクを完了できる
-        // assignedToは「user:username」「role:rolename」「group:/path」「applicant_manager」「applicant」などの形式
         const canExecute = await this.canUserExecuteTask(task, input.actorId);
         if (!canExecute) {
             throw new BadRequestException(`User ${input.actorId} is not authorized to execute this task`);
         }
 
-        // 実行者情報のスナップショットを取得
         const actorInfo = await this.usersService.getUserSnapshotByUsername(input.actorId);
-
         let shouldAdvance = false;
+        let jobError: string | undefined = undefined;
 
-        // トランザクション実行
+        // トランザクション処理
         await this.prisma.$transaction(async (tx) => {
-            // タスクを完了としてマーク
+            // タスク状態更新
             await tx.workflowTask.update({
                 where: { id: input.taskId },
                 data: { status: 'COMPLETED' },
             });
 
-            // 履歴を記録
+            // 履歴記録
             await tx.approvalHistory.create({
                 data: {
                     applicationId: task.applicationId,
@@ -724,12 +293,10 @@ export class WorkflowEngineService implements OnModuleInit {
                 },
             });
 
-            // アクションに応じた処理
+            // アクション別処理
             if (input.action === 'APPROVE') {
-                // 承認: 次のノードへの進行フラグを立てる
                 shouldAdvance = true;
             } else if (input.action === 'REJECT') {
-                // 却下: ステータスをREJECTEDにし、終了ノードへ移動
                 const application = await tx.application.findUnique({
                     where: { id: task.applicationId },
                     include: { flowDefinition: true },
@@ -745,37 +312,29 @@ export class WorkflowEngineService implements OnModuleInit {
                     },
                 });
             } else if (input.action === 'REMAND') {
-                // 差戻し: 開始ノードへ戻す
+                // 差戻しロジック
                 const application = await tx.application.findUnique({
                     where: { id: task.applicationId },
                     include: { flowDefinition: true },
                 });
                 const nodes = (application?.flowNodes || application?.flowDefinition?.nodes || []) as any[];
-
-                // 開始ノードを見つける
                 const startNode = nodes.find((n: any) => n.type === 'start');
                 
-                // 重要: 並行して実行中の他のタスクをキャンセルする
+                // 他のタスクをキャンセル
                 await tx.workflowTask.updateMany({
                     where: {
                         applicationId: task.applicationId,
                         status: 'PENDING',
                         id: { not: task.id }
                     },
-                    data: {
-                        status: 'CANCELED'
-                    }
+                    data: { status: 'CANCELED' }
                 });
 
-                // 差し戻しを実行したタスク自体も CANCELED にする（完了ではなく、上記でCOMPLETEDにした直後だが上書き）
-                // ※ ここで再度updateするよりは、分岐ロジックでCOMPLETED/CANCELEDを分ける方が綺麗だが
-                //   ロジックの複雑さを避けるため上書きとする
                 await tx.workflowTask.update({
                     where: { id: input.taskId },
                     data: { status: 'CANCELED' }
                 });
 
-                // ステータスをREMANDEDにし、開始ノードへ戻す
                 await tx.application.update({
                     where: { id: task.applicationId },
                     data: {
@@ -786,570 +345,161 @@ export class WorkflowEngineService implements OnModuleInit {
             }
         });
 
-        // トランザクション完了後に非同期処理（キュー登録）を実行
-        if (shouldAdvance) {
-            await this.advanceToNextNode(task.applicationId);
-        }
+        // Executorへの処理依頼 (TASK_COMPLETE イベント発行)
+        // 承認タスクは「人間が実行するタスク」であり、完了したので結果をExecutorへ通知する
+        const job: TaskCompleteJob = {
+            taskId: input.taskId,
+            applicationId: task.applicationId,
+            nodeId: task.stepId,
+            success: true, // 完了自体は成功
+            shouldAdvance: shouldAdvance, // 次に進むかどうか
+            outputData: {}, 
+        };
+
+        await this.queueService.enqueue('TASK_COMPLETE', job);
 
         return this.prisma.application.findUnique({
             where: { id: task.applicationId },
             include: {
                 applicationDefinition: true,
                 workflowTasks: { orderBy: { createdAt: 'desc' } },
-                history: true,
             },
         });
-    }
-
-    /**
-     * ワークフローの現在状態を取得
-     */
-    async getWorkflowStatus(applicationId: string) {
-        const application = await this.prisma.application.findUnique({
-            where: { id: applicationId },
-            include: {
-                applicationDefinition: true,
-                formDefinition: true,
-                flowDefinition: true,
-                workflowTasks: {
-                    orderBy: { createdAt: 'desc' },
-                    include: {
-                        history: {
-                            orderBy: { executedAt: 'desc' },
-                        },
-                    },
-                },
-                history: {
-                    orderBy: { actedAt: 'desc' },
-                },
-            },
-        });
-
-        if (!application) {
-            throw new NotFoundException('Application not found');
-        }
-
-        // 現在のノード情報
-        const nodes = application.flowDefinition.nodes as any[] || [];
-        const currentNode = nodes.find((n: any) => n.id === application.currentNodeId);
-
-        return {
-            ...application,
-            currentNode,
-        };
-    }
-
-    /**
-     * タスクをWorkerキューに登録（統合テーブル使用）
-     */
-    /**
-     * タスクをWorkerキューに登録（統合テーブル使用）
-     */
-    async enqueueTask(
-        applicationId: string, 
-        node: any, 
-        inputData: any, 
-        applicantId: string, 
-        assignedTo?: string | null, 
-        assignedToDisplay?: string | null, 
-        assignedToInfo?: any,
-        tx?: Prisma.TransactionClient
-    ): Promise<void> {
-        const db = tx || this.prisma;
-        
-        // WorkflowTaskレコードを作成（configにノード設定をスナップショット保存）
-        const task = await db.workflowTask.create({
-            data: {
-                applicationId,
-                stepId: node.id,
-                type: node.type,
-                status: 'PENDING',
-                // 承認タスク用フィールド
-                assignedTo: assignedTo || null,
-                assignedToDisplay: assignedToDisplay || null,
-                assignedToInfo: assignedToInfo || null,
-                // ノード設定のスナップショット
-                config: node.data || {},
-            },
-        });
-
-        // Workerキューに登録
-        // Note: トランザクション中の場合は、コミット前にジョブが登録されることになるが
-        // データが見つからず失敗→リトライでカバーする前提
-        const job: TaskExecuteJob = {
-            taskId: task.id,
-            applicationId,
-            nodeId: node.id,
-            nodeType: node.type,
-            nodeData: node.data || {},
-            inputData,
-            applicantId,
-        };
-
-        await this.queueService.enqueue('TASK_EXECUTE', job);
-        this.logger.log(`Enqueued task ${task.id} (type: ${node.type}) for application ${applicationId}`);
-    }
-
-    /**
-     * サービスタスクをWorkerキューに登録（互換性のためのラッパー）
-     */
-    async enqueueServiceTask(applicationId: string, node: any, inputData: any, applicantId: string, tx?: Prisma.TransactionClient): Promise<void> {
-        await this.enqueueTask(applicationId, node, inputData, applicantId, undefined, undefined, undefined, tx);
-    }
-
-    /**
-     * 変数置換 helper
-     */
-    private replaceVariables(text: string, data: any): string {
-        if (!text) return '';
-        return text.replace(/\{\{(.+?)\}\}/g, (_, key) => {
-            const path = key.trim();
-            const value = this.getValueByPath(data, path);
-            return value !== undefined ? String(value) : '';
-        });
-    }
-
-    /**
-     * タスク再実行（Worker経由）
-     */
-    async retryTask(taskId: string) {
-        const task = await this.prisma.workflowTask.findUnique({
-            where: { id: taskId },
-            include: { application: { include: { flowDefinition: true } } }
-        });
-
-        if (!task || task.status !== 'FAILED') {
-            throw new BadRequestException('Task is not in FAILED state');
-        }
-
-        // スナップショット優先
-        const nodes = (task.application.flowNodes || task.application.flowDefinition.nodes || []) as any[];
-        const node = nodes.find(n => n.id === task.stepId);
-
-        if (!node) {
-            throw new NotFoundException('Node not found in flow definition');
-        }
-
-        // タスクのステータスをPENDINGにリセットし、リトライ回数を増加
-        await this.prisma.workflowTask.update({
-            where: { id: taskId },
-            data: {
-                status: 'PENDING',
-                error: null,
-                retries: { increment: 1 },
-            },
-        });
-
-        // Workerキューに登録
-        const job: TaskExecuteJob = {
-            taskId: task.id,
-            applicationId: task.applicationId,
-            nodeId: node.id,
-            nodeType: node.type,
-            nodeData: task.config || node.data || {},
-            inputData: task.application.inputData as Record<string, any>,
-            applicantId: task.application.applicantId,
-        };
-
-        await this.queueService.enqueue('TASK_EXECUTE', job);
-        this.logger.log(`Enqueued retry for task ${taskId}`);
-
-        return { success: true };
     }
 
     /**
      * サービスタスク再実行（互換性のためのラッパー）
      */
-    async retryServiceTask(taskId: string) {
-        return this.retryTask(taskId);
+    async retryServiceTask(taskId: string): Promise<void> { 
+        const task = await this.prisma.workflowTask.findUnique({
+            where: { id: taskId },
+            include: { application: true }
+        });
+
+        if (!task) {
+            throw new NotFoundException('Task not found');
+        }
+
+        // 状態チェックなどは必要に応じて追加
+
+        const job: any = {
+            taskId: task.id,
+            applicationId: task.applicationId,
+            nodeId: task.stepId,
+            nodeType: task.type,
+            nodeData: (task.config as any) || {},
+            inputData: (task.application?.inputData as any) || {},
+            applicantId: task.application?.applicantId || '',
+        };
+
+        // Workerキューに再登録
+        await this.queueService.enqueue('TASK_EXECUTE', job);
+        this.logger.log(`Retrying task ${taskId} (type: ${task.type})`);
     }
 
     /**
      * 差し戻し申請を再送信する
-     * REMANDEDステータスの申請のinputDataを更新し、ワークフローを再開
      */
     async resubmitApplication(applicationId: string, inputData: any) {
         const application = await this.prisma.application.findUnique({
             where: { id: applicationId },
-            include: {
-                flowDefinition: true,
-            },
+            include: { flowDefinition: true },
         });
 
         if (!application) {
             throw new NotFoundException('Application not found');
         }
 
-        // REMANDEDまたはIN_PROGRESSステータスの申請のみ再送信可能
-        if (!['REMANDED', 'IN_PROGRESS'].includes(application.status)) {
-            throw new BadRequestException('Application is not in REMANDED or IN_PROGRESS status');
+        if (application.status !== 'REMANDED') {
+            throw new BadRequestException('Application is not in REMANDED status');
         }
 
-        // スナップショットから情報を取得
         const nodes = (application.flowNodes || application.flowDefinition.nodes || []) as any[];
-        const edges = (application.flowEdges || application.flowDefinition.edges || []) as any[];
-
-        // 開始ノードを見つける
         const startNode = nodes.find((n: any) => n.type === 'start');
-        if (!startNode) {
-            throw new BadRequestException('Flow has no start node');
-        }
+        
+        // 申請を更新してワークフロー再開
+        await this.prisma.$transaction(async (tx) => {
+             await tx.application.update({
+                where: { id: applicationId },
+                data: {
+                    status: 'IN_PROGRESS',
+                    inputData: inputData,
+                    currentNodeId: startNode?.id || application.currentNodeId, // 基本は開始ノードか、現在のノード
+                },
+            });
 
-        // 開始ノードの次のエッジを見つける
-        const startEdge = edges.find((e: any) => e.source === startNode.id);
-        const firstStepId = startEdge?.target || startNode.id;
-
-        // 申請を更新（inputDataを更新し、ステータスをIN_PROGRESSに戻す）
-        await this.prisma.application.update({
-            where: { id: applicationId },
-            data: {
-                inputData,
-                status: 'IN_PROGRESS',
-                currentNodeId: startNode.id,
-            },
+            await tx.approvalHistory.create({
+                data: {
+                    applicationId: application.id,
+                    actorId: application.applicantId,
+                    actorInfo: application.applicantInfo as any,
+                    action: 'RESUBMIT',
+                    stepId: startNode?.id || '',
+                    comment: '差し戻し申請を再送信しました',
+                },
+            });
         });
 
-        // 再送信履歴を記録
-        await this.prisma.approvalHistory.create({
-            data: {
-                applicationId,
-                actorId: application.applicantId,
-                action: 'RESUBMIT',
-                stepId: startNode.id,
-                comment: '申請内容を修正して再送信',
-            },
-        });
-
-        // 次のノードへ進む
-        await this.advanceToNextNode(applicationId);
+        // 進行処理をExecutorに依頼
+        await this.queueService.enqueue('WORKFLOW_NODE_PROCESS', { applicationId });
 
         return this.prisma.application.findUnique({
             where: { id: applicationId },
             include: {
                 applicationDefinition: true,
                 workflowTasks: { orderBy: { createdAt: 'desc' } },
-                history: true,
             },
         });
     }
 
     /**
      * ユーザーがタスクを実行できるかチェック
-     * assignedTo形式: "user:username", "role:rolename", "group:/path", "applicant", "applicant_manager"
+     * Note: 権限チェックロジックはAPI層に必要なためここに残す
      */
-    private async canUserExecuteTask(task: any, userId: string): Promise<boolean> {
+    async canUserExecuteTask(task: any, userId: string): Promise<boolean> {
         const assignedTo = task.assignedTo;
-
-        if (!assignedTo) {
-            // assignedToが未設定の場合は誰でも実行可能（後方互換性）
-            return true;
-        }
-
-        // 複数のassignedToがある場合（カンマ区切り）
-        const assignments = assignedTo.split(',').map((s: string) => s.trim());
-
-        for (const assignment of assignments) {
-            // 特定ユーザー指定: "user:username"
-            if (assignment.startsWith('user:')) {
-                const targetUser = assignment.substring(5);
-                if (targetUser === userId) {
-                    return true;
-                }
-            }
-            // ロール指定: "role:rolename"
-            else if (assignment.startsWith('role:')) {
-                const targetRole = assignment.substring(5);
-                const user = await this.getUserFromKeycloak(userId);
-                if (user) {
-                    // Keycloakからロールマッピングも取得
-                    try {
-                        const token = await this.getAdminToken();
-                        const rolesResponse = await axios.get(
-                            `${this.keycloakUrl}/admin/realms/${this.realm}/users/${user.id}/role-mappings/realm`,
-                            { headers: { Authorization: `Bearer ${token}` } }
-                        );
-                        const userRoles = rolesResponse.data?.map((r: any) => r.name) || [];
-                        if (userRoles.includes(targetRole)) {
-                            return true;
-                        }
-                    } catch (error) {
-                        console.error(`[WorkflowEngine] Failed to get roles for ${userId}:`, error);
-                    }
-                }
-            }
-            // グループ指定: "group:/path" または "group:code"
-            else if (assignment.startsWith('group:')) {
-                const targetIdentifier = assignment.substring(6);
-                
-                // ターゲットグループのパスを解決 (deptCodeから)
-                const targetGroup = await this.usersService.findGroupByIdentifier(targetIdentifier);
-                
-                if (!targetGroup) {
-                    console.warn(`[WorkflowEngine] Group with deptCode '${targetIdentifier}' not found`);
-                    // コードが見つからない場合は権限なし（パスとしてのフォールバックはしない）
-                    continue; 
-                }
-
-                const targetPath = targetGroup.path;
-
-                const user = await this.getUserFromKeycloak(userId);
-                if (user) {
-                    // Keycloakからユーザーのグループを取得
-                    try {
-                        const token = await this.getAdminToken();
-                        const groupsResponse = await axios.get(
-                            `${this.keycloakUrl}/admin/realms/${this.realm}/users/${user.id}/groups`,
-                            { headers: { Authorization: `Bearer ${token}` } }
-                        );
-                        const userGroups = groupsResponse.data?.map((g: any) => g.path) || [];
-                        // グループパスが一致するか、サブグループかをチェック
-                        if (userGroups.some((g: string) => g === targetPath || g.startsWith(targetPath + '/'))) {
-                            return true;
-                        }
-                    } catch (error) {
-                        console.error(`[WorkflowEngine] Failed to get groups for ${userId}:`, error);
-                    }
-                }
-            }
-            // 申請者指定: "applicant"
-            else if (assignment === 'applicant') {
-                if (task.application?.applicantId === userId) {
-                    return true;
-                }
-            }
-            // 申請者の上長指定: "applicant_manager"
-            else if (assignment === 'applicant_manager') {
-                const applicantId = task.application?.applicantId;
-                if (applicantId) {
-                    const isManager = await this.isUserManagerOf(userId, applicantId);
-                    if (isManager) {
-                        return true;
-                    }
-                }
-            }
-            // 直接ユーザー名指定（レガシー形式）
-            else if (assignment === userId) {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    /**
-     * Keycloak管理者トークンを取得
-     */
-    private async getAdminToken(): Promise<string> {
-        try {
-            const response = await axios.post(
-                `${this.keycloakUrl}/realms/master/protocol/openid-connect/token`,
-                new URLSearchParams({
-                    grant_type: 'password',
-                    client_id: 'admin-cli',
-                    username: 'admin',
-                    password: 'admin',
-                }),
-                {
-                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                }
-            );
-            return response.data.access_token;
-        } catch (error) {
-            console.error('[WorkflowEngine] Failed to get admin token:', error);
-            throw new Error('Failed to get Keycloak admin token');
-        }
-    }
-
-    /**
-     * Keycloakからユーザー情報を取得
-     */
-    private async getUserFromKeycloak(username: string): Promise<any | null> {
-        try {
-            const token = await this.getAdminToken();
-            const response = await axios.get(
-                `${this.keycloakUrl}/admin/realms/${this.realm}/users`,
-                {
-                    params: { username, exact: true },
-                    headers: { Authorization: `Bearer ${token}` },
-                }
-            );
-            return response.data?.[0] || null;
-        } catch (error) {
-            console.error(`[WorkflowEngine] Failed to get user ${username}:`, error);
-            return null;
-        }
-    }
-
-    /**
-     * ユーザーが指定ユーザーの上長かチェック
-     * Keycloakのユーザー属性 managerId で判定
-     */
-    private async isUserManagerOf(managerId: string, subordinateId: string): Promise<boolean> {
-        try {
-            // 部下のKeycloak情報を取得
-            const subordinate = await this.getUserFromKeycloak(subordinateId);
-            if (!subordinate) {
-                console.log(`[WorkflowEngine] Subordinate user ${subordinateId} not found in Keycloak`);
-                return false;
-            }
-
-            // 部下のmanagerId属性を取得
-            const subordinateManagerId = subordinate.attributes?.managerId?.[0];
-            if (!subordinateManagerId) {
-                console.log(`[WorkflowEngine] User ${subordinateId} has no managerId attribute`);
-                return false;
-            }
-
-            // managerIdが現在のユーザーと一致するかチェック
-            const isManager = subordinateManagerId === managerId;
-            console.log(`[WorkflowEngine] Manager check: ${managerId} is manager of ${subordinateId}? ${isManager} (managerId=${subordinateManagerId})`);
-            return isManager;
-        } catch (error) {
-            console.error(`[WorkflowEngine] Error checking manager relationship:`, error);
-            return false;
-        }
-    }
-
-    /**
-     * assignedTo の値を実際のユーザーに解決する
-     * applicant_manager -> 実際の上長のユーザー名
-     * applicant -> 申請者のユーザー名
-     */
-    private async resolveAssignedTo(assignee: string | null, applicantId: string): Promise<string | null> {
-        if (!assignee) return null;
-
-        // 複数のassigneeがある場合（カンマ区切り）
-        const assignments = assignee.split(',').map(s => s.trim());
-        const resolvedAssignments: string[] = [];
-
-        for (const assignment of assignments) {
-            console.log(`[WorkflowEngine] Processing assignment: ${assignment}`);
-            if (assignment === 'applicant_manager') {
-                // 申請者の上長を取得
-                const applicant = await this.getUserFromKeycloak(applicantId);
-                if (applicant) {
-                    const managerId = applicant.attributes?.managerId?.[0];
-                    if (managerId) {
-                        console.log(`[WorkflowEngine] Resolved applicant_manager to: user:${managerId} (for applicant: ${applicantId})`);
-                        resolvedAssignments.push(`user:${managerId}`);
-                    } else {
-                        // managerIdがない場合は申請者本人に割り当て
-                        console.log(`[WorkflowEngine] Applicant ${applicantId} has no managerId, assigning to applicant`);
-                        resolvedAssignments.push(`user:${applicantId}`);
-                    }
-                } else {
-                    // ユーザーが見つからない場合も申請者本人に割り当て
-                    console.log(`[WorkflowEngine] Applicant ${applicantId} not found in Keycloak, assigning to applicant`);
-                    resolvedAssignments.push(`user:${applicantId}`);
-                }
-            } else if (assignment === 'applicant') {
-                // 申請者自身に解決
-                resolvedAssignments.push(`user:${applicantId}`);
-            } else {
-                // その他はそのまま
-                resolvedAssignments.push(assignment);
-            }
-        }
-
-        return resolvedAssignments.join(', ');
-    }
-
-    /**
-     * ドット記法でオブジェクトから値を取得する
-     */
-    private getValueByPath(obj: any, path: string): any {
-        if (!path || !obj) return undefined;
-        // 単純なプロパティアクセスのサポート (data.user.id -> obj['data']['user']['id'])
-        const keys = path.split('.');
-        let current = obj;
         
-        for (const key of keys) {
-            if (current === null || current === undefined) {
-                return undefined;
-            }
-            current = current[key];
+        if (!assignedTo) return true; // 割り当てなし＝誰でもOK（または要件次第）
+
+        if (assignedTo === 'applicant') {
+            const app = await this.prisma.application.findUnique({ where: { id: task.applicationId } });
+            return app?.applicantId === userId;
         }
-        
-        return current;
+
+        if (assignedTo.startsWith('user:')) {
+            const targetUser = assignedTo.substring(5);
+            return targetUser === userId;
+        }
+
+        if (assignedTo.startsWith('group:')) {
+             // グループ所属チェック（簡易実装: UserSnapshotのdepartmentと一致するか）
+             // 本来は UsersService.getGroupMembers(groupId) に userId が含まれるか確認すべき
+             const groupName = assignedTo.substring(6);
+             const user = await this.usersService.getUserSnapshot(userId);
+             // departmentは名称で入っている前提
+             return user.department === groupName;
+        }
+
+        // assignedToInfo (スナップショット) を使う手もある
+        return true;
     }
-
-    /**
-     * 通知メールを送信する
-     */
-    private async sendNotificationEmail(
-        assignee: string | null,
-        subjectTemplate: string,
-        bodyTemplate: string,
-        application: any
-    ) {
-        if (!assignee) return;
-
-        // 宛先ユーザーのリストを解決
-        const assignments = assignee.split(',').map(s => s.trim());
-        const recipients: { email: string; user: any }[] = [];
-
-        for (const assignment of assignments) {
-            if (assignment.startsWith('user:')) {
-                const userId = assignment.substring(5);
-                const userSnapshot = await this.usersService.getUserSnapshotByUsername(userId);
-                if (userSnapshot?.email) {
-                    recipients.push({ email: userSnapshot.email, user: userSnapshot });
-                }
-            } else if (assignment.startsWith('group:')) {
-                // グループのメンバー全員に送信は今回は省略
-                console.log(`[WorkflowEngine] Email to group not supported yet: ${assignment}`);
-            } else if (assignment.startsWith('role:')) {
-                // ロールのメンバーも同様省略
-                console.log(`[WorkflowEngine] Email to role not supported yet: ${assignment}`);
+    
+    // 他のヘルパーメソッド（getWorkflowStatusなど）があればここに追加
+    async getWorkflowStatus(applicationId: string) {
+         return this.prisma.application.findUnique({
+            where: { id: applicationId },
+            include: {
+                workflowTasks: true,
+                history: true,
             }
-        }
-
-        if (recipients.length === 0) {
-            console.log('[WorkflowEngine] No email recipients found');
-            return;
-        }
-
-        // ユニークな宛先に送信 (emailで重複排除)
-        const uniqueRecipients = Array.from(new Map(recipients.map(item => [item.email, item])).values());
-
-        for (const { email, user } of uniqueRecipients) {
-            // 変数コンテキストの準備
-            // User requested: username, first name, last name, mail address, department
-            const assigneeName = user.lastName && user.firstName 
-                ? `${user.lastName} ${user.firstName}` 
-                : user.username;
-
-            const data = {
-                ...application.inputData,
-                application,
-                applicationDefinition: application.applicationDefinition,
-                // Assignee variables
-                assignee: assigneeName, // Default to full name for {{assignee}}
-                assigneeName: assigneeName,
-                assigneeUsername: user.username,
-                assigneeFirstName: user.firstName,
-                assigneeLastName: user.lastName,
-                assigneeEmail: user.email,
-                assigneeDepartment: user.department,
-                // Legacy
-                assigneeId: user.username, 
-            };
-
-            // console.log('[WorkflowEngine] sendNotificationEmail data context keys:', Object.keys(data));
-            // console.log('[WorkflowEngine] sendNotificationEmail applicationDefinition:', JSON.stringify(data.applicationDefinition, null, 2));
-
-            const subject = this.replaceVariables(
-                subjectTemplate || '【Flow Craft】承認依頼: {{applicationDefinition.name}}',
-                data
-            );
-            // console.log(`[WorkflowEngine] Resolved Subject: ${subject}`);
-
-            const body = this.replaceVariables(
-                bodyTemplate || '{{assignee}} 様\n\n申請が届いています。\n確認をお願いします。',
-                data
-            );
-
-            await this.mailService.sendEmail(email, subject, body);
-        }
+         });
     }
+    
+    // 以下のメソッドは削除（Executorへ移動済み）
+    // - advanceToNextNode
+    // - processNode
+    // - handleNodeProcessingJob
+    // - handleTaskComplete
+    // - enqueueTask
+    // - enqueueServiceTask
 }

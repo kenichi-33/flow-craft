@@ -328,4 +328,55 @@ export class UsersService {
              return { username, type: 'user' };
          }
     }
+    async getManager(userIdOrUsername: string): Promise<UserSnapshot | null> {
+         try {
+            const token = await this.getAdminToken();
+            let user: KeycloakUser | null = null;
+
+            // まずIDとしての取得を試みる (UUID形式かどうかのチェックは簡易的に省略し、エラーハンドリングでカバー)
+            try {
+                const userResponse = await axios.get<KeycloakUser>(
+                    `${this.keycloakUrl}/admin/realms/${this.realm}/users/${userIdOrUsername}`,
+                    { headers: { Authorization: `Bearer ${token}` } }
+                );
+                user = userResponse.data;
+            } catch (e) {
+                // IDで見つからない場合、ユーザー名検索を試みる
+                const searchResponse = await axios.get<KeycloakUser[]>(
+                    `${this.keycloakUrl}/admin/realms/${this.realm}/users`,
+                    { 
+                        params: { username: userIdOrUsername, exact: true },
+                        headers: { Authorization: `Bearer ${token}` } 
+                    }
+                );
+                if (searchResponse.data.length > 0) {
+                    user = searchResponse.data[0];
+                }
+            }
+
+            if (!user) {
+                console.warn(`User not found for getManager: ${userIdOrUsername}`);
+                return null;
+            }
+
+            const attributes = user.attributes || {};
+            
+            // managerId 属性があればそれをキーに検索
+            const managerId = attributes['managerId']?.[0];
+            if (managerId) {
+                return this.getUserSnapshot(managerId);
+            }
+
+            // manager (username) 属性があればそれをキーに検索
+            const managerUsername = attributes['manager']?.[0];
+            if (managerUsername) {
+                return this.getUserSnapshotByUsername(managerUsername);
+            }
+
+            return null;
+         } catch (e) {
+             console.error(`Failed to get manager for user ${userIdOrUsername}`, e);
+             return null;
+         }
+    }
 }

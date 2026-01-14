@@ -17,9 +17,15 @@ describe('GenericWorker', () => {
     workflowTask: {
       update: jest.fn(),
     },
+    workflowTaskHistory: {
+        create: jest.fn(),
+    },
     application: {
       update: jest.fn(),
     },
+    $transaction: jest.fn().mockImplementation(async (callback) => {
+        return callback(mockPrisma);
+    }),
   };
 
   const mockQueueService = {
