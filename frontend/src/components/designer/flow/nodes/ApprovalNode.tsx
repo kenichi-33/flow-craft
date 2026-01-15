@@ -1,5 +1,5 @@
 // ApprovalNode - Converted from MUI to shadcn/ui
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Handle, Position, useReactFlow } from '@xyflow/react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -10,8 +10,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Checkbox } from '@/components/ui/checkbox';
 import { UserSelector } from '@/components/common/UserSelector';
-import { Pencil, User, Users, Shield, Mail, Loader2 } from 'lucide-react';
-import { api } from '@/lib/api';
+import { GroupSelector } from '@/components/common/GroupSelector';
+import { Pencil, User, Users, Shield, Mail } from 'lucide-react';
 
 type AssigneeType = 'role' | 'group' | 'specific' | 'applicant_manager';
 
@@ -31,27 +31,11 @@ export default function ApprovalNode({ id, data }: { id: string; data: any }) {
     const [assigneeGroupDisplay, setAssigneeGroupDisplay] = useState(data.assigneeGroupDisplay || '');
     const [assigneeUser, setAssigneeUser] = useState(data.assigneeUser || '');
     const [assigneeUserDisplay, setAssigneeUserDisplay] = useState(data.assigneeDisplay || (data.assigneeUser ? data.assigneeUser : ''));
-    const [availableGroups, setAvailableGroups] = useState<{ value: string; label: string; name: string }[]>([]);
-    const [loadingGroups, setLoadingGroups] = useState(false);
     const [notificationEnabled, setNotificationEnabled] = useState(data.notificationEnabled || false);
     const [notificationSubject, setNotificationSubject] = useState(data.notificationSubject || '【Flow Craft】承認依頼: {{applicationDefinition.name}}');
     const [notificationBody, setNotificationBody] = useState(data.notificationBody || '{{assignee}} 様\n\n申請が届いています。\n確認をお願いします。');
     const { setNodes } = useReactFlow();
     const isReadOnly = data.readOnly === true;
-
-    useEffect(() => {
-        if (dialogOpen && !isReadOnly && availableGroups.length === 0) {
-            setLoadingGroups(true);
-            api.get('/users/departments')
-                .then((response) => {
-                    const departments = response as any[];
-                    const groups = departments.map(dept => ({ value: dept.deptCode || dept.path, label: `${dept.name} (${dept.deptCode || dept.path})`, name: dept.name }));
-                    setAvailableGroups(groups);
-                })
-                .catch(() => setAvailableGroups([]))
-                .finally(() => setLoadingGroups(false));
-        }
-    }, [dialogOpen, availableGroups.length, isReadOnly]);
 
     const getAssigneeValue = () => {
         switch (assigneeType) {
@@ -66,7 +50,7 @@ export default function ApprovalNode({ id, data }: { id: string; data: any }) {
     const getAssigneeDisplay = () => {
         switch (assigneeType) {
             case 'role': return AVAILABLE_ROLES.find(r => r.value === assigneeRole)?.label || assigneeRole;
-            case 'group': return assigneeGroupDisplay || availableGroups.find(g => g.value === assigneeGroup)?.name || assigneeGroup;
+            case 'group': return assigneeGroupDisplay || assigneeGroup;
             case 'specific': return assigneeUserDisplay || assigneeUser || '指定ユーザー';
             case 'applicant_manager': return '申請者の上長';
             default: return '';
@@ -84,6 +68,7 @@ export default function ApprovalNode({ id, data }: { id: string; data: any }) {
                             ...node.data, label, assigneeType,
                             assigneeRole: assigneeType === 'role' ? assigneeRole : undefined,
                             assigneeGroup: assigneeType === 'group' ? assigneeGroup : undefined,
+                            assigneeGroupDisplay: assigneeType === 'group' ? assigneeGroupDisplay : undefined,
                             assigneeUser: assigneeType === 'specific' ? assigneeUser : undefined,
                             assignee: getAssigneeValue(),
                             assigneeDisplay: getAssigneeDisplay(),
@@ -168,17 +153,18 @@ export default function ApprovalNode({ id, data }: { id: string; data: any }) {
                             )}
                             {assigneeType === 'group' && (
                                 <div className="space-y-1.5">
-                                    <Label>担当部署</Label>
-                                    {loadingGroups ? (
-                                        <div className="flex items-center gap-2 p-2"><Loader2 className="h-4 w-4 animate-spin" />読み込み中...</div>
-                                    ) : (
-                                        <Select value={assigneeGroup} onValueChange={(v) => { setAssigneeGroup(v); setAssigneeGroupDisplay(availableGroups.find(g => g.value === v)?.name || ''); }} disabled={isReadOnly}>
-                                            <SelectTrigger><SelectValue placeholder="選択してください" /></SelectTrigger>
-                                            <SelectContent>
-                                                {availableGroups.map((g) => <SelectItem key={g.value} value={g.value}>{g.label}</SelectItem>)}
-                                            </SelectContent>
-                                        </Select>
-                                    )}
+                                    <Label>担当部署・グループ</Label>
+                                    <GroupSelector
+                                        value={assigneeGroup}
+                                        displayValue={assigneeGroupDisplay}
+                                        onChange={(deptCode, group) => {
+                                            setAssigneeGroup(deptCode);
+                                            setAssigneeGroupDisplay(group?.name || '');
+                                        }}
+                                        placeholder="部署名またはチーム名で検索..."
+                                        disabled={isReadOnly}
+                                    />
+                                    <p className="text-xs text-muted-foreground">部署名で検索して選択してください</p>
                                 </div>
                             )}
                             {assigneeType === 'specific' && (

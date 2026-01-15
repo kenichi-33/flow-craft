@@ -472,12 +472,16 @@ export class WorkflowEngineService {
         }
 
         if (assignedTo.startsWith('group:')) {
-             // グループ所属チェック（簡易実装: UserSnapshotのdepartmentと一致するか）
-             // 本来は UsersService.getGroupMembers(groupId) に userId が含まれるか確認すべき
-             const groupName = assignedTo.substring(6);
-             const user = await this.usersService.getUserSnapshot(userId);
-             // departmentは名称で入っている前提
-             return user.department === groupName;
+             // グループ所属チェック: deptCodeまたはパスで照合
+             const targetGroup = assignedTo.substring(6);
+             const userGroups = await this.usersService.getUserGroupsWithDeptCode(userId);
+             // deptCodeまたはパスで一致確認
+             return userGroups.some(g => 
+                g.deptCode === targetGroup || 
+                g.path === targetGroup || 
+                g.path === `/${targetGroup}` ||
+                g.path.endsWith(`/${targetGroup}`)
+             );
         }
 
         // assignedToInfo (スナップショット) を使う手もある

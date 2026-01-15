@@ -13,6 +13,15 @@ import DynamicFormRenderer from '@/components/model/form/renderer/DynamicFormRen
 import ApprovalHistory from '@/components/model/application/ApprovalHistory';
 import FlowVisualization from '@/components/designer/flow/FlowVisualization';
 import { UserDisplay } from '@/components/common/UserDisplay';
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 interface TaskDetail {
     id: string;
@@ -75,6 +84,9 @@ export default function TaskDetailPage() {
     const queryClient = useQueryClient();
     const [comment, setComment] = useState('');
     const [actionInProgress, setActionInProgress] = useState<string | null>(null);
+    const [errorDialogOpen, setErrorDialogOpen] = useState(false);
+    const [errorMessage, setErrorMessage] = useState('');
+    const [errorDetail, setErrorDetail] = useState('');
 
     const { data: task, isLoading, error } = useQuery<TaskDetail>({
         queryKey: ['task', id],
@@ -94,9 +106,12 @@ export default function TaskDetailPage() {
             toast.success('タスクを完了しました');
             navigate('/tasks');
         },
-        onError: (error) => {
+        onError: (error: any) => {
             console.error('Action failed:', error);
-            alert('処理に失敗しました');
+            const message = error?.response?.data?.message || error?.message || '不明なエラーが発生しました';
+            setErrorMessage('処理に失敗しました');
+            setErrorDetail(message);
+            setErrorDialogOpen(true);
             setActionInProgress(null);
         },
     });
@@ -315,6 +330,26 @@ export default function TaskDetailPage() {
                     </CardContent>
                 </Card>
             )}
+
+            {/* Error Dialog */}
+            <AlertDialog open={errorDialogOpen} onOpenChange={setErrorDialogOpen}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle className="flex items-center gap-2 text-destructive">
+                            <XCircle className="h-5 w-5" />
+                            {errorMessage}
+                        </AlertDialogTitle>
+                        <AlertDialogDescription className="text-left">
+                            {errorDetail}
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogAction onClick={() => setErrorDialogOpen(false)}>
+                            閉じる
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </div>
     );
 }

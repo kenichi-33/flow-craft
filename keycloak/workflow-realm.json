@@ -88,6 +88,35 @@
                     ]
                 }
             ]
+        },
+        {
+            "name": "Teams",
+            "subGroups": [
+                {
+                    "name": "開発チーム",
+                    "attributes": {
+                        "deptCode": [
+                            "dev-team"
+                        ]
+                    }
+                },
+                {
+                    "name": "QAチーム",
+                    "attributes": {
+                        "deptCode": [
+                            "qa-team"
+                        ]
+                    }
+                },
+                {
+                    "name": "デザインチーム",
+                    "attributes": {
+                        "deptCode": [
+                            "design-team"
+                        ]
+                    }
+                }
+            ]
         }
     ],
     "users": [
@@ -123,7 +152,8 @@
                 "wf_user"
             ],
             "groups": [
-                "/Company/IT部/システム課"
+                "/Company/IT部/システム課",
+                "/Teams/開発チーム"
             ]
         },
         {
@@ -190,7 +220,8 @@
                 "wf_user"
             ],
             "groups": [
-                "/Company/営業部/営業第一課"
+                "/Company/営業部/営業第一課",
+                "/Teams/QAチーム"
             ]
         },
         {
@@ -431,7 +462,8 @@
                 "wf_approver"
             ],
             "groups": [
-                "/Company/IT部"
+                "/Company/IT部",
+                "/Teams/開発チーム"
             ]
         },
         {
@@ -468,7 +500,9 @@
                 "wf_manager"
             ],
             "groups": [
-                "/Company/IT部/システム課"
+                "/Company/IT部/システム課",
+                "/Teams/開発チーム",
+                "/Teams/QAチーム"
             ]
         },
         {

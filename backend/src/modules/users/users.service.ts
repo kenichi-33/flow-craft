@@ -379,4 +379,62 @@ export class UsersService {
              return null;
          }
     }
+
+    /**
+     * ユーザーの所属グループとそのdeptCodeを取得
+     * グループ認可チェック用
+     */
+    async getUserGroupsWithDeptCode(userIdOrUsername: string): Promise<{ path: string; name: string; deptCode?: string }[]> {
+        try {
+            const token = await this.getAdminToken();
+            let userId = userIdOrUsername;
+
+            // ユーザー名の場合はIDを取得
+            if (!userIdOrUsername.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)) {
+                const searchResponse = await axios.get<KeycloakUser[]>(
+                    `${this.keycloakUrl}/admin/realms/${this.realm}/users`,
+                    {
+                        params: { username: userIdOrUsername, exact: true },
+                        headers: { Authorization: `Bearer ${token}` }
+                    }
+                );
+                if (searchResponse.data.length === 0) {
+                    console.warn(`User not found: ${userIdOrUsername}`);
+                    return [];
+                }
+                userId = searchResponse.data[0].id;
+            }
+
+            // ユーザーの所属グループを取得
+            const groupsResponse = await axios.get<any[]>(
+                `${this.keycloakUrl}/admin/realms/${this.realm}/users/${userId}/groups`,
+                { headers: { Authorization: `Bearer ${token}` } }
+            );
+
+            // 各グループのdeptCodeを取得
+            const results: { path: string; name: string; deptCode?: string }[] = [];
+            for (const group of groupsResponse.data) {
+                let deptCode: string | undefined;
+                try {
+                    const detailResponse = await axios.get(
+                        `${this.keycloakUrl}/admin/realms/${this.realm}/groups/${group.id}`,
+                        { headers: { Authorization: `Bearer ${token}` } }
+                    );
+                    deptCode = detailResponse.data.attributes?.deptCode?.[0];
+                } catch (e) {
+                    console.warn(`Failed to fetch group detail for ${group.id}`);
+                }
+                results.push({
+                    path: group.path,
+                    name: group.name,
+                    deptCode,
+                });
+            }
+
+            return results;
+        } catch (error) {
+            console.error(`Failed to get groups for user ${userIdOrUsername}:`, error);
+            return [];
+        }
+    }
 }
