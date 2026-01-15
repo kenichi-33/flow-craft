@@ -10,6 +10,7 @@ import {
     ArrowLeft, Menu, Rocket, Loader2
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { toast } from 'sonner';
 
 const DRAWER_WIDTH = 240;
 
@@ -59,7 +60,7 @@ export default function AppStudioLayout() {
             setPublishDialogOpen(false);
         },
         onError: (err: any) => {
-            alert('公開に失敗しました: ' + (err.message || 'Unknown error'));
+            toast.error('公開に失敗しました: ' + (err.message || 'Unknown error'));
         },
     });
 

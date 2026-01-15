@@ -1,5 +1,5 @@
 // ApprovalNode - Converted from MUI to shadcn/ui
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Handle, Position, useReactFlow } from '@xyflow/react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -34,8 +34,16 @@ export default function ApprovalNode({ id, data }: { id: string; data: any }) {
     const [notificationEnabled, setNotificationEnabled] = useState(data.notificationEnabled || false);
     const [notificationSubject, setNotificationSubject] = useState(data.notificationSubject || '【Flow Craft】承認依頼: {{applicationDefinition.name}}');
     const [notificationBody, setNotificationBody] = useState(data.notificationBody || '{{assignee}} 様\n\n申請が届いています。\n確認をお願いします。');
+    const [fieldPermissions, setFieldPermissions] = useState<Record<string, 'editable' | 'readonly' | 'hidden'>>(data.fieldPermissions || {});
     const { setNodes } = useReactFlow();
     const isReadOnly = data.readOnly === true;
+
+    useEffect(() => {
+        if (dialogOpen) {
+            // Reset state from data when dialog opens
+            setFieldPermissions(data.fieldPermissions || {});
+        }
+    }, [dialogOpen, data.fieldPermissions]);
 
     const getAssigneeValue = () => {
         switch (assigneeType) {
@@ -73,6 +81,7 @@ export default function ApprovalNode({ id, data }: { id: string; data: any }) {
                             assignee: getAssigneeValue(),
                             assigneeDisplay: getAssigneeDisplay(),
                             notificationEnabled, notificationSubject, notificationBody,
+                            fieldPermissions,
                         },
                     }
                     : node
@@ -113,9 +122,10 @@ export default function ApprovalNode({ id, data }: { id: string; data: any }) {
                 <DialogContent className="sm:max-w-lg max-h-[80vh] overflow-y-auto">
                     <DialogHeader><DialogTitle>{isReadOnly ? '承認ステップ (読取専用)' : '承認ステップの設定'}</DialogTitle></DialogHeader>
                     <Tabs defaultValue="basic">
-                        <TabsList className="grid w-full grid-cols-2">
+                        <TabsList className="grid w-full grid-cols-3">
                             <TabsTrigger value="basic">基本設定</TabsTrigger>
                             <TabsTrigger value="notification">通知設定</TabsTrigger>
+                            <TabsTrigger value="fields">権限設定</TabsTrigger>
                         </TabsList>
                         <TabsContent value="basic" className="space-y-4 pt-4">
                             <div className="space-y-1.5">
@@ -205,6 +215,65 @@ export default function ApprovalNode({ id, data }: { id: string; data: any }) {
                                     </div>
                                 </>
                             ) : <p className="text-sm text-muted-foreground">通知機能は無効です。</p>}
+                        </TabsContent>
+                        <TabsContent value="fields" className="space-y-4 pt-4">
+                            <div className="rounded-md border">
+                                <div className="grid grid-cols-12 bg-muted p-2 text-xs font-medium text-muted-foreground border-b">
+                                    <div className="col-span-6 pl-2">フィールド名</div>
+                                    <div className="col-span-2 text-center">編集</div>
+                                    <div className="col-span-2 text-center">読取</div>
+                                    <div className="col-span-2 text-center">非表示</div>
+                                </div>
+                                <div className="max-h-[300px] overflow-y-auto">
+                                    {(!data.formFields || data.formFields.length === 0) ? (
+                                        <div className="p-4 text-center text-sm text-muted-foreground">フォーム定義がありません</div>
+                                    ) : (
+                                        data.formFields.map((field: any) => {
+                                            const currentPerm = fieldPermissions[field.id] || 'editable';
+                                            return (
+                                                <div key={field.id} className="grid grid-cols-12 p-2 border-b last:border-0 items-center hover:bg-muted/50">
+                                                    <div className="col-span-6 pl-2 text-sm truncate" title={field.label}>
+                                                        {field.label} <span className="text-xs text-muted-foreground">({field.id})</span>
+                                                    </div>
+                                                    <div className="col-span-2 flex justify-center">
+                                                        <input 
+                                                            type="radio" 
+                                                            name={`perm-${field.id}`} 
+                                                            checked={currentPerm === 'editable'} 
+                                                            onChange={() => setFieldPermissions(prev => ({ ...prev, [field.id]: 'editable' }))}
+                                                            disabled={isReadOnly}
+                                                            className="h-4 w-4"
+                                                        />
+                                                    </div>
+                                                    <div className="col-span-2 flex justify-center">
+                                                        <input 
+                                                            type="radio" 
+                                                            name={`perm-${field.id}`} 
+                                                            checked={currentPerm === 'readonly'} 
+                                                            onChange={() => setFieldPermissions(prev => ({ ...prev, [field.id]: 'readonly' }))}
+                                                            disabled={isReadOnly}
+                                                            className="h-4 w-4"
+                                                        />
+                                                    </div>
+                                                    <div className="col-span-2 flex justify-center">
+                                                        <input 
+                                                            type="radio" 
+                                                            name={`perm-${field.id}`} 
+                                                            checked={currentPerm === 'hidden'} 
+                                                            onChange={() => setFieldPermissions(prev => ({ ...prev, [field.id]: 'hidden' }))}
+                                                            disabled={isReadOnly}
+                                                            className="h-4 w-4"
+                                                        />
+                                                    </div>
+                                                </div>
+                                            );
+                                        })
+                                    )}
+                                </div>
+                            </div>
+                            <p className="text-xs text-muted-foreground">
+                                ※ デフォルトでは全ての項目が「編集可能」です。
+                            </p>
                         </TabsContent>
                     </Tabs>
                     <DialogFooter>

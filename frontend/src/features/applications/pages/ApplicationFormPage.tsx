@@ -6,10 +6,19 @@ import DynamicFormRenderer from '@/components/model/form/renderer/DynamicFormRen
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { ArrowLeft, Loader2, CheckCircle, GitFork } from 'lucide-react';
+import { ArrowLeft, Loader2, CheckCircle, GitFork, XCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import FlowVisualization from '@/components/designer/flow/FlowVisualization';
 import { useAuthStore } from '@/stores/useAuthStore';
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 interface AppDefinition {
     id: string;
@@ -35,6 +44,9 @@ export default function ApplicationFormPage() {
     const { user } = useAuthStore();
     const [title, setTitle] = useState('');
     const [submitSuccess, setSubmitSuccess] = useState(false);
+    const [errorDialogOpen, setErrorDialogOpen] = useState(false);
+    const [errorMessage, setErrorMessage] = useState('');
+    const [errorDetail, setErrorDetail] = useState('');
     
     // Determine mode based on URL and ID
     const isEditMode = location.pathname.endsWith('/edit');
@@ -121,7 +133,10 @@ export default function ApplicationFormPage() {
         },
         onError: (error: any) => {
             console.error('Submit failed:', error);
-            alert(`申請に失敗しました: ${error.message || '不明なエラー'}`);
+            const message = error?.response?.data?.message || error?.message || '不明なエラーが発生しました';
+            setErrorMessage('申請に失敗しました');
+            setErrorDetail(message);
+            setErrorDialogOpen(true);
         },
     });
 
@@ -150,7 +165,10 @@ export default function ApplicationFormPage() {
         },
         onError: (error: any) => {
             console.error('Save draft failed:', error);
-            toast.error(`保存に失敗しました: ${error.message || '不明なエラー'}`);
+            const message = error?.response?.data?.message || error?.message || '不明なエラーが発生しました';
+            setErrorMessage('保存に失敗しました');
+            setErrorDetail(message);
+            setErrorDialogOpen(true);
         },
     });
 
@@ -162,7 +180,9 @@ export default function ApplicationFormPage() {
         const draftTitle = title.trim() || '無題';
 
         if (!definition.formDefinition?.id || !definition.flowDefinition?.id) {
-             alert('フォームまたはフロー定義が見つかりません');
+             setErrorMessage('定義エラー');
+             setErrorDetail('フォームまたはフロー定義が見つかりません');
+             setErrorDialogOpen(true);
              return;
         }
 
@@ -179,12 +199,16 @@ export default function ApplicationFormPage() {
     const handleSubmit = async (formData: any) => {
         if (!definition) return;
         if (!title.trim()) {
-            alert('件名を入力してください');
+            setErrorMessage('入力エラー');
+            setErrorDetail('件名を入力してください');
+            setErrorDialogOpen(true);
             return;
         }
         
         if (!definition.formDefinition?.id || !definition.flowDefinition?.id) {
-             alert('フォームまたはフロー定義が見つかりません');
+             setErrorMessage('定義エラー');
+             setErrorDetail('フォームまたはフロー定義が見つかりません');
+             setErrorDialogOpen(true);
              return;
         }
 
@@ -294,6 +318,7 @@ export default function ApplicationFormPage() {
                         layouts={definition.formDefinition?.schema?.['x-layout']}
                         defaultValues={initialData}
                         onSubmit={handleSubmit}
+                        fieldPermissions={definition.flowDefinition?.nodes?.find((n: any) => n.type === 'start')?.data?.fieldPermissions}
                         renderActions={(methods) => (
                             <div className="flex gap-4 justify-center pt-6">
                                 <Button 
@@ -335,6 +360,25 @@ export default function ApplicationFormPage() {
                     />
                 </CardContent>
             </Card>
+            {/* Error Dialog */}
+            <AlertDialog open={errorDialogOpen} onOpenChange={setErrorDialogOpen}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle className="flex items-center gap-2 text-destructive">
+                            <XCircle className="h-5 w-5" />
+                            {errorMessage}
+                        </AlertDialogTitle>
+                        <AlertDialogDescription className="text-left">
+                            {errorDetail}
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogAction onClick={() => setErrorDialogOpen(false)}>
+                            閉じる
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </div>
     );
 }

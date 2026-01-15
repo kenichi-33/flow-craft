@@ -25,6 +25,7 @@ export interface DynamicFormRendererProps {
     readOnly?: boolean;
     initialData?: any;
     defaultValues?: any;
+    fieldPermissions?: Record<string, 'editable' | 'readonly' | 'hidden'>;
 }
 
 // Width hook for responsive layout
@@ -50,7 +51,8 @@ export default function DynamicFormRenderer({
     renderActions, 
     readOnly = false, 
     initialData = {},
-    defaultValues = {} 
+    defaultValues = {},
+    fieldPermissions = {}
 }: DynamicFormRendererProps) {
     // 1. Parse fields first (safe even if schema is null)
     const properties = schema?.properties || {};
@@ -136,7 +138,18 @@ export default function DynamicFormRenderer({
         const currentFields = sortedFields.filter(f => f.parent === parentId);
         
         return currentFields.map(field => {
-            const isFieldReadOnly = readOnly || field.readOnly;
+            // Check Field Permissions
+            const permission = fieldPermissions[field.id];
+            
+            // 1. Hidden
+            if (permission === 'hidden') return null;
+
+            // 2. ReadOnly (Overall readOnly overrides field editable, but field readonly overrides field editable)
+            // Logic: If overall is readOnly, everything is readOnly. 
+            //        If field permission is 'readonly', it is readOnly.
+            //        If field config has readOnly: true, it is readOnly.
+            const isFieldReadOnly = readOnly || field.readOnly || permission === 'readonly';
+
             const layoutItem = layout.find((l: any) => l.i === field.id);
             const colSpan = Math.min(layoutItem?.w || 12, 12);
             const value = getValues(field.id);

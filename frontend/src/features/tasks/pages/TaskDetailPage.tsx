@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
@@ -87,6 +87,9 @@ export default function TaskDetailPage() {
     const [errorDialogOpen, setErrorDialogOpen] = useState(false);
     const [errorMessage, setErrorMessage] = useState('');
     const [errorDetail, setErrorDetail] = useState('');
+    
+    // Ref to capture form data
+    const formMethodsRef = useRef<any>(null);
 
     const { data: task, isLoading, error } = useQuery<TaskDetail>({
         queryKey: ['task', id],
@@ -95,10 +98,11 @@ export default function TaskDetailPage() {
     });
 
     const actionMutation = useMutation({
-        mutationFn: (data: { action: string; comment?: string }) =>
+        mutationFn: (data: { action: string; comment?: string; inputData?: any }) =>
             api.post(`/workflow/tasks/${id}/complete`, { 
                 action: data.action, 
-                comment: data.comment 
+                comment: data.comment,
+                inputData: data.inputData
             }),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['task', id] });
@@ -118,11 +122,21 @@ export default function TaskDetailPage() {
 
     const handleAction = (action: string) => {
         if (action === 'REJECT' && !comment.trim()) {
-            alert('却下の場合はコメントを入力してください');
+            setErrorMessage('入力エラー');
+            setErrorDetail('却下の場合はコメントを入力してください');
+            setErrorDialogOpen(true);
             return;
         }
+
+        // Capture current form data if available
+        let inputData = undefined;
+        if (formMethodsRef.current) {
+            inputData = formMethodsRef.current.getValues();
+            console.log('Submitting with data:', inputData);
+        }
+
         setActionInProgress(action);
-        actionMutation.mutate({ action, comment: comment.trim() || undefined });
+        actionMutation.mutate({ action, comment: comment.trim() || undefined, inputData });
     };
 
     if (isLoading) {
@@ -148,6 +162,10 @@ export default function TaskDetailPage() {
     const application = task.application;
     const isPending = task.status === 'PENDING';
     const statusConfig = taskStatusConfig[task.status] || { label: task.status, variant: 'outline' as const };
+
+    // Identify current node and permissions
+    const currentNode = application.flowDefinition?.nodes?.find((n: any) => n.id === task.stepId);
+    const fieldPermissions = currentNode?.data?.fieldPermissions;
 
     return (
         <div className="max-w-4xl mx-auto space-y-6">
@@ -256,7 +274,12 @@ export default function TaskDetailPage() {
                             schema={application.formDefinition.schema}
                             layouts={application.formDefinition.schema?.['x-layout']}
                             defaultValues={application.inputData}
-                            readOnly={true}
+                            readOnly={!isPending}
+                            fieldPermissions={fieldPermissions}
+                            renderActions={(methods) => {
+                                formMethodsRef.current = methods;
+                                return null;
+                            }}
                         />
                     ) : (
                         <div className="space-y-2">

@@ -117,7 +117,11 @@ export default function FlowDesigner({ appId }: { appId: string }) {
             setFlowName((app as any).flowDefinition.name || '');
             const flow = (app as any).flowDefinition;
             if (flow.nodes?.length) {
-                const nodesWithFields = flow.nodes.map((n: any) => ['branch', 'apiCall', 'llmCall'].includes(n.type) ? { ...n, data: { ...n.data, formFields } } : n);
+                const nodesWithFields = flow.nodes.map((n: any) => 
+                    ['branch', 'apiCall', 'llmCall', 'approval', 'start'].includes(n.type) 
+                        ? { ...n, data: { ...n.data, formFields } } 
+                        : n
+                );
                 setNodes(nodesWithFields);
             }
             if (flow.edges?.length) setEdges(flow.edges);
@@ -163,7 +167,7 @@ export default function FlowDesigner({ appId }: { appId: string }) {
                 assignee: type === 'approval' ? 'role:wf_approver' : undefined,
                 assigneeType: type === 'approval' ? 'role' : undefined,
                 assigneeRole: type === 'approval' ? 'wf_approver' : undefined,
-                formFields: type === 'branch' ? formFields : undefined, 
+                formFields: ['branch', 'apiCall', 'llmCall', 'approval', 'start'].includes(type) ? formFields : undefined, 
                 ...(type === 'swimlane' && { width: 800, height: 200, color: '#e3f2fd' }) 
             },
             ...(type === 'swimlane' && { style: { width: 800, height: 200 }, zIndex: -100 }),

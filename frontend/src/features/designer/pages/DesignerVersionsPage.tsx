@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Loader2, RotateCcw, FileText } from 'lucide-react';
 import { UserDisplay, type UserSnapshot } from '@/components/common/UserDisplay';
+import { toast } from 'sonner';
 
 interface Version {
     id: string;
@@ -41,7 +42,7 @@ export default function DesignerVersionsPage() {
             api.post(`/application-definitions/${id}/versions/${versionId}/restore`, {}),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['application-definition', id] });
-            alert('過去バージョンの設定を現在のドラフトに復元しました');
+            toast.success('過去バージョンの設定を現在のドラフトに復元しました');
         },
     });
 
