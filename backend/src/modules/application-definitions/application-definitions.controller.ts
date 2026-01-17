@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, Query, UseGuards, Req } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Body, Param, Query, UseGuards, Req, ForbiddenException } from '@nestjs/common';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { ApplicationDefinitionsService } from './application-definitions.service';
 import { CreateApplicationDefinitionDto } from './dto/create-application-definition.dto';
@@ -14,11 +14,15 @@ export class ApplicationDefinitionsController {
     @Post()
     @UseGuards(JwtAuthGuard)
     create(@Body() createDto: CreateApplicationDefinitionDto, @Req() req: any) {
-        const username = req.user?.username || 'Unknown';
-        return this.appDefsService.create(createDto, username);
+        const user = req.user;
+        if (!user.roles.includes('wf_admin') && !user.roles.includes('wf_app_admin')) {
+             throw new ForbiddenException('You do not have permission to create applications');
+        }
+        return this.appDefsService.create(createDto, user);
     }
 
     @Get()
+    @UseGuards(JwtAuthGuard)
     findAll(
         @Query('page') page?: string,
         @Query('limit') limit?: string,
@@ -26,11 +30,13 @@ export class ApplicationDefinitionsController {
         @Query('sortBy') sortBy?: string,
         @Query('sortOrder') sortOrder?: 'asc' | 'desc',
         @Query('tags') tags?: string | string[],
+        @Req() req?: any,
     ) {
         const tagsArray = tags 
             ? (Array.isArray(tags) ? tags : tags.split(',')) 
             : undefined;
 
+        // req.user might be undefined if guard is not applied, but we added UseGuards
         return this.appDefsService.findAll({
             page: page ? parseInt(page, 10) : undefined,
             limit: limit ? parseInt(limit, 10) : undefined,
@@ -38,7 +44,7 @@ export class ApplicationDefinitionsController {
             sortBy,
             sortOrder,
             tags: tagsArray,
-        });
+        }, req?.user);
     }
 
     @Get('active')

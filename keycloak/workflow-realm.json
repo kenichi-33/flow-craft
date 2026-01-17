@@ -28,6 +28,10 @@
             {
                 "name": "wf_admin",
                 "description": "システム管理者"
+            },
+            {
+                "name": "wf_app_admin",
+                "description": "アプリ管理者"
             }
         ]
     },
@@ -157,6 +161,39 @@
             ]
         },
         {
+            "username": "app_admin",
+            "enabled": true,
+            "email": "app_admin@example.com",
+            "firstName": "管理者",
+            "lastName": "アプリ",
+            "emailVerified": true,
+            "attributes": {
+                "employeeId": [
+                    "EMP_APP_001"
+                ],
+                "displayName": [
+                    "アプリ 管理者"
+                ],
+                "position": [
+                    "アプリ管理者"
+                ]
+            },
+            "credentials": [
+                {
+                    "type": "password",
+                    "value": "password",
+                    "temporary": false
+                }
+            ],
+            "realmRoles": [
+                "wf_app_admin",
+                "wf_user"
+            ],
+            "groups": [
+                "/Company/IT部"
+            ]
+        },
+        {
             "username": "tanaka",
             "enabled": true,
             "email": "tanaka@example.com",
@@ -182,6 +219,7 @@
                 }
             ],
             "realmRoles": [
+                "wf_app_admin",
                 "wf_manager",
                 "wf_approver",
                 "wf_user"
@@ -216,6 +254,7 @@
                 }
             ],
             "realmRoles": [
+                "wf_app_admin",
                 "wf_approver",
                 "wf_user"
             ],
@@ -250,6 +289,7 @@
                 }
             ],
             "realmRoles": [
+                "wf_app_admin",
                 "wf_user"
             ],
             "groups": [
@@ -282,6 +322,7 @@
                 }
             ],
             "realmRoles": [
+                "wf_app_admin",
                 "wf_approver",
                 "wf_user"
             ],
@@ -315,6 +356,7 @@
                 }
             ],
             "realmRoles": [
+                "wf_app_admin",
                 "wf_user"
             ],
             "groups": [
@@ -350,6 +392,7 @@
                 }
             ],
             "realmRoles": [
+                "wf_app_admin",
                 "wf_user",
                 "wf_approver"
             ],
@@ -386,6 +429,7 @@
                 }
             ],
             "realmRoles": [
+                "wf_app_admin",
                 "wf_user",
                 "wf_approver",
                 "wf_manager"
@@ -423,6 +467,7 @@
                 }
             ],
             "realmRoles": [
+                "wf_app_admin",
                 "wf_user"
             ],
             "groups": [
@@ -458,6 +503,7 @@
                 }
             ],
             "realmRoles": [
+                "wf_app_admin",
                 "wf_user",
                 "wf_approver"
             ],
@@ -495,6 +541,7 @@
                 }
             ],
             "realmRoles": [
+                "wf_app_admin",
                 "wf_user",
                 "wf_approver",
                 "wf_manager"
@@ -534,6 +581,7 @@
                 }
             ],
             "realmRoles": [
+                "wf_app_admin",
                 "wf_user"
             ],
             "groups": [

@@ -360,6 +360,7 @@ export class UsersController {
                         'wf_admin': '管理者',
                         'wf_manager': 'マネージャー',
                         'wf_approver': '承認者',
+                        'wf_app_admin': 'アプリ管理者',
                         'wf_user': 'ユーザー',
                     };
                     return roleMap[role] || role;

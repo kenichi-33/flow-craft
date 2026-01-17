@@ -16,6 +16,7 @@ export interface FindAllOptions {
 
 import { UsersService } from '../users/users.service';
 import { SchedulerService } from '../scheduler/scheduler.service';
+import { AuthUser } from '../../auth/types/user.interface';
 
 @Injectable()
 export class ApplicationDefinitionsService {
@@ -25,15 +26,16 @@ export class ApplicationDefinitionsService {
         private schedulerService: SchedulerService,
     ) { }
 
-    async create(createDto: CreateApplicationDefinitionDto, username: string) {
+    async create(createDto: CreateApplicationDefinitionDto, user: AuthUser) {
         const result = await this.prisma.applicationDefinition.create({
             data: {
                 ...createDto,
                 version: 1,
                 status: AppDefStatus.DRAFT,
-                createdBy: username,
-                updatedBy: username,
+                createdBy: user.username,
+                updatedBy: user.username,
                 webhookToken: createDto.webhookToken || uuidv4(),
+                adminIds: [user.username], // Auto-assign creator as admin (using username)
             },
             include: {
                 formDefinition: true,
@@ -50,17 +52,47 @@ export class ApplicationDefinitionsService {
 
 
 
-    async findAll(options: FindAllOptions = {}) {
+    async findAll(options: FindAllOptions = {}, user?: AuthUser) {
         const { page, limit, search, sortBy = 'createdAt', sortOrder = 'desc' } = options;
 
         // 検索条件
         const where: Prisma.ApplicationDefinitionWhereInput = {};
         
-        if (search) {
-            where.OR = [
-                { name: { contains: search, mode: 'insensitive' } },
-                { description: { contains: search, mode: 'insensitive' } },
+        // Access Control
+        if (user && !user.roles.includes('wf_admin')) {
+             where.OR = [
+                { createdBy: user.username },
+                { adminIds: { has: user.id } },
+                // Legacy support for username in adminIds
+                { adminIds: { has: user.username } } 
             ];
+        } else if (!user) {
+             // Internal or System use without user context? 
+             // If accessed publicly, maybe restrict? 
+             // For now assume if user is undefined, it's internal system call or unrestricted, 
+             // BUT controller should always pass user if from API.
+        }
+
+        if (search) {
+            const searchCondition = [
+                { name: { contains: search, mode: 'insensitive' as Prisma.QueryMode } },
+                { description: { contains: search, mode: 'insensitive' as Prisma.QueryMode } },
+            ];
+            
+            if (where.OR) {
+                // Combine with existing OR (Access Control)
+                // (UserAllowed) AND (SearchMatch)
+                // accessOR = where.OR
+                // newWhere = { AND: [ { OR: accessOR }, { OR: searchCondition } ] }
+                const accessOR = where.OR;
+                delete where.OR;
+                where.AND = [
+                    { OR: accessOR },
+                    { OR: searchCondition }
+                ];
+            } else {
+                where.OR = searchCondition;
+            }
         }
 
         if (options.tags && options.tags.length > 0) {
@@ -164,11 +196,19 @@ export class ApplicationDefinitionsService {
         let adminInfo: any[] = [];
         if (appDef.adminIds && appDef.adminIds.length > 0) {
             adminInfo = await Promise.all(appDef.adminIds.map(async (adminId: string) => {
-                // Determine if it's a UUID or Username (Simple check)
-                // Keycloak IDs are UUIDs. 
-                // We'll try to fetch as ID. If it fails/returns unknown, we might try username?
-                // For now, assume IDs are stored.
-                return this.usersService.getUserSnapshot(adminId);
+                const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(adminId);
+                
+                let snapshot: any;
+                if (isUuid) {
+                    snapshot = await this.usersService.getUserSnapshot(adminId);
+                    snapshot.id = adminId;
+                } else {
+                    snapshot = await this.usersService.getUserSnapshotByUsername(adminId);
+                    snapshot.id = adminId;
+                }
+                
+                // If resolving failed (unknown), we still return what we have
+                return snapshot;
             }));
         }
 

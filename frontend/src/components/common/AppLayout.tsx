@@ -38,7 +38,7 @@ export default function AppLayout() {
                 { title: 'タスク', href: '/tasks', icon: LayoutDashboard },
             ]
         },
-        hasRole('wf_manager') && {
+        (hasRole('wf_manager') || hasRole('wf_app_admin')) && {
             title: '設計者メニュー',
             items: [
                 { title: 'アプリ管理', href: '/designer/apps', icon: Database },

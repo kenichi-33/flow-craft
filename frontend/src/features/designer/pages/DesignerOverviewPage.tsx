@@ -54,7 +54,10 @@ export default function DesignerOverviewPage() {
     // User Search Query
     const { data: userSearchResults } = useQuery<any[]>({ 
         queryKey: ['user-search', adminSearchQuery], 
-        queryFn: () => api.get(`/users/search?q=${encodeURIComponent(adminSearchQuery)}&limit=10`).then((r: any) => r.data || r), 
+        queryFn: () => api.get(`/users/search?q=${encodeURIComponent(adminSearchQuery)}&limit=10`).then((r: any) => {
+            const list = r.data || (Array.isArray(r) ? r : []);
+            return list.filter((u: any) => u.roles?.includes('wf_app_admin') || u.roles?.includes('wf_admin'));
+        }), 
         enabled: adminDialogOpen && adminSearchQuery.length > 0 
     });
 
@@ -101,18 +104,19 @@ export default function DesignerOverviewPage() {
     };
 
     const addAdmin = (user: any) => {
-        // user.id is the UUID
-        if (user.id && !adminIds.includes(user.id)) {
-            setAdminIds([...adminIds, user.id]);
+        // Use username for stability across realm recreations
+        if (user.username && !adminIds.includes(user.username)) {
+            setAdminIds([...adminIds, user.username]);
             setDisplayAdmins([...displayAdmins, { ...user, type: 'user' }]); // Add to display list
             setAdminDialogOpen(false);
             setAdminSearchQuery('');
         }
     };
 
-    const removeAdmin = (userId: string) => {
-        setAdminIds(adminIds.filter(id => id !== userId));
-        setDisplayAdmins(displayAdmins.filter(a => (a.id || a.username) !== userId && a.username !== userId)); // Handle both ID/Username mismatch
+    const removeAdmin = (adminId: string) => {
+        setAdminIds(adminIds.filter(id => id !== adminId));
+        // Filter out from display list. adminId passed here is expected to be the stored ID (username or UUID)
+        setDisplayAdmins(displayAdmins.filter(a => (a.username !== adminId && a.id !== adminId)));
     };
 
     if (isLoading) return <div className="flex items-center justify-center h-64"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
@@ -191,7 +195,7 @@ export default function DesignerOverviewPage() {
                                                 <span className="text-xs text-muted-foreground ml-1">@{admin.username}</span>
                                             </div>
                                         </div>
-                                        <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground hover:text-destructive" onClick={() => removeAdmin(admin.id || admin.username)}>
+                                        <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground hover:text-destructive" onClick={() => removeAdmin(admin.username || admin.id)}>
                                             <Trash2 className="h-3 w-3" />
                                         </Button>
                                     </div>
@@ -287,7 +291,7 @@ export default function DesignerOverviewPage() {
                                                 <span>{u.displayName || u.username}</span>
                                                 <span className="text-xs text-muted-foreground ml-2">@{u.username}</span>
                                             </div>
-                                            {adminIds.includes(u.id) && <Badge variant="outline">追加済み</Badge>}
+                                            {(adminIds.includes(u.username) || adminIds.includes(u.id)) && <Badge variant="outline">追加済み</Badge>}
                                         </div>
                                     ))}
                                 </div>
