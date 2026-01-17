@@ -23,4 +23,18 @@ export class MailService {
       return false;
     }
   }
+
+  async sendSlaBreachNotification(to: string, task: any, application: any) {
+    const subject = `[SLA Breach] Task Overdue: ${application.title}`;
+    const content = `Task ${task.type} (ID: ${task.id}) for application "${application.title}" has exceeded its SLA.`;
+    
+    return this.sendEmail(to, subject, content);
+  }
+
+  async sendTaskReminder(to: string, task: any, application: any) {
+    const subject = `[Reminder] Task Due: ${application.title}`;
+    const content = `Reminder: Task ${task.type} (ID: ${task.id}) for application "${application.title}" is pending your action.`;
+    
+    return this.sendEmail(to, subject, content);
+  }
 }

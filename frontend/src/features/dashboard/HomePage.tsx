@@ -145,7 +145,7 @@ export default function HomePage() {
                     </Card>
                     <Card className="border-0 shadow-md">
                         <CardHeader className="pb-2">
-                            <CardTitle className="text-sm font-medium text-muted-foreground">承認済み</CardTitle>
+                            <CardTitle className="text-sm font-medium text-muted-foreground">完了</CardTitle>
                         </CardHeader>
                         <CardContent>
                             <div className="text-3xl font-bold text-emerald-600">

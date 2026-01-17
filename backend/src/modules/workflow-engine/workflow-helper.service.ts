@@ -53,6 +53,23 @@ export class WorkflowHelperService {
         // Pass task.id as deduplicationId
         await this.queueService.enqueue('TASK_EXECUTE', job, { deduplicationId: task.id });
         this.logger.log(`Enqueued task ${task.id} (type: ${node.type}) for application ${applicationId}`);
+
+        // Schedule SLA and Reminders
+        if (node.data?.advancedSettings) {
+            const settings = node.data.advancedSettings;
+            if (settings.slaHours && settings.slaHours > 0) {
+                 const delay = settings.slaHours * 60 * 60 * 1000; // hours to ms
+                 // We could calculateDueDate here and update task?
+                 // But for now, just schedule the breach job
+                 await this.queueService.enqueue('TASK_SLA_BREACH', { taskId: task.id }, { delay, deduplicationId: `sla-${task.id}` });
+                 this.logger.log(`Scheduled SLA Breach for task ${task.id} in ${settings.slaHours} hours`);
+            }
+            if (settings.reminderHours && settings.reminderHours > 0) {
+                 const delay = settings.reminderHours * 60 * 60 * 1000;
+                 await this.queueService.enqueue('TASK_REMINDER', { taskId: task.id }, { delay, deduplicationId: `reminder-${task.id}` });
+                 this.logger.log(`Scheduled Reminder for task ${task.id} in ${settings.reminderHours} hours`);
+            }
+        }
     }
 
     async enqueueServiceTask(

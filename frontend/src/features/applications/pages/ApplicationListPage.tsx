@@ -59,7 +59,7 @@ interface ApplicationsResponse {
 const statusConfig: Record<string, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' }> = {
     DRAFT: { label: '下書き', variant: 'outline' },
     IN_PROGRESS: { label: '処理中', variant: 'secondary' },
-    APPROVED: { label: '承認済み', variant: 'default' },
+    APPROVED: { label: '完了', variant: 'default' },
     REJECTED: { label: '却下', variant: 'destructive' },
     REMANDED: { label: '差戻し', variant: 'destructive' },
     COMPLETED: { label: '完了', variant: 'default' },

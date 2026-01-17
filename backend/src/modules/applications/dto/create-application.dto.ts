@@ -2,6 +2,10 @@ import { IsString, IsNotEmpty, IsOptional, IsObject, IsUUID } from 'class-valida
 
 export class CreateApplicationDto {
     @IsUUID()
+    @IsOptional()
+    applicationDefinitionId?: string;
+
+    @IsUUID()
     @IsNotEmpty()
     formDefinitionId: string;
 

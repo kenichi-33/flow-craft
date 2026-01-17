@@ -76,16 +76,60 @@ export class ApplicationsService {
     async create(createApplicationDto: CreateApplicationDto) {
         const applicantInfo = await this.usersService.getUserSnapshotByUsername(createApplicationDto.applicantId);
         
+        // Resolve Definitions (Draft vs Published)
+        let formDefId = createApplicationDto.formDefinitionId;
+        let flowDefId = createApplicationDto.flowDefinitionId;
+        let formSchema: any = undefined;
+        let flowNodes: any = undefined;
+        let flowEdges: any = undefined;
+
+        if (createApplicationDto.applicationDefinitionId) {
+            const appDef = await this.prisma.applicationDefinition.findUnique({
+                where: { id: createApplicationDto.applicationDefinitionId }
+            });
+
+            if (appDef) {
+                 // Try to get published version
+                 const latestVersion = await this.prisma.appVersion.findFirst({
+                    where: { applicationDefinitionId: appDef.id },
+                    orderBy: { version: 'desc' },
+                });
+
+                if (latestVersion) {
+                    formSchema = latestVersion.formSchema;
+                    flowNodes = latestVersion.flowNodes;
+                    flowEdges = latestVersion.flowEdges;
+                    // Note: We still need IDs for FKs? 
+                    // application table has formDefinitionId/flowDefinitionId FKs. 
+                    // We must use the IDs from AppDef (even if we override content with snapshot)
+                    // Logic: The linked definitions might be drafts, but we store the snapshot content in Application table.
+                    // Wait, Application table schema? 
+                    // Let's check if Application table has formSchema/flowNodes columns (it was updated recently).
+                    // Yes, WorkflowEngineService uses them.
+                    formDefId = appDef.formDefinitionId!;
+                    flowDefId = appDef.flowDefinitionId!;
+                } else if (appDef.status === 'ACTIVE') {
+                    // Legacy active without version? Use current draft as fallback
+                    formDefId = appDef.formDefinitionId!;
+                    flowDefId = appDef.flowDefinitionId!;
+                }
+            }
+        }
+
         // トランザクション内でアプリケーション作成とファイル紐付けを実行
         const application = await this.prisma.$transaction(async (tx) => {
             const app = await tx.application.create({
                 data: {
-                    formDefinitionId: createApplicationDto.formDefinitionId,
-                    flowDefinitionId: createApplicationDto.flowDefinitionId,
+                    formDefinitionId: formDefId,
+                    flowDefinitionId: flowDefId,
+                    applicationDefinitionId: createApplicationDto.applicationDefinitionId, // Nullable?
                     applicantId: createApplicationDto.applicantId,
                     applicantInfo: applicantInfo as any, // Json type workaround
                     inputData: (createApplicationDto.inputData || {}) as Prisma.InputJsonValue,
                     status: 'DRAFT',
+                    formSchema: formSchema as Prisma.InputJsonValue,
+                    flowNodes: flowNodes as Prisma.InputJsonValue,
+                    flowEdges: flowEdges as Prisma.InputJsonValue,
                 },
                 include: {
                     formDefinition: true,

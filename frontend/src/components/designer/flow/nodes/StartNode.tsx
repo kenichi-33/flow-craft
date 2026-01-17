@@ -36,7 +36,8 @@ export default function StartNode({ id, data }: { id: string, data: any }) {
                             ...node.data, 
                             fieldPermissions,
                             triggerType,
-                            scheduleCron
+                            // Clear cron if not scheduled mode
+                            scheduleCron: triggerType === 'scheduled' ? scheduleCron : null
                         },
                     }
                     : node
@@ -96,7 +97,7 @@ export default function StartNode({ id, data }: { id: string, data: any }) {
                                         <RadioGroupItem value="manual" id="manual" className="peer sr-only" />
                                         <Label
                                             htmlFor="manual"
-                                            className={`flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-2 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary ${isReadOnly ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                            className={`flex flex-col items-center justify-between rounded-md border-2 p-2 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary peer-data-[state=checked]:bg-primary peer-data-[state=checked]:text-primary-foreground ${isReadOnly ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'} ${triggerType === 'manual' ? 'bg-primary text-primary-foreground border-primary' : 'bg-popover border-muted'}`}
                                         >
                                             <MousePointerClick className="mb-2 h-6 w-6" />
                                             手動
@@ -106,7 +107,7 @@ export default function StartNode({ id, data }: { id: string, data: any }) {
                                         <RadioGroupItem value="scheduled" id="scheduled" className="peer sr-only" />
                                         <Label
                                             htmlFor="scheduled"
-                                            className={`flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-2 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary ${isReadOnly ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                            className={`flex flex-col items-center justify-between rounded-md border-2 p-2 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary peer-data-[state=checked]:bg-primary peer-data-[state=checked]:text-primary-foreground ${isReadOnly ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'} ${triggerType === 'scheduled' ? 'bg-primary text-primary-foreground border-primary' : 'bg-popover border-muted'}`}
                                         >
                                             <Clock className="mb-2 h-6 w-6" />
                                             スケジュール
@@ -116,7 +117,7 @@ export default function StartNode({ id, data }: { id: string, data: any }) {
                                         <RadioGroupItem value="webhook" id="webhook" className="peer sr-only" />
                                         <Label
                                             htmlFor="webhook"
-                                            className={`flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-2 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary ${isReadOnly ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                            className={`flex flex-col items-center justify-between rounded-md border-2 p-2 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary peer-data-[state=checked]:bg-primary peer-data-[state=checked]:text-primary-foreground ${isReadOnly ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'} ${triggerType === 'webhook' ? 'bg-primary text-primary-foreground border-primary' : 'bg-popover border-muted'}`}
                                         >
                                             <Globe className="mb-2 h-6 w-6" />
                                             Webhook

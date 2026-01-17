@@ -93,7 +93,7 @@ const InputNode = ({ data }: any) => {
                                 onValueChange={(val) => setConfig({...config, assignedTo: val})}
                                 disabled={readOnly}
                             >
-                                <SelectTrigger id="assignedTo">
+                                <SelectTrigger id="assignedTo" className="w-full">
                                     <SelectValue placeholder="担当者を選択" />
                                 </SelectTrigger>
                                 <SelectContent>

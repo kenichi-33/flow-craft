@@ -48,7 +48,7 @@ const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8'];
 const STATUS_LABELS: Record<string, string> = {
     DRAFT: '下書き',
     IN_PROGRESS: '進行中',
-    APPROVED: '承認済み',
+    APPROVED: '完了',
     REJECTED: '却下',
     REMANDED: '差戻し',
     CANCELLED: 'キャンセル',

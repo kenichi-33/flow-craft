@@ -332,6 +332,12 @@ export class WorkflowEngineService {
                 // So if we find an End Node, we better use it.
                 if (endNode) shouldAdvance = true; 
             } else if (input.action === 'REMAND') {
+                // Check if Remand is allowed
+                const taskConfig = task.config as any;
+                if (taskConfig?.advancedSettings?.allowRemand === false) {
+                     throw new BadRequestException('This task does not allow remand action');
+                }
+
                 // Remand Logic
                 const application = await tx.application.findUnique({
                     where: { id: task.applicationId },

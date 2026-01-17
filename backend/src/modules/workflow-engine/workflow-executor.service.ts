@@ -25,7 +25,9 @@ export class WorkflowExecutorService implements OnModuleInit {
     async onModuleInit() {
         await this.queueService.registerHandler('WORKFLOW_NODE_PROCESS', this.handleNodeProcessingJob.bind(this));
         await this.queueService.registerHandler('TASK_COMPLETE', this.handleTaskComplete.bind(this));
-        this.logger.log('Registered WORKFLOW_NODE_PROCESS and TASK_COMPLETE handlers');
+        await this.queueService.registerHandler('TASK_SLA_BREACH', this.handleSlaBreach.bind(this));
+        await this.queueService.registerHandler('TASK_REMINDER', this.handleTaskReminder.bind(this));
+        this.logger.log('Registered workflow job handlers');
     }
 
     async handleNodeProcessingJob(job: { applicationId: string, fromNodeId?: string, targetNodeId?: string }) {
@@ -57,6 +59,70 @@ export class WorkflowExecutorService implements OnModuleInit {
             this.logger.warn(`Task ${job.taskId} failed: ${job.error}`);
         }
         // shouldAdvance = false の場合（承認タスク等の途中経過、または明示的な停止）は何もしない
+    }
+
+    async handleSlaBreach(job: { taskId: string }) {
+        this.logger.log(`Handling SLA Breach for task ${job.taskId}`);
+        const task = await this.prisma.workflowTask.findUnique({ where: { id: job.taskId }, include: { application: true } });
+        if (task && task.status === 'PENDING') {
+            // Resolve Recipient
+            let email = '';
+            
+            // 1. Check Snapshot
+            if (task.assignedToInfo) {
+                const info = task.assignedToInfo as any;
+                if (info.email) email = info.email;
+            }
+
+            // 2. Fetch if missing
+            if (!email && task.assignedTo) {
+                 if (task.assignedTo.startsWith('user:')) {
+                     const username = task.assignedTo.substring(5);
+                     // Resolve email via UsersService snapshot
+                     const snapshot = await this.usersService.getUserSnapshotByUsername(username);
+                     if (snapshot && snapshot.email) email = snapshot.email;
+                 }
+                 // If group, we need to find group email or managers. 
+                 // For now, if no email found, log warning.
+            }
+
+            if (email) {
+                 await this.mailService.sendSlaBreachNotification(email, task, task.application);
+                 this.logger.log(`Sent SLA Breach notification for task ${job.taskId} to ${email}`);
+            } else {
+                 this.logger.warn(`Could not resolve email for SLA Breach task ${job.taskId} (assignedTo: ${task.assignedTo})`);
+            }
+        }
+    }
+
+    async handleTaskReminder(job: { taskId: string }) {
+        this.logger.log(`Handling Reminder for task ${job.taskId}`);
+        const task = await this.prisma.workflowTask.findUnique({ where: { id: job.taskId }, include: { application: true } });
+        if (task && task.status === 'PENDING') {
+            let email = '';
+            
+            // 1. Check Snapshot
+            if (task.assignedToInfo) {
+                const info = task.assignedToInfo as any;
+                if (info.email) email = info.email;
+            }
+
+            // 2. Fetch if missing
+            if (!email && task.assignedTo) {
+                 if (task.assignedTo.startsWith('user:')) {
+                     const username = task.assignedTo.substring(5);
+                     const snapshot = await this.usersService.getUserSnapshotByUsername(username);
+                     if (snapshot && snapshot.email) email = snapshot.email;
+                 }
+            }
+
+            if (email) {
+                 await this.mailService.sendTaskReminder(email, task, task.application);
+                 this.logger.log(`Sent Reminder notification for task ${job.taskId} to ${email}`);
+            } else {
+                 this.logger.warn(`Could not resolve email for Reminder task ${job.taskId} (assignedTo: ${task.assignedTo})`);
+            }
+        }
     }
 
     /**

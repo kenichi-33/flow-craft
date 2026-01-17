@@ -82,7 +82,7 @@ interface ApplicationDetail {
 const statusConfig: Record<string, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline'; icon: any }> = {
     DRAFT: { label: '下書き', variant: 'outline', icon: FileText },
     IN_PROGRESS: { label: '進行中', variant: 'secondary', icon: Clock },
-    APPROVED: { label: '承認済み', variant: 'default', icon: CheckCircle },
+    APPROVED: { label: '完了', variant: 'default', icon: CheckCircle },
     REJECTED: { label: '却下', variant: 'destructive', icon: XCircle },
     REMANDED: { label: '差戻し', variant: 'destructive', icon: AlertCircle },
     COMPLETED: { label: '完了', variant: 'default', icon: CheckCircle },
