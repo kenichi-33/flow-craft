@@ -18,6 +18,7 @@ import {
     addEdge,
     Panel,
     useReactFlow,
+    ReactFlowProvider,
     type Connection,
     type Node,
     type Edge,
@@ -107,9 +108,9 @@ function validateFlow(nodes: Node[], edges: Edge[]) {
 
 const DEFAULT_NODES: Node[] = [{ id: 'start', type: 'start', position: { x: 250, y: 50 }, data: { label: '開始' } }];
 
-export default function FlowDesigner({ appId }: { appId: string }) {
+function FlowDesignerContent({ appId, isStatsMode, statsOverlay }: { appId: string, isStatsMode?: boolean, statsOverlay?: Record<string, number> }) {
     const { versionId } = useParams();
-    const isReadOnly = !!versionId;
+    const isReadOnly = !!versionId || isStatsMode; // Stats mode implies read-only
     const queryClient = useQueryClient();
     const [flowName, setFlowName] = useState('');
     const [nodes, setNodes, onNodesChange] = useNodesState(DEFAULT_NODES);
@@ -119,11 +120,14 @@ export default function FlowDesigner({ appId }: { appId: string }) {
 
     const { data: app, isLoading } = useQuery({ queryKey: ['apps', appId], queryFn: () => api.get(`/application-definitions/${appId}`), enabled: !!appId });
     
-    // Fetch versions if in read-only mode
+    // Fetch versions if in read-only mode (but not stats mode, stats mode uses current active definition from app-def)
+    // Actually stats detail page might pass just ID.
+    // Let's assume stats uses the latest flow definition attached to the app definition.
+    
     const { data: versions } = useQuery({
         queryKey: ['app-versions', appId],
         queryFn: () => api.get<any[]>(`/application-definitions/${appId}/versions`),
-        enabled: !!versionId && !!appId,
+        enabled: !!versionId && !!appId && !isStatsMode,
     });
 
     const formFields = React.useMemo(() => {
@@ -132,57 +136,74 @@ export default function FlowDesigner({ appId }: { appId: string }) {
         return Object.entries(schema.properties).map(([id, prop]: [string, any]) => ({ id, label: prop.title || id, type: prop.type }));
     }, [app]);
 
+    const { screenToFlowPosition, fitView } = useReactFlow();
+
+    // ... (rest of imports/state) ...
+
     useEffect(() => {
-        if (versionId && versions) {
-            const version = versions.find((v: any) => String(v.id) === String(versionId));
-            if (version && version.flowNodes) {
+        if (versionId && versions && !isStatsMode) {
+             const version = versions.find((v: any) => String(v.id) === String(versionId));
+             // ... existing version logic ...
+             if (version && version.flowNodes) {
                 setFlowName(`v${version.version} フロー (読み取り専用)`);
                 setNodes(version.flowNodes.map((n: any) => ({ 
                     ...n, 
                     draggable: false, 
                     deletable: false,
-                    data: { ...n.data, readOnly: true } // Inject readOnly flag for node components
+                    data: { ...n.data, readOnly: true } 
                 })));
                 setEdges(version.flowEdges.map((e: any) => ({ ...e, deletable: false })));
+                setTimeout(() => fitView({ padding: 0.2 }), 50);
             }
-        } else if ((app as any)?.flowDefinition) {
-            setFlowName((app as any).flowDefinition.name || '');
-            const flow = (app as any).flowDefinition;
-            if (flow.nodes?.length) {
-                const nodesWithFields = flow.nodes.map((n: any) => {
-                    if (['branch', 'apiCall', 'llmCall', 'approval', 'start'].includes(n.type)) {
-                        let newData = { ...n.data, formFields };
-                        if (n.type === 'start') {
-                            newData = { 
-                                ...newData, 
-                                webhookToken: (app as any).webhookToken, 
-                                applicationId: (app as any).id 
-                            };
-                        }
-                        return { ...n, data: newData };
-                    }
-                    return n;
-                });
-                setNodes(nodesWithFields);
-            }
-            if (flow.edges?.length) setEdges(flow.edges);
         } else if (app) {
             setFlowName(`${(app as any).name}フロー`);
             setNodes(nds => nds.map(n => {
+                 // Common data injection
+                 let newData: any = { ...n.data, formFields, readOnly: isReadOnly };
+                 
+                 // Stats Overlay Injection
+                 if (isStatsMode && statsOverlay && statsOverlay[n.id] !== undefined) {
+                     newData = { ...newData, statCount: statsOverlay[n.id] };
+                 }
+
                 if (n.type === 'start') {
                     return { 
                         ...n, 
                         data: { 
-                            ...n.data, 
+                            ...newData, 
                             webhookToken: (app as any).webhookToken, 
-                            applicationId: (app as any).id 
+                            applicationId: String((app as any).id)
                         } 
                     };
                 }
-                return n;
+                
+                // For other nodes
+                if (['branch', 'apiCall', 'llmCall', 'approval'].includes(n.type)) {
+                   return { ...n, data: newData };
+                }
+                // Even simpler default
+                return { ...n, data: newData };
             }));
+
+            // Initial load of flowDefinition if exists
+            if ((app as any).flowDefinition?.nodes?.length) {
+                const flow = (app as any).flowDefinition;
+                setFlowName(flow.name || '');
+                setNodes(flow.nodes.map((n: any) => {
+                     let newData: any = { ...n.data, formFields, readOnly: isReadOnly };
+                     if (isStatsMode && statsOverlay && statsOverlay[n.id] !== undefined) {
+                         newData = { ...newData, statCount: statsOverlay[n.id] };
+                     }
+                     if (n.type === 'start') {
+                         newData = { ...newData, webhookToken: (app as any).webhookToken, applicationId: String((app as any).id) };
+                     }
+                     return { ...n, draggable: !isReadOnly, deletable: !isReadOnly, data: newData };
+                }));
+                if (flow.edges?.length) setEdges(flow.edges.map((e: any) => ({ ...e, deletable: !isReadOnly })));
+                setTimeout(() => fitView({ padding: 0.2 }), 50);
+            }
         }
-    }, [app, setNodes, setEdges, formFields, versionId, versions]);
+    }, [app, setNodes, setEdges, formFields, versionId, versions, isStatsMode, isReadOnly, statsOverlay, fitView]);
 
     const onConnect = useCallback((params: Connection) => setEdges((eds) => addEdge(params, eds)), [setEdges]);
     const onSelectionChange = useCallback(({ nodes: sel, edges: selE }: { nodes: Node[]; edges: Edge[] }) => { setSelectedNodes(sel.map(n => n.id)); setSelectedEdges(selE.map(e => e.id)); }, []);
@@ -215,7 +236,6 @@ export default function FlowDesigner({ appId }: { appId: string }) {
         return () => window.removeEventListener('keydown', handler);
     }, [selectedNodes, selectedEdges, deleteSelected]);
 
-    const { screenToFlowPosition } = useReactFlow();
     const onDrop = useCallback((event: React.DragEvent) => {
         if (isReadOnly) return;
         event.preventDefault();
@@ -263,7 +283,7 @@ export default function FlowDesigner({ appId }: { appId: string }) {
     if (isLoading) return <div className="flex items-center justify-center h-64"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
 
     return (
-        <div className="flex flex-col h-[calc(100vh-120px)]">
+        <div className="flex flex-col h-full">
             <div className="flex flex-1 gap-2 p-2 overflow-hidden">
                 {/* Toolbox */}
                 {!isReadOnly && (
@@ -369,5 +389,13 @@ export default function FlowDesigner({ appId }: { appId: string }) {
                 </DialogContent>
             </Dialog>
         </div>
+    );
+}
+
+export default function FlowDesigner(props: { appId: string, isStatsMode?: boolean, statsOverlay?: Record<string, number> }) {
+    return (
+        <ReactFlowProvider>
+            <FlowDesignerContent {...props} />
+        </ReactFlowProvider>
     );
 }

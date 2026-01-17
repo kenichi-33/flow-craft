@@ -28,6 +28,8 @@ import AdminWorkflowsPage from "@/features/admin/AdminWorkflowsPage";
 import AdminTasksPage from "@/features/admin/AdminTasksPage";
 import AdminUsersPage from "@/features/admin/AdminUsersPage";
 import AdminTeamsPage from "@/features/admin/AdminTeamsPage";
+import AdminStatsListPage from "@/features/admin/stats/AdminStatsListPage";
+import AdminStatsDetailPage from "@/features/admin/stats/AdminStatsDetailPage";
 
 export const router = createBrowserRouter([
     {
@@ -55,6 +57,8 @@ export const router = createBrowserRouter([
             { path: "/admin/tasks", element: <AdminTasksPage /> },
             { path: "/admin/users", element: <AdminUsersPage /> },
             { path: "/admin/teams", element: <AdminTeamsPage /> },
+            { path: "/admin/stats", element: <AdminStatsListPage /> },
+            { path: "/admin/stats/:id", element: <AdminStatsDetailPage /> },
         ]
     },
     // App Studio (Separate Layout)

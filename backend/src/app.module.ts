@@ -21,6 +21,7 @@ import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
 import { RolesGuard } from './auth/guards/roles.guard';
 import { QueueModule } from './modules/queue/queue.module';
 import { SchedulerModule } from './modules/scheduler/scheduler.module';
+import { StatisticsModule } from './modules/statistics/statistics.module';
 
 @Module({
   imports: [
@@ -40,6 +41,7 @@ import { SchedulerModule } from './modules/scheduler/scheduler.module';
     QueueModule,
     SchedulerModule,
     SearchModule,
+    StatisticsModule,
   ],
   controllers: [AppController],
   providers: [

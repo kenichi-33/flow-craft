@@ -91,12 +91,12 @@ export default function StartNode({ id, data }: { id: string, data: any }) {
                         <TabsContent value="general" className="space-y-4 pt-4">
                             <div className="space-y-2">
                                 <Label>トリガータイプ</Label>
-                                <RadioGroup defaultValue={triggerType} onValueChange={setTriggerType} className="grid grid-cols-3 gap-2">
+                                <RadioGroup defaultValue={triggerType} onValueChange={setTriggerType} className="grid grid-cols-3 gap-2" disabled={isReadOnly}>
                                     <div>
                                         <RadioGroupItem value="manual" id="manual" className="peer sr-only" />
                                         <Label
                                             htmlFor="manual"
-                                            className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-2 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary"
+                                            className={`flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-2 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary ${isReadOnly ? 'opacity-50 cursor-not-allowed' : ''}`}
                                         >
                                             <MousePointerClick className="mb-2 h-6 w-6" />
                                             手動
@@ -106,7 +106,7 @@ export default function StartNode({ id, data }: { id: string, data: any }) {
                                         <RadioGroupItem value="scheduled" id="scheduled" className="peer sr-only" />
                                         <Label
                                             htmlFor="scheduled"
-                                            className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-2 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary"
+                                            className={`flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-2 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary ${isReadOnly ? 'opacity-50 cursor-not-allowed' : ''}`}
                                         >
                                             <Clock className="mb-2 h-6 w-6" />
                                             スケジュール
@@ -116,7 +116,7 @@ export default function StartNode({ id, data }: { id: string, data: any }) {
                                         <RadioGroupItem value="webhook" id="webhook" className="peer sr-only" />
                                         <Label
                                             htmlFor="webhook"
-                                            className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-2 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary"
+                                            className={`flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-2 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary ${isReadOnly ? 'opacity-50 cursor-not-allowed' : ''}`}
                                         >
                                             <Globe className="mb-2 h-6 w-6" />
                                             Webhook
@@ -132,6 +132,7 @@ export default function StartNode({ id, data }: { id: string, data: any }) {
                                         value={scheduleCron} 
                                         onChange={(e) => setScheduleCron(e.target.value)} 
                                         placeholder="0 9 * * 1 (毎週月曜 9:00)" 
+                                        disabled={isReadOnly}
                                     />
                                     <p className="text-xs text-muted-foreground">CRON形式で入力してください。</p>
                                 </div>
@@ -195,6 +196,7 @@ export default function StartNode({ id, data }: { id: string, data: any }) {
                                                             checked={currentPerm === 'editable'} 
                                                             onChange={() => setFieldPermissions(prev => ({ ...prev, [field.id]: 'editable' }))}
                                                             className="h-4 w-4"
+                                                            disabled={isReadOnly}
                                                         />
                                                     </div>
                                                     <div className="col-span-2 flex justify-center">
@@ -204,6 +206,7 @@ export default function StartNode({ id, data }: { id: string, data: any }) {
                                                             checked={currentPerm === 'readonly'} 
                                                             onChange={() => setFieldPermissions(prev => ({ ...prev, [field.id]: 'readonly' }))}
                                                             className="h-4 w-4"
+                                                            disabled={isReadOnly}
                                                         />
                                                     </div>
                                                     <div className="col-span-2 flex justify-center">
@@ -213,6 +216,7 @@ export default function StartNode({ id, data }: { id: string, data: any }) {
                                                             checked={currentPerm === 'hidden'} 
                                                             onChange={() => setFieldPermissions(prev => ({ ...prev, [field.id]: 'hidden' }))}
                                                             className="h-4 w-4"
+                                                            disabled={isReadOnly}
                                                         />
                                                     </div>
                                                 </div>
@@ -227,8 +231,14 @@ export default function StartNode({ id, data }: { id: string, data: any }) {
                         </TabsContent>
                     </Tabs>
                     <DialogFooter>
-                        <Button variant="outline" onClick={() => setDialogOpen(false)}>キャンセル</Button>
-                        <Button onClick={handleSave}>保存</Button>
+                        {isReadOnly ? (
+                            <Button onClick={() => setDialogOpen(false)}>閉じる</Button>
+                        ) : (
+                            <>
+                                <Button variant="outline" onClick={() => setDialogOpen(false)}>キャンセル</Button>
+                                <Button onClick={handleSave}>保存</Button>
+                            </>
+                        )}
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
