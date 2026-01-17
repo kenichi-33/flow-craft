@@ -44,7 +44,7 @@ export class PgBossQueueAdapter implements IQueueAdapter, ISchedulerAdapter, OnM
     }
   }
 
-  async enqueue(topic: string, payload: any, options?: { delay?: number }): Promise<void> {
+  async enqueue(topic: string, payload: any, options?: { delay?: number; deduplicationId?: string }): Promise<void> {
     try {
       if (!this.knownQueues.has(topic)) {
         await this.boss.createQueue(topic);
@@ -52,12 +52,14 @@ export class PgBossQueueAdapter implements IQueueAdapter, ISchedulerAdapter, OnM
       }
       
       const sendOptions: any = {};
+      
       if (options?.delay) {
-          // pg-boss uses seconds for startAfter usually, or date?
-          // checking pg-boss docs: startAfter: number | string | Date. 
-          // number = seconds? Docs say: "integer seconds"
-          // Let's assume options.delay is milliseconds (standard), so convert to seconds.
+          // options.delay is milliseconds, convert to seconds.
           sendOptions.startAfter = Math.ceil(options.delay / 1000);
+      }
+
+      if (options?.deduplicationId) {
+          sendOptions.singletonKey = options.deduplicationId;
       }
 
       await this.boss.send(topic, payload, sendOptions);

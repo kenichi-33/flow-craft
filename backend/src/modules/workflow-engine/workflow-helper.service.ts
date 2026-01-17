@@ -32,7 +32,7 @@ export class WorkflowHelperService {
                 applicationId,
                 stepId: node.id,
                 type: node.type,
-                status: 'PENDING',
+                status: 'QUEUED', // Initial status is QUEUED
                 assignedTo: assignedTo || null,
                 assignedToDisplay: assignedToDisplay || null,
                 assignedToInfo: assignedToInfo || null,
@@ -50,7 +50,8 @@ export class WorkflowHelperService {
             applicantId,
         };
 
-        await this.queueService.enqueue('TASK_EXECUTE', job);
+        // Pass task.id as deduplicationId
+        await this.queueService.enqueue('TASK_EXECUTE', job, { deduplicationId: task.id });
         this.logger.log(`Enqueued task ${task.id} (type: ${node.type}) for application ${applicationId}`);
     }
 

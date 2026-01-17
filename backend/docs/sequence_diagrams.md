@@ -36,10 +36,10 @@ sequenceDiagram
         Executor->>Executor: Determine Next Node
         
         alt Next is Approval Node
-            Executor->>DB: Create WorkflowTask (type: approval, status: PENDING)
+            Executor->>DB: Create WorkflowTask (type: approval, status: QUEUED)
             Executor->>Queue: Enqueue (TASK_EXECUTE)
         else Next is API Call
-            Executor->>DB: Create WorkflowTask (type: apiCall, status: PENDING)
+            Executor->>DB: Create WorkflowTask (type: apiCall, status: QUEUED)
             Executor->>Queue: Enqueue (TASK_EXECUTE)
         end
         Executor->>DB: Update Application (Current Node)
@@ -172,7 +172,10 @@ sequenceDiagram
     Queue->>Worker: PROCESS (TASK_EXECUTE)
     activate Worker
     
-    Worker->>DB: Update Status (RUNNING)
+    Worker->>DB: Guard Update (QUEUED -> RUNNING)
+    alt Update Failed
+        Worker-->>Queue: Skip execution
+    end
     
     Worker->>Registry: getHandler(nodeType)
     activate Registry
@@ -250,16 +253,15 @@ sequenceDiagram
 
 ```mermaid
 stateDiagram
-    [*] --> PENDING: Created by Executor
+    [*] --> QUEUED: Created by Helper
     
-    PENDING --> RUNNING: Worker picks up task
-    PENDING --> CANCELED: Remand action
+    QUEUED --> RUNNING: Worker picks up task (DB Guard)
     
     RUNNING --> COMPLETED: Success (shouldAdvance=true)
     RUNNING --> PENDING: Success (shouldAdvance=false)
     RUNNING --> FAILED: Execution Error
     
-    FAILED --> PENDING: Retry
+    FAILED --> QUEUED: Retry
     
     PENDING --> WaitingForAction: Approval Task
     

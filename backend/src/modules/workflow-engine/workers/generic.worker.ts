@@ -32,8 +32,28 @@ export class GenericWorker implements OnModuleInit {
     
     this.logger.log(`Processing task ${taskId} (type: ${nodeType}) for application ${applicationId}`);
 
-    // 1. ステータスを RUNNING に更新
-    await this.updateTaskStatus(taskId, 'RUNNING');
+    // 1. 実行ガード: ステータスが QUEUED のものだけを RUNNING に変更
+    const workerId = process.env.HOSTNAME || `worker-${process.pid}`;
+    
+    // Note: status check enforces exactly-once execution (at DB level)
+    const updateResult = await this.prisma.workflowTask.updateMany({
+        where: {
+            id: taskId,
+            status: 'QUEUED',
+        },
+        data: {
+            status: 'RUNNING',
+            workerId: workerId,
+            updatedAt: new Date(),
+        },
+    });
+
+    if (updateResult.count === 0) {
+        this.logger.warn(`Task ${taskId} is not in QUEUED state (possibly already running or completed). Skipping execution.`);
+        return;
+    }
+
+    this.logger.log(`Locked task ${taskId} for execution (worker: ${workerId})`);
 
     try {
       // 2. ハンドラーを取得
@@ -71,7 +91,8 @@ export class GenericWorker implements OnModuleInit {
                  updateData.status = TaskStatus.COMPLETED;
                  this.logger.debug(`Task ${taskId} marking as COMPLETED`);
             } else {
-                 this.logger.debug(`Task ${taskId} keeping as PENDING (shouldAdvance is false)`);
+                 updateData.status = TaskStatus.PENDING;
+                 this.logger.debug(`Task ${taskId} reverting to PENDING (shouldAdvance is false)`);
             }
     
             await tx.workflowTask.update({
@@ -192,13 +213,6 @@ export class GenericWorker implements OnModuleInit {
    * Note: QUEUED, RUNNINGはPrismaのTaskStatus enumには存在しないため、
    * 既存のPENDINGを使用（将来的にはenum拡張を検討）
    */
-  private async updateTaskStatus(taskId: string, status: 'RUNNING'): Promise<void> {
-    // RUNNING状態はPrisma enumに無いため、PENDINGのまま（実際の進行はupdatedAtで追跡）
-    await this.prisma.workflowTask.update({
-      where: { id: taskId },
-      data: {
-        updatedAt: new Date(),
-      },
-    });
-  }
+  // Removed unused updateTaskStatus method as it is replaced by the guard logic
+  // private async updateTaskStatus(taskId: string, status: 'RUNNING'): Promise<void> { ... }
 }

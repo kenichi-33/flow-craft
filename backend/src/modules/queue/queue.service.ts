@@ -7,7 +7,7 @@ export class QueueService {
     @Inject('QUEUE_ADAPTER') private readonly adapter: IQueueAdapter
   ) {}
 
-  async enqueue(topic: string, payload: any, options?: { delay?: number }): Promise<void> {
+  async enqueue(topic: string, payload: any, options?: { delay?: number; deduplicationId?: string }): Promise<void> {
     return this.adapter.enqueue(topic, payload, options);
   }
 

@@ -92,6 +92,8 @@ enum ApplicationStatus {
 
 enum TaskStatus {
   PENDING
+  QUEUED
+  RUNNING
   COMPLETED
   FAILED
   CANCELED
@@ -122,6 +124,7 @@ model WorkflowTask {
   stepId        String     @map("step_id")
   type          String     // approval, apiCall, llmCall, etc.
   status        TaskStatus @default(PENDING)
+  workerId      String?    @map("worker_id")
   
   // 承認タスク用（共通フィールド化）
   assignedTo        String?   @map("assigned_to")

@@ -141,7 +141,7 @@ export class TeamsService {
         const userGroups = await this.usersService.getUserGroupsWithDeptCode(username);
         const userDeptCodes = userGroups.map(g => g.deptCode).filter((c): c is string => !!c);
         
-        console.log(`[TeamsService] getMyTeams for ${username}. User DeptCodes: ${userDeptCodes.join(', ')}`);
+        // console.log(`[TeamsService] getMyTeams for ${username}. User DeptCodes: ${userDeptCodes.join(', ')}`);
 
         // 2. Find teams where user is member OR user's department is member
         // User Request: Strictly use deptCode for verification.
@@ -159,7 +159,7 @@ export class TeamsService {
             }
         });
 
-        console.log(`[TeamsService] Found ${teams.length} teams for user ${username}: ${teams.map(t => t.name).join(', ')}`);
+        // console.log(`[TeamsService] Found ${teams.length} teams for user ${username}: ${teams.map(t => t.name).join(', ')}`);
 
         return teams;
     }

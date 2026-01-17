@@ -460,7 +460,7 @@ export class UsersService {
                         { headers: { Authorization: `Bearer ${token}` } }
                     );
                     deptCode = detailResponse.data.attributes?.deptCode?.[0];
-                    console.log(`[UsersService] User ${userIdOrUsername} belongs to Group: ${group.path}, DeptCode: ${deptCode}`);
+                    // console.log(`[UsersService] User ${userIdOrUsername} belongs to Group: ${group.path}, DeptCode: ${deptCode}`);
                 } catch (e) {
                     console.warn(`Failed to fetch group detail for ${group.id}`);
                 }
