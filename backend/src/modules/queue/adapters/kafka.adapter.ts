@@ -73,7 +73,7 @@ export class KafkaAdapter implements IQueueAdapter, OnModuleInit, OnModuleDestro
     await this.disconnect();
   }
 
-  async enqueue(topic: string, payload: any): Promise<void> {
+  async enqueue(topic: string, payload: any, options?: { delay?: number }): Promise<void> {
     if (!this.isConnected) {
         // Fallback or error? For now try to reconnect valid
         await this.connect();

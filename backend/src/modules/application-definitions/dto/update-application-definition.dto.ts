@@ -28,4 +28,12 @@ export class UpdateApplicationDefinitionDto {
     @IsOptional()
     @IsString({ each: true })
     adminIds?: string[];
+
+    @IsOptional()
+    @IsString()
+    webhookToken?: string;
+
+    @IsOptional()
+    @IsString()
+    scheduleCron?: string;
 }

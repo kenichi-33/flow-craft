@@ -3,10 +3,14 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { QueueService } from './queue.service';
 import { PgBossQueueAdapter } from './adapters/pg-boss.adapter';
 import { KafkaAdapter } from './adapters/kafka.adapter';
+import { PrismaModule } from '../../prisma/prisma.module';
 
 @Global()
 @Module({
-  imports: [ConfigModule],
+  imports: [
+    ConfigModule,
+    PrismaModule,
+  ],
   providers: [
     PgBossQueueAdapter,
     KafkaAdapter,

@@ -34,6 +34,14 @@ export default function ApprovalNode({ id, data }: { id: string; data: any }) {
     const [notificationEnabled, setNotificationEnabled] = useState(data.notificationEnabled || false);
     const [notificationSubject, setNotificationSubject] = useState(data.notificationSubject || '【Flow Craft】承認依頼: {{applicationDefinition.name}}');
     const [notificationBody, setNotificationBody] = useState(data.notificationBody || '{{assignee}} 様\n\n申請が届いています。\n確認をお願いします。');
+    const [allowRemand, setAllowRemand] = useState(data.allowRemand || false);
+    const [remandDestination, setRemandDestination] = useState(data.remandDestination || 'applicant');
+    const [enableSLA, setEnableSLA] = useState(data.enableSLA || false);
+    const [slaValue, setSlaValue] = useState(data.slaValue || '24');
+    const [slaUnit, setSlaUnit] = useState(data.slaUnit || 'hours');
+    const [enableReminder, setEnableReminder] = useState(data.enableReminder || false);
+    const [reminderValue, setReminderValue] = useState(data.reminderValue || '24');
+    const [reminderUnit, setReminderUnit] = useState(data.reminderUnit || 'hours');
     const [fieldPermissions, setFieldPermissions] = useState<Record<string, 'editable' | 'readonly' | 'hidden'>>(data.fieldPermissions || {});
     const { setNodes } = useReactFlow();
     const isReadOnly = data.readOnly === true;
@@ -42,8 +50,16 @@ export default function ApprovalNode({ id, data }: { id: string; data: any }) {
         if (dialogOpen) {
             // Reset state from data when dialog opens
             setFieldPermissions(data.fieldPermissions || {});
+            setAllowRemand(data.allowRemand || false);
+            setRemandDestination(data.remandDestination || 'applicant');
+            setEnableSLA(data.enableSLA || false);
+            setSlaValue(data.slaValue || '24');
+            setSlaUnit(data.slaUnit || 'hours');
+            setEnableReminder(data.enableReminder || false);
+            setReminderValue(data.reminderValue || '24');
+            setReminderUnit(data.reminderUnit || 'hours');
         }
-    }, [dialogOpen, data.fieldPermissions]);
+    }, [dialogOpen, data]);
 
     const getAssigneeValue = () => {
         switch (assigneeType) {
@@ -81,6 +97,9 @@ export default function ApprovalNode({ id, data }: { id: string; data: any }) {
                             assignee: getAssigneeValue(),
                             assigneeDisplay: getAssigneeDisplay(),
                             notificationEnabled, notificationSubject, notificationBody,
+                            allowRemand, remandDestination,
+                            enableSLA, slaValue, slaUnit,
+                            enableReminder, reminderValue, reminderUnit,
                             fieldPermissions,
                         },
                     }
@@ -124,8 +143,7 @@ export default function ApprovalNode({ id, data }: { id: string; data: any }) {
                     <Tabs defaultValue="basic">
                         <TabsList className="grid w-full grid-cols-3">
                             <TabsTrigger value="basic">基本設定</TabsTrigger>
-                            <TabsTrigger value="notification">通知設定</TabsTrigger>
-                            <TabsTrigger value="fields">権限設定</TabsTrigger>
+                            <TabsTrigger value="advanced">高度な設定</TabsTrigger>
                         </TabsList>
                         <TabsContent value="basic" className="space-y-4 pt-4">
                             <div className="space-y-1.5">
@@ -215,6 +233,110 @@ export default function ApprovalNode({ id, data }: { id: string; data: any }) {
                                     </div>
                                 </>
                             ) : <p className="text-sm text-muted-foreground">通知機能は無効です。</p>}
+                        </TabsContent>
+                        <TabsContent value="advanced" className="space-y-4 pt-4">
+                            <div className="space-y-4">
+                                {/* Remand Settings */}
+                                <div className="p-3 border rounded-md space-y-3">
+                                    <div className="flex items-center gap-2">
+                                        <Checkbox 
+                                            id="allowRemand" 
+                                            checked={allowRemand} 
+                                            onCheckedChange={(c) => setAllowRemand(!!c)} 
+                                            disabled={isReadOnly}
+                                        />
+                                        <Label htmlFor="allowRemand" className="font-bold cursor-pointer">差し戻しを許可する</Label>
+                                    </div>
+                                    {allowRemand && (
+                                        <div className="pl-6 grid gap-2">
+                                            <Label>差し戻し先</Label>
+                                            <Select value={remandDestination} onValueChange={setRemandDestination} disabled={isReadOnly}>
+                                                <SelectTrigger><SelectValue /></SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value="applicant">申請者 (最初に戻る)</SelectItem>
+                                                    <SelectItem value="previous" disabled>一つ前のステップ (未実装)</SelectItem>
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* SLA Settings */}
+                                <div className="p-3 border rounded-md space-y-3">
+                                    <div className="flex items-center gap-2">
+                                        <Checkbox 
+                                            id="enableSLA" 
+                                            checked={enableSLA} 
+                                            onCheckedChange={(c) => setEnableSLA(!!c)} 
+                                            disabled={isReadOnly}
+                                        />
+                                        <Label htmlFor="enableSLA" className="font-bold cursor-pointer">処理期限 (SLA) を設定</Label>
+                                    </div>
+                                    {enableSLA && (
+                                        <div className="pl-6 flex items-end gap-2">
+                                            <div className="grid gap-1.5 flex-1">
+                                                <Label>期限</Label>
+                                                <Input 
+                                                    type="number" 
+                                                    min="1" 
+                                                    value={slaValue} 
+                                                    onChange={(e) => setSlaValue(e.target.value)} 
+                                                    disabled={isReadOnly}
+                                                />
+                                            </div>
+                                            <div className="grid gap-1.5 w-24">
+                                                <Label>単位</Label>
+                                                <Select value={slaUnit} onValueChange={setSlaUnit} disabled={isReadOnly}>
+                                                    <SelectTrigger><SelectValue /></SelectTrigger>
+                                                    <SelectContent>
+                                                        <SelectItem value="hours">時間</SelectItem>
+                                                        <SelectItem value="days">日</SelectItem>
+                                                    </SelectContent>
+                                                </Select>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Reminder Settings */}
+                                <div className="p-3 border rounded-md space-y-3">
+                                    <div className="flex items-center gap-2">
+                                        <Checkbox 
+                                            id="enableReminder" 
+                                            checked={enableReminder} 
+                                            onCheckedChange={(c) => setEnableReminder(!!c)} 
+                                            disabled={isReadOnly}
+                                        />
+                                        <Label htmlFor="enableReminder" className="font-bold cursor-pointer">リマインダーメールを送信</Label>
+                                    </div>
+                                    {enableReminder && (
+                                        <div className="pl-6 space-y-3">
+                                            <div className="flex items-end gap-2">
+                                                <div className="grid gap-1.5 flex-1">
+                                                    <Label>送信タイミング (経過後)</Label>
+                                                    <Input 
+                                                        type="number" 
+                                                        min="1" 
+                                                        value={reminderValue} 
+                                                        onChange={(e) => setReminderValue(e.target.value)} 
+                                                        disabled={isReadOnly}
+                                                    />
+                                                </div>
+                                                <div className="grid gap-1.5 w-24">
+                                                    <Label>単位</Label>
+                                                    <Select value={reminderUnit} onValueChange={setReminderUnit} disabled={isReadOnly}>
+                                                        <SelectTrigger><SelectValue /></SelectTrigger>
+                                                        <SelectContent>
+                                                            <SelectItem value="hours">時間</SelectItem>
+                                                            <SelectItem value="days">日</SelectItem>
+                                                        </SelectContent>
+                                                    </Select>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
                         </TabsContent>
                         <TabsContent value="fields" className="space-y-4 pt-4">
                             <div className="rounded-md border">

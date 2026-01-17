@@ -17,12 +17,15 @@ class StartWorkflowDto {
 }
 
 class CompleteTaskDto {
-    @IsIn(['APPROVE', 'REJECT', 'REMAND'])
-    action: 'APPROVE' | 'REJECT' | 'REMAND';
+    @IsIn(['APPROVE', 'REJECT', 'REMAND', 'SUBMIT'])
+    action: 'APPROVE' | 'REJECT' | 'REMAND' | 'SUBMIT';
 
     @IsOptional()
     @IsString()
     comment?: string;
+
+    @IsOptional()
+    inputData?: any;
 }
 
 @Controller('workflow')
@@ -55,6 +58,7 @@ export class WorkflowEngineController {
             taskId,
             action: dto.action,
             comment: dto.comment,
+            inputData: dto.inputData,
             actorId: user.username, // ログインユーザーを承認者に設定
         });
     }

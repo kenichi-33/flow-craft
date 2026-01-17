@@ -14,16 +14,18 @@ export interface FindAllOptions {
 }
 
 import { UsersService } from '../users/users.service';
+import { SchedulerService } from '../scheduler/scheduler.service';
 
 @Injectable()
 export class ApplicationDefinitionsService {
     constructor(
         private prisma: PrismaService,
         private usersService: UsersService,
+        private schedulerService: SchedulerService,
     ) { }
 
     async create(createDto: CreateApplicationDefinitionDto, username: string) {
-        return this.prisma.applicationDefinition.create({
+        const result = await this.prisma.applicationDefinition.create({
             data: {
                 ...createDto,
                 version: 1,
@@ -36,6 +38,12 @@ export class ApplicationDefinitionsService {
                 flowDefinition: true,
             },
         });
+
+        if (createDto.scheduleCron) {
+            await this.schedulerService.scheduleWorkflow(result.id, createDto.scheduleCron, { applicationDefinitionId: result.id, triggeredBy: 'schedule' });
+        }
+
+        return result;
     }
 
 
@@ -169,9 +177,10 @@ export class ApplicationDefinitionsService {
     }
 
     async update(id: string, updateDto: UpdateApplicationDefinitionDto, username: string) {
-        await this.findOne(id); // Check if exists
+        // Retrieve current to check if cron changed
+        const current = await this.findOne(id);
 
-        return this.prisma.applicationDefinition.update({
+        const updated = await this.prisma.applicationDefinition.update({
             where: { id },
             data: {
                 ...updateDto,
@@ -182,10 +191,28 @@ export class ApplicationDefinitionsService {
                 flowDefinition: true,
             },
         });
+
+        // Handle Schedule Change
+        if (updateDto.scheduleCron !== undefined) {
+             // If removed or changed, unschedule existing (safe to call even if not exists in simpler implementations, but good practice)
+             if (current.scheduleCron) {
+                 await this.schedulerService.unscheduleWorkflow(id);
+             }
+
+             // If new cron provided and not empty
+             if (updateDto.scheduleCron) {
+                 await this.schedulerService.scheduleWorkflow(id, updateDto.scheduleCron, { applicationDefinitionId: id, triggeredBy: 'schedule' });
+             }
+        }
+        
+        return updated;
     }
 
     async remove(id: string) {
         await this.findOne(id); // Check if exists
+        
+        // Unschedule
+        await this.schedulerService.unscheduleWorkflow(id);    
 
         return this.prisma.applicationDefinition.delete({
             where: { id },

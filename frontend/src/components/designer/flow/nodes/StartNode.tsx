@@ -4,19 +4,26 @@ import { Handle, Position, useReactFlow } from '@xyflow/react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Pencil } from 'lucide-react';
+import { Pencil, Clock, Globe, MousePointerClick } from 'lucide-react';
+import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 
 export default function StartNode({ id, data }: { id: string, data: any }) {
     const [dialogOpen, setDialogOpen] = useState(false);
     const [fieldPermissions, setFieldPermissions] = useState<Record<string, 'editable' | 'readonly' | 'hidden'>>(data.fieldPermissions || {});
+    const [triggerType, setTriggerType] = useState<string>(data.triggerType || 'manual');
+    const [scheduleCron, setScheduleCron] = useState<string>(data.scheduleCron || '');
     const { setNodes } = useReactFlow();
     const isReadOnly = data.readOnly === true;
 
     useEffect(() => {
         if (dialogOpen) {
             setFieldPermissions(data.fieldPermissions || {});
+            setTriggerType(data.triggerType || 'manual');
+            setScheduleCron(data.scheduleCron || '');
         }
-    }, [dialogOpen, data.fieldPermissions]);
+    }, [dialogOpen, data.fieldPermissions, data.triggerType, data.scheduleCron]);
 
     const handleSave = () => {
         if (isReadOnly) { setDialogOpen(false); return; }
@@ -25,7 +32,12 @@ export default function StartNode({ id, data }: { id: string, data: any }) {
                 node.id === id
                     ? {
                         ...node,
-                        data: { ...node.data, fieldPermissions },
+                        data: { 
+                            ...node.data, 
+                            fieldPermissions,
+                            triggerType,
+                            scheduleCron
+                        },
                     }
                     : node
             )
@@ -33,16 +45,26 @@ export default function StartNode({ id, data }: { id: string, data: any }) {
         setDialogOpen(false);
     };
 
+    const getIcon = () => {
+        switch (data.triggerType) {
+            case 'scheduled': return <Clock className="h-5 w-5 text-white" />;
+            case 'webhook': return <Globe className="h-5 w-5 text-white" />;
+            default: return null;
+        }
+    };
+
     return (
         <>
             <div 
                 className="w-[60px] h-[60px] rounded-full bg-gradient-to-br from-green-500 to-green-700 flex flex-col items-center justify-center shadow-lg border-[3px] border-white relative group"
-                style={{ cursor: isReadOnly ? 'default' : 'pointer' }}
-                onClick={isReadOnly ? undefined : () => setDialogOpen(true)}
+                style={{ cursor: 'pointer' }}
+                onClick={() => setDialogOpen(true)}
             >
-                <span className="text-xs text-white font-bold drop-shadow-sm select-none">
-                    {data.label || '開始'}
-                </span>
+                {getIcon() || (
+                    <span className="text-xs text-white font-bold drop-shadow-sm select-none">
+                        {data.label || '開始'}
+                    </span>
+                )}
                 {!isReadOnly && (
                     <div className="absolute -top-1 -right-1 opacity-0 group-hover:opacity-100 transition-opacity">
                          <div className="bg-white rounded-full p-1 shadow-sm border">
@@ -60,10 +82,93 @@ export default function StartNode({ id, data }: { id: string, data: any }) {
             <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
                 <DialogContent className="sm:max-w-lg max-h-[80vh] overflow-y-auto">
                     <DialogHeader><DialogTitle>開始イベントの設定</DialogTitle></DialogHeader>
-                    <Tabs defaultValue="fields">
-                        <TabsList className="grid w-full grid-cols-1">
+                    <Tabs defaultValue="general">
+                        <TabsList className="grid w-full grid-cols-2">
+                             <TabsTrigger value="general">一般設定</TabsTrigger>
                             <TabsTrigger value="fields">権限設定</TabsTrigger>
                         </TabsList>
+                        
+                        <TabsContent value="general" className="space-y-4 pt-4">
+                            <div className="space-y-2">
+                                <Label>トリガータイプ</Label>
+                                <RadioGroup defaultValue={triggerType} onValueChange={setTriggerType} className="grid grid-cols-3 gap-2">
+                                    <div>
+                                        <RadioGroupItem value="manual" id="manual" className="peer sr-only" />
+                                        <Label
+                                            htmlFor="manual"
+                                            className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-2 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary"
+                                        >
+                                            <MousePointerClick className="mb-2 h-6 w-6" />
+                                            手動
+                                        </Label>
+                                    </div>
+                                    <div>
+                                        <RadioGroupItem value="scheduled" id="scheduled" className="peer sr-only" />
+                                        <Label
+                                            htmlFor="scheduled"
+                                            className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-2 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary"
+                                        >
+                                            <Clock className="mb-2 h-6 w-6" />
+                                            スケジュール
+                                        </Label>
+                                    </div>
+                                    <div>
+                                        <RadioGroupItem value="webhook" id="webhook" className="peer sr-only" />
+                                        <Label
+                                            htmlFor="webhook"
+                                            className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-2 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary"
+                                        >
+                                            <Globe className="mb-2 h-6 w-6" />
+                                            Webhook
+                                        </Label>
+                                    </div>
+                                </RadioGroup>
+                            </div>
+
+                            {triggerType === 'scheduled' && (
+                                <div className="space-y-2">
+                                    <Label>スケジュール (Cron式)</Label>
+                                    <Input 
+                                        value={scheduleCron} 
+                                        onChange={(e) => setScheduleCron(e.target.value)} 
+                                        placeholder="0 9 * * 1 (毎週月曜 9:00)" 
+                                    />
+                                    <p className="text-xs text-muted-foreground">CRON形式で入力してください。</p>
+                                </div>
+                            )}
+
+                            {triggerType === 'webhook' && (
+                                <div className="space-y-2">
+                                    <Label>Webhook URL</Label>
+                                    <div className="flex items-center gap-2">
+                                        <div className="flex-1 p-2 bg-muted rounded text-xs text-muted-foreground break-all font-mono border">
+                                           {data.webhookToken 
+                                             ? `${window.location.origin}/api/webhooks/${data.webhookToken}`
+                                             : `${window.location.origin}/api/webhooks/${data.applicationId || '<AppID>'}`
+                                           }
+                                        </div>
+                                        <Button 
+                                            variant="ghost" 
+                                            size="icon" 
+                                            className="h-8 w-8"
+                                            onClick={() => {
+                                                const url = data.webhookToken 
+                                                    ? `${window.location.origin}/api/webhooks/${data.webhookToken}`
+                                                    : `${window.location.origin}/api/webhooks/${data.applicationId || '<AppID>'}`;
+                                                navigator.clipboard.writeText(url);
+                                            }}
+                                        >
+                                            <div className="h-4 w-4" >📋</div>
+                                        </Button>
+                                    </div>
+                                    <p className="text-[10px] text-muted-foreground">
+                                        ※ このURLへのPOSTリクエストでワークフローを開始します。
+                                        {!data.webhookToken && <span className="text-orange-600 block">トークンが発行されていないため、保存後に正確なURLが生成されます。</span>}
+                                    </p>
+                                </div>
+                            )}
+                        </TabsContent>
+
                         <TabsContent value="fields" className="space-y-4 pt-4">
                             <div className="rounded-md border">
                                 <div className="grid grid-cols-12 bg-muted p-2 text-xs font-medium text-muted-foreground border-b">

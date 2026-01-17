@@ -1,6 +1,8 @@
 // Worker Infrastructure
 export * from './task-handler.interface';
-export { TaskHandlerRegistry } from './task-handler.registry';
+export * from './generic.worker';
+export * from './scheduler.worker';
+export * from './task-handler.registry';
 export { GenericWorker } from './generic.worker';
 
 // Handlers

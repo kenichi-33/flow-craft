@@ -1,4 +1,5 @@
-// Task Handlers
-export { ApiCallHandler } from './api-call.handler';
-export { LlmCallHandler } from './llm-call.handler';
-export { ApprovalHandler } from './approval.handler';
+export * from './api-call.handler';
+export * from './llm-call.handler';
+export * from './approval.handler';
+export * from './email-task.handler';
+export * from './slack.handler';

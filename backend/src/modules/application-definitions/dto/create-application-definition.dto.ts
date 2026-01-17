@@ -19,4 +19,12 @@ export class CreateApplicationDefinitionDto {
     @IsOptional()
     @IsString({ each: true })
     tags?: string[];
+
+    @IsOptional()
+    @IsString()
+    webhookToken?: string;
+
+    @IsOptional()
+    @IsString()
+    scheduleCron?: string;
 }

@@ -4,6 +4,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { Prisma } from '@prisma/client';
 import { UsersService } from '../users/users.service';
 import { TaskCompleteJob } from './workers/task-handler.interface';
+import { WorkflowHelperService } from './workflow-helper.service';
 
 @Injectable()
 export class WorkflowEngineService {
@@ -13,11 +14,11 @@ export class WorkflowEngineService {
         private prisma: PrismaService,
         private usersService: UsersService,
         private queueService: QueueService,
+        private helper: WorkflowHelperService,
     ) { }
 
     /**
-     * ワークフローを開始する
-     * 申請を作成し、進行処理をExecutorに委譲
+     * Start Workflow
      */
     async startWorkflow(input: {
         applicationDefinitionId: string;
@@ -25,7 +26,6 @@ export class WorkflowEngineService {
         title: string;
         inputData: any;
     }) {
-        // アプリ定義を取得
         const appDef = await this.prisma.applicationDefinition.findUnique({
             where: { id: input.applicationDefinitionId },
             include: {
@@ -51,7 +51,6 @@ export class WorkflowEngineService {
             throw new BadRequestException('Flow definition not found');
         }
 
-        // バージョン情報を取得 (Activeな定義＝公開された最新バージョンを使用)
         const publishedVersion = await this.prisma.appVersion.findUnique({
             where: {
                 applicationDefinitionId_version: {
@@ -65,19 +64,15 @@ export class WorkflowEngineService {
         const flowEdges = publishedVersion?.flowEdges ?? flowDef.edges;
         const formSchema = publishedVersion?.formSchema ?? appDef.formDefinition?.schema;
 
-        // 開始ノードを見つける
         const nodesList = (flowNodes as any[]) || [];
         const startNode = nodesList.find(n => n.type === 'start');
         if (!startNode) {
             throw new BadRequestException('Flow has no start node');
         }
         
-        // 申請者情報のスナップショットを取得
         const applicantInfo = await this.usersService.getUserSnapshotByUsername(input.applicantId);
 
-        // 申請を作成と開始履歴の追加をトランザクションで実行
         const application = await this.prisma.$transaction(async (tx) => {
-            // 申請作成
             const app = await tx.application.create({
                 data: {
                     title: input.title,
@@ -89,14 +84,12 @@ export class WorkflowEngineService {
                     status: 'IN_PROGRESS',
                     inputData: input.inputData,
                     currentNodeId: startNode.id,
-                    // スナップショット
                     formSchema: (formSchema ?? undefined) as Prisma.InputJsonValue | undefined,
                     flowNodes: (flowNodes ?? undefined) as Prisma.InputJsonValue | undefined,
                     flowEdges: (flowEdges ?? undefined) as Prisma.InputJsonValue | undefined,
                 },
             });
 
-            // 開始履歴を追加
             await tx.approvalHistory.create({
                 data: {
                     applicationId: app.id,
@@ -111,8 +104,7 @@ export class WorkflowEngineService {
             return app;
         });
 
-        // 進行処理をExecutorに依頼 (非同期)
-        await this.queueService.enqueue('WORKFLOW_NODE_PROCESS', { applicationId: application.id });
+        await this.helper.advanceToNextNode(application.id);
 
         return this.prisma.application.findUnique({
             where: { id: application.id },
@@ -124,7 +116,7 @@ export class WorkflowEngineService {
     }
 
     /**
-     * 申請を下書きとして保存する（ワークフロー開始前）
+     * Save Draft
      */
     async saveDraft(input: {
         applicationDefinitionId: string;
@@ -179,7 +171,7 @@ export class WorkflowEngineService {
     }
 
     /**
-     * 下書き申請を本申請として送信（ワークフロー開始）
+     * Submit Draft
      */
     async submitDraft(applicationId: string, inputData: any) {
         const application = await this.prisma.application.findUnique({
@@ -223,8 +215,7 @@ export class WorkflowEngineService {
             });
         });
 
-        // 進行処理をExecutorに依頼
-        await this.queueService.enqueue('WORKFLOW_NODE_PROCESS', { applicationId });
+        await this.helper.advanceToNextNode(applicationId);
 
         return this.prisma.application.findUnique({
             where: { id: applicationId },
@@ -236,14 +227,14 @@ export class WorkflowEngineService {
     }
 
     /**
-     * タスクを完了する（承認/差戻し）
-     * APIからの入力を受け付け、DB更新後に Executor に通知する
+     * Complete Task (Approval/Input/etc)
      */
     async completeTask(input: {
         taskId: string;
-        action: 'APPROVE' | 'REJECT' | 'REMAND';
+        action: 'APPROVE' | 'REJECT' | 'REMAND' | 'SUBMIT';
         actorId: string;
         comment?: string;
+        inputData?: any;
     }) {
         const task = await this.prisma.workflowTask.findUnique({
             where: { id: input.taskId },
@@ -260,8 +251,9 @@ export class WorkflowEngineService {
             throw new BadRequestException('Task is already completed');
         }
 
-        if (task.type !== 'approval') {
-            throw new BadRequestException('This task is not an approval task');
+        // Allow approval and input tasks
+        if (task.type !== 'approval' && task.type !== 'input') {
+            throw new BadRequestException('This task type cannot be completed via this API');
         }
 
         const canExecute = await this.canUserExecuteTask(task, input.actorId);
@@ -271,17 +263,35 @@ export class WorkflowEngineService {
 
         const actorInfo = await this.usersService.getUserSnapshotByUsername(input.actorId);
         let shouldAdvance = false;
-        let jobError: string | undefined = undefined;
 
-        // トランザクション処理
         await this.prisma.$transaction(async (tx) => {
-            // タスク状態更新
+            // Update Task Status
             await tx.workflowTask.update({
                 where: { id: input.taskId },
-                data: { status: 'COMPLETED' },
+                data: { 
+                    status: 'COMPLETED',
+                    result: {
+                        action: input.action,
+                        comment: input.comment,
+                        inputData: input.inputData
+                    }
+                },
             });
 
-            // 履歴記録
+            // Handle Input Data Update
+            if ((input.action === 'SUBMIT' || input.action === 'APPROVE') && input.inputData) {
+                 await tx.application.update({
+                    where: { id: task.applicationId },
+                    data: {
+                        inputData: {
+                            ...(task.application.inputData as any),
+                            ...input.inputData
+                        }
+                    }
+                });
+            }
+
+            // History
             await tx.approvalHistory.create({
                 data: {
                     applicationId: task.applicationId,
@@ -293,8 +303,8 @@ export class WorkflowEngineService {
                 },
             });
 
-            // アクション別処理
-            if (input.action === 'APPROVE') {
+            // Determine Flow Advancement
+            if (input.action === 'APPROVE' || input.action === 'SUBMIT') {
                 shouldAdvance = true;
             } else if (input.action === 'REJECT') {
                 const application = await tx.application.findUnique({
@@ -302,17 +312,25 @@ export class WorkflowEngineService {
                     include: { flowDefinition: true },
                 });
                 const nodes = (application?.flowNodes || application?.flowDefinition?.nodes || []) as any[];
-                const endNode = nodes.find((n: any) => n.type === 'end');
+                const endNode = nodes.find((n: any) => n.type === 'end'); // Ideally find specific reject end or terminate
 
                 await tx.application.update({
                     where: { id: task.applicationId },
                     data: {
                         status: 'REJECTED',
-                        currentNodeId: endNode?.id || null,
+                        currentNodeId: endNode?.id || null, // Move to End
                     },
                 });
+                // Do not advance automatically if we move to End manually here.
+                // Or let advanceToNextNode execute the EndNode? 
+                // Using helper.advanceToNextNode is better if we set currentNodeId to EndNode.
+                // But current logic for REJECT in original code was manual update.
+                // If we set currentNodeId to endNode, then running processNode will execute EndNodeProcessor -> which sets status to COMPLETED (not REJECTED)?
+                // EndNodeProcessor sets status based on Node Config.
+                // So if we find an End Node, we better use it.
+                if (endNode) shouldAdvance = true; 
             } else if (input.action === 'REMAND') {
-                // 差戻しロジック
+                // Remand Logic
                 const application = await tx.application.findUnique({
                     where: { id: task.applicationId },
                     include: { flowDefinition: true },
@@ -320,18 +338,13 @@ export class WorkflowEngineService {
                 const nodes = (application?.flowNodes || application?.flowDefinition?.nodes || []) as any[];
                 const startNode = nodes.find((n: any) => n.type === 'start');
                 
-                // 他のタスクをキャンセル
+                // Cancel other pending tasks
                 await tx.workflowTask.updateMany({
                     where: {
                         applicationId: task.applicationId,
                         status: 'PENDING',
                         id: { not: task.id }
                     },
-                    data: { status: 'CANCELED' }
-                });
-
-                await tx.workflowTask.update({
-                    where: { id: input.taskId },
                     data: { status: 'CANCELED' }
                 });
 
@@ -342,21 +355,15 @@ export class WorkflowEngineService {
                         currentNodeId: startNode?.id || null,
                     },
                 });
+                // Remand stops flow or restarts? 
+                // Usually stops until user resubmits.
+                shouldAdvance = false; 
             }
         });
 
-        // Executorへの処理依頼 (TASK_COMPLETE イベント発行)
-        // 承認タスクは「人間が実行するタスク」であり、完了したので結果をExecutorへ通知する
-        const job: TaskCompleteJob = {
-            taskId: input.taskId,
-            applicationId: task.applicationId,
-            nodeId: task.stepId,
-            success: true, // 完了自体は成功
-            shouldAdvance: shouldAdvance, // 次に進むかどうか
-            outputData: {}, 
-        };
-
-        await this.queueService.enqueue('TASK_COMPLETE', job);
+        if (shouldAdvance) {
+            await this.helper.advanceToNextNode(task.applicationId, 0, task.stepId);
+        }
 
         return this.prisma.application.findUnique({
             where: { id: task.applicationId },
@@ -367,9 +374,6 @@ export class WorkflowEngineService {
         });
     }
 
-    /**
-     * サービスタスク再実行（互換性のためのラッパー）
-     */
     async retryServiceTask(taskId: string): Promise<void> { 
         const task = await this.prisma.workflowTask.findUnique({
             where: { id: taskId },
@@ -379,8 +383,6 @@ export class WorkflowEngineService {
         if (!task) {
             throw new NotFoundException('Task not found');
         }
-
-        // 状態チェックなどは必要に応じて追加
 
         const job: any = {
             taskId: task.id,
@@ -392,14 +394,10 @@ export class WorkflowEngineService {
             applicantId: task.application?.applicantId || '',
         };
 
-        // Workerキューに再登録
-        await this.queueService.enqueue('TASK_EXECUTE', job);
+        await this.queueService.enqueue('WORKFLOW_NODE_PROCESS', { applicationId: task.applicationId, targetNodeId: task.stepId, fromNodeId: task.stepId }); // Retry target
         this.logger.log(`Retrying task ${taskId} (type: ${task.type})`);
     }
 
-    /**
-     * 差し戻し申請を再送信する
-     */
     async resubmitApplication(applicationId: string, inputData: any) {
         const application = await this.prisma.application.findUnique({
             where: { id: applicationId },
@@ -417,14 +415,13 @@ export class WorkflowEngineService {
         const nodes = (application.flowNodes || application.flowDefinition.nodes || []) as any[];
         const startNode = nodes.find((n: any) => n.type === 'start');
         
-        // 申請を更新してワークフロー再開
         await this.prisma.$transaction(async (tx) => {
              await tx.application.update({
                 where: { id: applicationId },
                 data: {
                     status: 'IN_PROGRESS',
                     inputData: inputData,
-                    currentNodeId: startNode?.id || application.currentNodeId, // 基本は開始ノードか、現在のノード
+                    currentNodeId: startNode?.id || application.currentNodeId,
                 },
             });
 
@@ -440,8 +437,7 @@ export class WorkflowEngineService {
             });
         });
 
-        // 進行処理をExecutorに依頼
-        await this.queueService.enqueue('WORKFLOW_NODE_PROCESS', { applicationId });
+        await this.helper.advanceToNextNode(applicationId, 0, startNode?.id);
 
         return this.prisma.application.findUnique({
             where: { id: applicationId },
@@ -452,14 +448,9 @@ export class WorkflowEngineService {
         });
     }
 
-    /**
-     * ユーザーがタスクを実行できるかチェック
-     * Note: 権限チェックロジックはAPI層に必要なためここに残す
-     */
     async canUserExecuteTask(task: any, userId: string): Promise<boolean> {
         const assignedTo = task.assignedTo;
-        
-        if (!assignedTo) return true; // 割り当てなし＝誰でもOK（または要件次第）
+        if (!assignedTo) return true; 
 
         if (assignedTo === 'applicant') {
             const app = await this.prisma.application.findUnique({ where: { id: task.applicationId } });
@@ -472,10 +463,8 @@ export class WorkflowEngineService {
         }
 
         if (assignedTo.startsWith('group:')) {
-             // グループ所属チェック: deptCodeまたはパスで照合
              const targetGroup = assignedTo.substring(6);
              const userGroups = await this.usersService.getUserGroupsWithDeptCode(userId);
-             // deptCodeまたはパスで一致確認
              return userGroups.some(g => 
                 g.deptCode === targetGroup || 
                 g.path === targetGroup || 
@@ -484,11 +473,9 @@ export class WorkflowEngineService {
              );
         }
 
-        // assignedToInfo (スナップショット) を使う手もある
         return true;
     }
-    
-    // 他のヘルパーメソッド（getWorkflowStatusなど）があればここに追加
+
     async getWorkflowStatus(applicationId: string) {
          return this.prisma.application.findUnique({
             where: { id: applicationId },
@@ -498,12 +485,4 @@ export class WorkflowEngineService {
             }
          });
     }
-    
-    // 以下のメソッドは削除（Executorへ移動済み）
-    // - advanceToNextNode
-    // - processNode
-    // - handleNodeProcessingJob
-    // - handleTaskComplete
-    // - enqueueTask
-    // - enqueueServiceTask
 }

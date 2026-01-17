@@ -65,6 +65,11 @@ model Application {
   applicationDefinition ApplicationDefinition? @relation(fields: [applicationDefinitionId], references: [id])
   formDefinition        FormDefinition         @relation(fields: [formDefinitionId], references: [id])
   flowDefinition        FlowDefinition         @relation(fields: [flowDefinitionId], references: [id])
+  
+  // Parent-Child Relation for Sub-processes
+  parentId              String?   @map("parent_id")
+  parentApplication     Application? @relation("ParentChild", fields: [parentId], references: [id])
+  childApplications     Application[] @relation("ParentChild")
 
   // 新統合テーブル
   workflowTasks         WorkflowTask[]
@@ -169,6 +174,8 @@ model ApplicationDefinition {
   status           AppDefStatus @default(DRAFT)
   version          Int          @default(1)
   tags             String[]     @default([])
+  webhookToken     String?      @unique @map("webhook_token") // Webhook用トークン
+  scheduleCron     String?      @map("schedule_cron")         // 定期実行用Cron式
   adminIds         String[]     @default([]) @map("admin_ids") // アプリ管理者のユーザーIDリスト
   publishedAt      DateTime?    @map("published_at")
   createdBy        String?      @map("created_by")

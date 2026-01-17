@@ -23,6 +23,12 @@ import {
     type Edge,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
+import {
+    Accordion,
+    AccordionContent,
+    AccordionItem,
+    AccordionTrigger,
+} from "@/components/ui/accordion";
 
 import StartNode from './nodes/StartNode';
 import ApprovalNode from './nodes/ApprovalNode';
@@ -33,6 +39,13 @@ import LLMCallNode from './nodes/LLMCallNode';
 import ParallelGatewayNode from './nodes/ParallelGatewayNode';
 import JoinGatewayNode from './nodes/JoinGatewayNode';
 import SwimLaneNode from './nodes/SwimLaneNode';
+import SendEmailNode from './nodes/SendEmailNode';
+import DelayNode from './nodes/DelayNode';
+import InputNode from './nodes/InputNode';
+import UpdateRecordNode from './nodes/UpdateRecordNode';
+import SetVariableNode from './nodes/SetVariableNode';
+import SubProcessNode from './nodes/SubProcessNode';
+import SlackNode from './nodes/SlackNode';
 
 const nodeTypes = {
     start: StartNode,
@@ -44,13 +57,24 @@ const nodeTypes = {
     parallel: ParallelGatewayNode,
     join: JoinGatewayNode,
     swimlane: SwimLaneNode,
+    sendEmail: SendEmailNode,
+    delay: DelayNode,
+    input: InputNode,
+    updateRecord: UpdateRecordNode,
+    setVariable: SetVariableNode,
+    subProcess: SubProcessNode,
+    slack: SlackNode,
 };
 
 // BPMN-style toolbox groups
 const TOOLBOX_GROUPS = [
     { name: 'スイムレーン', items: [{ type: 'swimlane', label: 'レーン', color: '#90caf9', icon: '═' }] },
     { name: 'イベント', items: [{ type: 'end', label: '終了', color: '#ef5350', icon: '●' }] },
-    { name: 'アクティビティ', items: [{ type: 'approval', label: '承認タスク', color: '#42a5f5', icon: '□' }] },
+    { name: 'アクティビティ', items: [{ type: 'approval', label: '承認タスク', color: '#42a5f5', icon: '□' }, { type: 'input', label: '入力タスク', color: '#2196f3', icon: '⌨' }] },
+    { name: '通信', items: [{ type: 'sendEmail', label: 'メール送信', color: '#ff9800', icon: '✉' }, { type: 'slack', label: 'Slack通知', color: '#3f51b5', icon: '#' }] },
+    { name: '制御フロー', items: [{ type: 'delay', label: '待機 (タイマー)', color: '#ffd600', icon: '⏰' }] },
+    { name: 'データ操作', items: [{ type: 'updateRecord', label: 'レコード更新', color: '#ff7043', icon: '💾' }, { type: 'setVariable', label: '変数設定', color: '#5c6bc0', icon: '∑' }] },
+    { name: '高度な制御', items: [{ type: 'subProcess', label: 'サブプロセス', color: '#ab47bc', icon: '⚙' }] },
     { name: 'サービスタスク', items: [{ type: 'apiCall', label: 'API呼び出し', color: '#7e57c2', icon: '↔' }, { type: 'llmCall', label: 'LLM呼び出し', color: '#26a69a', icon: '🤖' }] },
     { name: 'ゲートウェイ', items: [{ type: 'branch', label: '分岐 (XOR)', color: '#ffca28', icon: '◇' }, { type: 'parallel', label: '並行 (AND)', color: '#ffeb3b', icon: '+' }, { type: 'join', label: '合流', color: '#ffeb3b', icon: '><' }] },
 ];
@@ -67,6 +91,8 @@ const VALIDATION_RULES: ValidationRule[] = [
     { id: 'path-reachable', name: 'パス到達性', description: '開始から終了へ到達可能なパスが必要です', category: 'path', check: (nodes, edges) => { const start = nodes.find(n => n.type === 'start'); const ends = nodes.filter(n => n.type === 'end'); if (!start || ends.length === 0) return null; const reachable = new Set<string>(); const queue = [start.id]; while (queue.length) { const cur = queue.shift()!; if (reachable.has(cur)) continue; reachable.add(cur); edges.filter(e => e.source === cur).forEach(e => queue.push(e.target)); } return ends.some(e => reachable.has(e.id)) ? null : '開始から終了へ到達可能なパスがありません'; } },
     { id: 'node-connectivity', name: 'ノード接続', description: '全てのノード（終了以外）は次のノードに接続されている必要があります', category: 'connectivity', check: (nodes, edges) => { const brokenNodes = nodes.filter(n => n.type !== 'end' && !edges.some(e => e.source === n.id)); if (brokenNodes.length > 0) return `次のノードに接続されていないノードがあります: ${brokenNodes.map(n => n.data?.label || n.id).join(', ')}`; return null; } },
 ];
+
+import ValidationPanel from './ValidationPanel';
 
 function validateFlow(nodes: Node[], edges: Edge[]) {
     const errors = VALIDATION_RULES.map(r => r.check(nodes, edges)).filter(Boolean) as string[];
@@ -138,6 +164,9 @@ export default function FlowDesigner({ appId }: { appId: string }) {
         const toDelete = selectedNodes.filter(id => id !== 'start');
         if (toDelete.length) { setNodes(nds => nds.filter(n => !toDelete.includes(n.id))); setEdges(eds => eds.filter(e => !toDelete.includes(e.source) && !toDelete.includes(e.target))); setSelectedNodes([]); }
     }, [selectedNodes, selectedEdges, setNodes, setEdges]);
+    
+    // Real-time validation
+    const validationResult = React.useMemo(() => validateFlow(nodes, edges), [nodes, edges]);
 
     useEffect(() => {
         const handler = (e: KeyboardEvent) => {
@@ -206,23 +235,27 @@ export default function FlowDesigner({ appId }: { appId: string }) {
                 <Card className="w-48 p-3 shrink-0 overflow-y-auto">
                     <p className="text-sm font-semibold mb-1">ツールボックス</p>
                     <p className="text-xs text-muted-foreground mb-3">ドラッグしてキャンバスにドロップ</p>
-                    {TOOLBOX_GROUPS.map((group) => (
-                        <div key={group.name} className="mb-3">
-                            <p className="text-[10px] font-bold text-muted-foreground uppercase mb-1">{group.name}</p>
-                            {group.items.map((item) => (
-                                <div
-                                    key={item.type}
-                                    draggable
-                                    onDragStart={(e) => handleDragStart(e, item.type)}
-                                    className="p-2 mb-1 flex items-center gap-2 rounded border-2 cursor-grab bg-background hover:scale-[1.02] transition-all"
-                                    style={{ borderColor: item.color }}
-                                >
-                                    <span className="w-6 h-6 flex items-center justify-center font-bold" style={{ color: item.color }}>{item.icon}</span>
-                                    <span className="text-xs font-medium">{item.label}</span>
-                                </div>
-                            ))}
-                        </div>
-                    ))}
+                    <Accordion type="multiple" defaultValue={['スイムレーン', 'イベント', 'アクティビティ', 'サービスタスク', 'ゲートウェイ']} className="w-full">
+                        {TOOLBOX_GROUPS.map((group) => (
+                            <AccordionItem key={group.name} value={group.name} className="border-0">
+                                <AccordionTrigger className="py-2 text-xs font-bold text-muted-foreground uppercase hover:no-underline">{group.name}</AccordionTrigger>
+                                <AccordionContent className="pb-2">
+                                    {group.items.map((item) => (
+                                        <div
+                                            key={item.type}
+                                            draggable
+                                            onDragStart={(e) => handleDragStart(e, item.type)}
+                                            className="p-2 mb-1 flex items-center gap-2 rounded border-2 cursor-grab bg-background hover:scale-[1.02] transition-all"
+                                            style={{ borderColor: item.color }}
+                                        >
+                                            <span className="w-6 h-6 flex items-center justify-center font-bold" style={{ color: item.color }}>{item.icon}</span>
+                                            <span className="text-xs font-medium">{item.label}</span>
+                                        </div>
+                                    ))}
+                                </AccordionContent>
+                            </AccordionItem>
+                        ))}
+                    </Accordion>
                     {(selectedNodes.length > 0 || selectedEdges.length > 0) && (
                         <Button variant="destructive" size="sm" className="w-full mt-2" onClick={deleteSelected}>
                             <Trash2 className="h-4 w-4 mr-1" />削除 ({selectedNodes.length + selectedEdges.length})
@@ -275,6 +308,9 @@ export default function FlowDesigner({ appId }: { appId: string }) {
                                     最終保存: {new Date((app as any).flowDefinition.updatedAt).toLocaleString('ja-JP')}
                                 </p>
                             )}
+                        </Panel>
+                        <Panel position="bottom-right">
+                             {!isReadOnly && <ValidationPanel errors={validationResult.errors} />}
                         </Panel>
                     </ReactFlow>
                 </div>

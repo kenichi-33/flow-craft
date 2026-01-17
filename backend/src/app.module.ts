@@ -20,6 +20,7 @@ import { AuthModule } from './auth/auth.module';
 import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
 import { RolesGuard } from './auth/guards/roles.guard';
 import { QueueModule } from './modules/queue/queue.module';
+import { SchedulerModule } from './modules/scheduler/scheduler.module';
 
 @Module({
   imports: [
@@ -37,8 +38,8 @@ import { QueueModule } from './modules/queue/queue.module';
     PrismaModule,
     NotificationsModule,
     QueueModule,
+    SchedulerModule,
     SearchModule,
-    ScheduleModule.forRoot(),
   ],
   controllers: [AppController],
   providers: [

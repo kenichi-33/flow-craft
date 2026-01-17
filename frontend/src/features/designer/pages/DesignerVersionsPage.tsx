@@ -38,8 +38,8 @@ export default function DesignerVersionsPage() {
     const currentVersion = (app as any)?.version || 1;
 
     const restoreMutation = useMutation({
-        mutationFn: (versionId: string) =>
-            api.post(`/application-definitions/${id}/versions/${versionId}/restore`, {}),
+        mutationFn: (version: number) =>
+            api.post(`/application-definitions/${id}/restore/${version}`, {}),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['application-definition', id] });
             toast.success('過去バージョンの設定を現在のドラフトに復元しました');
@@ -90,7 +90,7 @@ export default function DesignerVersionsPage() {
                                                     </a>
                                                 </Button>
                                                 {v.version !== currentVersion && (
-                                                    <Button variant="ghost" size="sm" onClick={() => restoreMutation.mutate(v.id)} disabled={restoreMutation.isPending}>
+                                                    <Button variant="ghost" size="sm" onClick={() => restoreMutation.mutate(v.version)} disabled={restoreMutation.isPending}>
                                                         <RotateCcw className="h-3 w-3 mr-1" />復元
                                                     </Button>
                                                 )}

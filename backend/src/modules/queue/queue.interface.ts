@@ -3,7 +3,7 @@ export interface IQueueAdapter {
   /**
    * Enqueue a job to a specific topic
    */
-  enqueue(topic: string, payload: any): Promise<void>;
+  enqueue(topic: string, payload: any, options?: { delay?: number }): Promise<void>;
 
   /**
    * Subscribe to a topic with a handler
