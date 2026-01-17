@@ -7,6 +7,7 @@ import { NotificationsModule } from '../notifications/notifications.module';
 import { UsersModule } from '../users/users.module';
 import { QueueModule } from '../queue/queue.module';
 import { PrismaModule } from '../../prisma/prisma.module';
+import { TeamsModule } from '../teams/teams.module';
 
 // Worker Infrastructure
 import {
@@ -38,10 +39,10 @@ import { SlackProcessor } from './processors/slack.processor';
 
 @Module({
     imports: [
-        PrismaModule, 
         NotificationsModule, 
         UsersModule,
-        QueueModule
+        QueueModule,
+        TeamsModule,
     ],
     controllers: [WorkflowEngineController, WebhookController],
     providers: [

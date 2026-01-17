@@ -3,6 +3,8 @@ import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { ApplicationDefinitionsService } from './application-definitions.service';
 import { CreateApplicationDefinitionDto } from './dto/create-application-definition.dto';
 import { UpdateApplicationDefinitionDto } from './dto/update-application-definition.dto';
+import { PublishApplicationDto } from './dto/publish-application.dto';
+import { RestoreApplicationDto } from './dto/restore-application.dto';
 import { AppDefinitionGuard } from './guards/app-definition.guard';
 
 @Controller('application-definitions')
@@ -63,9 +65,10 @@ export class ApplicationDefinitionsController {
 
     @Post(':id/publish')
     @UseGuards(JwtAuthGuard, AppDefinitionGuard)
-    publish(@Param('id') id: string, @Req() req: any) {
+    publish(@Param('id') id: string, @Body() publishDto: PublishApplicationDto, @Req() req: any) {
+        console.log('Publish request:', { id, body: publishDto, user: req.user });
         const username = req.user?.username || 'Unknown';
-        return this.appDefsService.publish(id, username);
+        return this.appDefsService.publish(id, username, undefined, publishDto.comment);
     }
 
     @Get(':id/versions')
@@ -75,8 +78,10 @@ export class ApplicationDefinitionsController {
 
     @Post(':id/restore/:version')
     @UseGuards(JwtAuthGuard, AppDefinitionGuard)
-    restore(@Param('id') id: string, @Param('version') version: string) {
-        return this.appDefsService.restore(id, parseInt(version, 10));
+    restore(@Param('id') id: string, @Param('version') version: string, @Body() restoreDto: RestoreApplicationDto, @Req() req: any) {
+        console.log('Restore request:', { id, version, body: restoreDto, user: req.user });
+        const username = req.user?.username || 'Unknown';
+        return this.appDefsService.restore(id, parseInt(version, 10), username, restoreDto.comment);
     }
 
     @Delete(':id')

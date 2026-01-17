@@ -213,7 +213,9 @@ export default function ApplicationDetailPage() {
                     </CardHeader>
                     <CardContent className="space-y-3">
                         {application.workflowTasks.filter(t => t.type === 'approval' && t.status === 'PENDING').map(task => {
-                            const isAssigned = isUserAssignedToTask(task.assignedTo);
+                            // Backend now provides isExecutable flag based on reliable permission checks
+                            const isAssigned = (task as any).isExecutable;
+                            
                             const stepNode = application.flowDefinition?.nodes?.find((n: any) => n.id === task.stepId);
                             const stepLabel = stepNode?.data?.label || task.stepId;
                             

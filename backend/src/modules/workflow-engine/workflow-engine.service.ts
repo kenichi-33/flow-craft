@@ -5,6 +5,7 @@ import { Prisma } from '@prisma/client';
 import { UsersService } from '../users/users.service';
 import { TaskCompleteJob } from './workers/task-handler.interface';
 import { WorkflowHelperService } from './workflow-helper.service';
+import { TeamsService } from '../teams/teams.service';
 
 @Injectable()
 export class WorkflowEngineService {
@@ -15,6 +16,7 @@ export class WorkflowEngineService {
         private usersService: UsersService,
         private queueService: QueueService,
         private helper: WorkflowHelperService,
+        private teamsService: TeamsService,
     ) { }
 
     /**
@@ -464,13 +466,27 @@ export class WorkflowEngineService {
 
         if (assignedTo.startsWith('group:')) {
              const targetGroup = assignedTo.substring(6);
+             
+             // 1. Check Keycloak Groups (Department)
              const userGroups = await this.usersService.getUserGroupsWithDeptCode(userId);
-             return userGroups.some(g => 
+             const deptMatch = userGroups.some(g => 
                 g.deptCode === targetGroup || 
                 g.path === targetGroup || 
                 g.path === `/${targetGroup}` ||
                 g.path.endsWith(`/${targetGroup}`)
              );
+             if (deptMatch) return true;
+
+             // 2. Check Custom Teams
+             try {
+                 const myTeams = await this.teamsService.getMyTeams(userId);
+                 const teamMatch = myTeams.some(t => t.id === targetGroup);
+                 if (teamMatch) return true;
+             } catch (e) {
+                 this.logger.warn(`Failed to check team permission for user ${userId}`, e);
+             }
+             
+             return false;
         }
 
         return true;

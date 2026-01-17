@@ -309,8 +309,19 @@ export default function FileUploadField({
                                                 type="button"
                                                 variant="ghost"
                                                 size="icon"
+                                                className="h-6 w-6"
+                                                onClick={() => handleDownload(id)}
+                                                title="ダウンロード"
+                                            >
+                                                <Download className="h-4 w-4" />
+                                            </Button>
+                                            <Button
+                                                type="button"
+                                                variant="ghost"
+                                                size="icon"
                                                 className="h-6 w-6 hover:text-destructive"
                                                 onClick={() => handleRemove(id, field.onChange, field.value)}
+                                                title="削除"
                                             >
                                                 <X className="h-4 w-4" />
                                             </Button>

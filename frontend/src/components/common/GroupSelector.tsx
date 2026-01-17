@@ -22,6 +22,7 @@ export interface Group {
     name: string;
     path: string;
     deptCode?: string;
+    type?: 'department' | 'team';
 }
 
 interface GroupSelectorProps {
@@ -45,10 +46,23 @@ export function GroupSelector({ value, displayValue, onChange, disabled, placeho
         if (allGroups.length > 0) return; // Already loaded
         setIsLoading(true);
         try {
-            const data = await api.get<Group[]>('/users/departments');
-            const groups = Array.isArray(data) ? data : (data as any) || [];
-            setAllGroups(groups);
-            setFilteredGroups(groups);
+            const [deptsData, teamsData] = await Promise.all([
+                api.get<Group[]>('/users/departments'),
+                api.get<any[]>('/teams')
+            ]);
+            
+            const depts = (Array.isArray(deptsData) ? deptsData : (deptsData as any) || []).map((d: any) => ({ ...d, type: 'department' }));
+            const teams = (Array.isArray(teamsData) ? teamsData : (teamsData as any) || []).map((t: any) => ({
+                id: t.id,
+                name: t.name,
+                path: t.name, // Team doesn't have path, use name
+                deptCode: t.id, // Use ID as code
+                type: 'team'
+            }));
+
+            const combined = [...teams, ...depts];
+            setAllGroups(combined);
+            setFilteredGroups(combined);
         } catch (error) {
             console.error('Failed to fetch groups', error);
             setAllGroups([]);
@@ -94,7 +108,14 @@ export function GroupSelector({ value, displayValue, onChange, disabled, placeho
 
     const handleSelect = (group: Group) => {
         setInputValue(group.name);
-        onChange(group.deptCode || group.path, group);
+        // User request: prioritize and enforce deptCode for registration
+        if (group.type === 'team') {
+             onChange(group.id, group);
+        } else {
+             // For departments, use deptCode if available. 
+             // If not available (root groups?), fall back to path but likely mapped to deptCode in backend if it's a real dept.
+             onChange(group.deptCode || group.path, group);
+        }
         setIsOpen(false);
     };
 
@@ -138,7 +159,11 @@ export function GroupSelector({ value, displayValue, onChange, disabled, placeho
                             >
                                 <span className="font-medium flex items-center gap-2">
                                     {group.name}
-                                    {group.deptCode && (
+                                    {group.type === 'team' ? (
+                                        <span className="text-xs text-white bg-indigo-500 px-1.5 rounded-sm">
+                                            Team
+                                        </span>
+                                    ) : group.deptCode && (
                                         <span className="text-xs text-muted-foreground bg-muted px-1 rounded">
                                             {group.deptCode}
                                         </span>

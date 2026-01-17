@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { v4 as uuidv4 } from 'uuid';
 import { CreateApplicationDefinitionDto } from './dto/create-application-definition.dto';
 import { UpdateApplicationDefinitionDto } from './dto/update-application-definition.dto';
 import { Prisma, AppDefStatus } from '@prisma/client';
@@ -32,6 +33,7 @@ export class ApplicationDefinitionsService {
                 status: AppDefStatus.DRAFT,
                 createdBy: username,
                 updatedBy: username,
+                webhookToken: createDto.webhookToken || uuidv4(),
             },
             include: {
                 formDefinition: true,
@@ -283,7 +285,7 @@ export class ApplicationDefinitionsService {
     /**
      * Publish the app definition - creates a version snapshot and activates
      */
-    async publish(id: string, publishedBy?: string, tx?: Prisma.TransactionClient) {
+    async publish(id: string, publishedBy?: string, tx?: Prisma.TransactionClient, comment?: string) {
         const execute = async (prisma: Prisma.TransactionClient) => {
             const appDef = await prisma.applicationDefinition.findUnique({
                 where: { id },
@@ -316,6 +318,7 @@ export class ApplicationDefinitionsService {
                     flowNodes: appDef.flowDefinition?.nodes ?? [],
                     flowEdges: appDef.flowDefinition?.edges ?? [],
                     publishedBy: publishedBy ?? null,
+                    comment: comment ?? null,
                 },
             });
 
@@ -371,7 +374,7 @@ export class ApplicationDefinitionsService {
     /**
      * Restore app to a previous version
      */
-    async restore(id: string, targetVersion: number) {
+    async restore(id: string, targetVersion: number, restoredBy: string, comment?: string) {
         return this.prisma.$transaction(async (tx) => {
             const appDef = await tx.applicationDefinition.findUnique({
                 where: { id },
@@ -419,7 +422,7 @@ export class ApplicationDefinitionsService {
             }
 
             // Publish as new version (backup current + restore)
-            return this.publish(id, 'system-restore', tx);
+            return this.publish(id, restoredBy, tx, comment);
         });
     }
 }

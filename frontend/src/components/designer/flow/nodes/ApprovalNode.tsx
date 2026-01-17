@@ -141,9 +141,11 @@ export default function ApprovalNode({ id, data }: { id: string; data: any }) {
                 <DialogContent className="sm:max-w-lg max-h-[80vh] overflow-y-auto">
                     <DialogHeader><DialogTitle>{isReadOnly ? '承認ステップ (読取専用)' : '承認ステップの設定'}</DialogTitle></DialogHeader>
                     <Tabs defaultValue="basic">
-                        <TabsList className="grid w-full grid-cols-3">
+                        <TabsList className="grid w-full grid-cols-4">
                             <TabsTrigger value="basic">基本設定</TabsTrigger>
                             <TabsTrigger value="advanced">高度な設定</TabsTrigger>
+                            <TabsTrigger value="notification">通知</TabsTrigger>
+                            <TabsTrigger value="fields">権限</TabsTrigger>
                         </TabsList>
                         <TabsContent value="basic" className="space-y-4 pt-4">
                             <div className="space-y-1.5">

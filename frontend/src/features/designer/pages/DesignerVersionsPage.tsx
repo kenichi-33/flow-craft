@@ -6,6 +6,10 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Loader2, RotateCcw, FileText } from 'lucide-react';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
+import { useState } from 'react';
 import { UserDisplay, type UserSnapshot } from '@/components/common/UserDisplay';
 import { toast } from 'sonner';
 
@@ -15,6 +19,7 @@ interface Version {
     publishedAt: string;
     publishedBy?: string;
     publishedByInfo?: UserSnapshot;
+    comment?: string;
     formFieldCount?: number;
     flowNodeCount?: number;
 }
@@ -22,6 +27,9 @@ interface Version {
 export default function DesignerVersionsPage() {
     const { id } = useParams();
     const queryClient = useQueryClient();
+    const [restoreDialogOpen, setRestoreDialogOpen] = useState(false);
+    const [selectedVersionForRestore, setSelectedVersionForRestore] = useState<number | null>(null);
+    const [restoreComment, setRestoreComment] = useState('');
 
     const { data: versions, isLoading, error } = useQuery<Version[]>({
         queryKey: ['app-versions', id],
@@ -38,13 +46,29 @@ export default function DesignerVersionsPage() {
     const currentVersion = (app as any)?.version || 1;
 
     const restoreMutation = useMutation({
-        mutationFn: (version: number) =>
-            api.post(`/application-definitions/${id}/restore/${version}`, {}),
+        mutationFn: (data: { version: number, comment: string }) =>
+            api.post(`/application-definitions/${id}/restore/${data.version}`, { comment: data.comment }),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['application-definition', id] });
+            queryClient.invalidateQueries({ queryKey: ['app-versions', id] });
             toast.success('過去バージョンの設定を現在のドラフトに復元しました');
+            setRestoreDialogOpen(false);
+            setRestoreComment('');
+            setSelectedVersionForRestore(null);
         },
     });
+
+    const handleRestoreClick = (version: number) => {
+        setSelectedVersionForRestore(version);
+        setRestoreComment(`v${version} からの復元`);
+        setRestoreDialogOpen(true);
+    };
+
+    const handleRestoreConfirm = () => {
+        if (selectedVersionForRestore !== null) {
+            restoreMutation.mutate({ version: selectedVersionForRestore, comment: restoreComment });
+        }
+    };
 
     if (isLoading) return <div className="flex items-center justify-center h-64"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
     if (error) return <div className="flex items-center justify-center h-64"><p className="text-destructive">データの取得に失敗しました</p></div>;
@@ -70,6 +94,7 @@ export default function DesignerVersionsPage() {
                                     <TableHead>バージョン</TableHead>
                                     <TableHead>公開日時</TableHead>
                                     <TableHead>公開者</TableHead>
+                                    <TableHead>コメント</TableHead>
                                     <TableHead>操作</TableHead>
                                 </TableRow>
                             </TableHeader>
@@ -82,6 +107,9 @@ export default function DesignerVersionsPage() {
                                         </TableCell>
                                         <TableCell>{new Date(v.publishedAt).toLocaleString('ja-JP')}</TableCell>
                                         <TableCell><UserDisplay user={v.publishedByInfo} fallback={v.publishedBy} /></TableCell>
+                                        <TableCell className="max-w-xs truncate text-muted-foreground" title={v.comment || ''}>
+                                            {v.comment || '-'}
+                                        </TableCell>
                                         <TableCell>
                                             <div className="flex gap-1">
                                                 <Button variant="ghost" size="sm" asChild>
@@ -90,7 +118,7 @@ export default function DesignerVersionsPage() {
                                                     </a>
                                                 </Button>
                                                 {v.version !== currentVersion && (
-                                                    <Button variant="ghost" size="sm" onClick={() => restoreMutation.mutate(v.version)} disabled={restoreMutation.isPending}>
+                                                    <Button variant="ghost" size="sm" onClick={() => handleRestoreClick(v.version)} disabled={restoreMutation.isPending}>
                                                         <RotateCcw className="h-3 w-3 mr-1" />復元
                                                     </Button>
                                                 )}
@@ -103,6 +131,34 @@ export default function DesignerVersionsPage() {
                     )}
                 </CardContent>
             </Card>
+
+            <Dialog open={restoreDialogOpen} onOpenChange={setRestoreDialogOpen}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>バージョン復元</DialogTitle>
+                        <DialogDescription>
+                            バージョン v{selectedVersionForRestore} を最新バージョンとして復元します。
+                            現在の下書き内容は上書きされます。
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-2 py-4">
+                        <Label htmlFor="restore-comment">コメント（任意）</Label>
+                        <Textarea
+                            id="restore-comment"
+                            placeholder="復元の理由などを入力"
+                            value={restoreComment}
+                            onChange={(e) => setRestoreComment(e.target.value)}
+                        />
+                    </div>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setRestoreDialogOpen(false)}>キャンセル</Button>
+                        <Button onClick={handleRestoreConfirm} disabled={restoreMutation.isPending}>
+                            {restoreMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                            復元して公開
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }

@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import axios from 'axios';
+import { PrismaService } from '../../prisma/prisma.service';
 
 export interface UserSnapshot {
     username: string;
@@ -27,7 +28,10 @@ export class UsersService {
     private tokenCache: { token: string; expiresAt: number } | null = null;
     private deptMapCache: { map: Record<string, string>; expiresAt: number } | null = null;
 
-    constructor(private configService: ConfigService) {
+    constructor(
+        private configService: ConfigService,
+        private prisma: PrismaService
+    ) {
         this.keycloakUrl = this.configService.get('KEYCLOAK_URL') || 'http://localhost:8081';
         this.realm = this.configService.get('KEYCLOAK_REALM') || 'workflow';
     }
@@ -78,11 +82,14 @@ export class UsersService {
         // ここでは都度取得のロジックを構成する（既存のgetAllDepartmentsをリファクタリングして再利用）
         
         // 既存キャッシュがあればそれを使う（全量キャッシュされている前提）
+        // Disabled for debugging to ensure freshness of deptCode
+        /*
         if (this.deptCache && this.deptCache.expiresAt > Date.now()) {
             const all = this.deptCache.data;
             if (!rootPath) return all;
             return all.filter(g => g.path.startsWith(rootPath));
         }
+        */
 
         try {
             const token = await this.getAdminToken();
@@ -263,7 +270,34 @@ export class UsersService {
         if (assignedTo.startsWith('group:')) {
             const groupCodeOrPath = assignedTo.substring(6);
             const deptMap = await this.getDepartmentsMap();
-            const name = deptMap[groupCodeOrPath] || groupCodeOrPath.split('/').pop() || groupCodeOrPath;
+            
+            // 1. Try Department Map
+            if (deptMap[groupCodeOrPath]) {
+                 return {
+                    username: deptMap[groupCodeOrPath],
+                    type: 'group',
+                    department: deptMap[groupCodeOrPath],
+                };
+            }
+
+            // 2. Try Team Lookup
+            try {
+                const team = await this.prisma.team.findUnique({
+                    where: { id: groupCodeOrPath },
+                    select: { name: true }
+                });
+                if (team) {
+                    return {
+                        username: team.name,
+                        type: 'group',
+                        department: team.name
+                    };
+                }
+            } catch (e) {
+                console.warn(`[UsersService] Failed to lookup team for ${groupCodeOrPath}`, e);
+            }
+
+            const name = groupCodeOrPath.split('/').pop() || groupCodeOrPath;
             return {
                 username: name,
                 type: 'group',
@@ -384,7 +418,11 @@ export class UsersService {
      * ユーザーの所属グループとそのdeptCodeを取得
      * グループ認可チェック用
      */
-    async getUserGroupsWithDeptCode(userIdOrUsername: string): Promise<{ path: string; name: string; deptCode?: string }[]> {
+    /**
+     * ユーザーの所属グループとそのdeptCodeを取得
+     * グループ認可チェック用
+     */
+    async getUserGroupsWithDeptCode(userIdOrUsername: string): Promise<{ id: string; path: string; name: string; deptCode?: string }[]> {
         try {
             const token = await this.getAdminToken();
             let userId = userIdOrUsername;
@@ -412,7 +450,7 @@ export class UsersService {
             );
 
             // 各グループのdeptCodeを取得
-            const results: { path: string; name: string; deptCode?: string }[] = [];
+            const results: { id: string; path: string; name: string; deptCode?: string }[] = [];
             for (const group of groupsResponse.data) {
                 let deptCode: string | undefined;
                 try {
@@ -421,10 +459,12 @@ export class UsersService {
                         { headers: { Authorization: `Bearer ${token}` } }
                     );
                     deptCode = detailResponse.data.attributes?.deptCode?.[0];
+                    console.log(`[UsersService] User ${userIdOrUsername} belongs to Group: ${group.path}, DeptCode: ${deptCode}`);
                 } catch (e) {
                     console.warn(`Failed to fetch group detail for ${group.id}`);
                 }
                 results.push({
+                    id: group.id,
                     path: group.path,
                     name: group.name,
                     deptCode,

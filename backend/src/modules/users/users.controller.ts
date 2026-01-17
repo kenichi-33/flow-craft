@@ -1,6 +1,7 @@
 import { Controller, Get, Post, Body, Query, Param } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { UsersService } from './users.service';
+import { PrismaService } from '../../prisma/prisma.service';
 import axios from 'axios';
 
 interface KeycloakUser {
@@ -33,7 +34,8 @@ export class UsersController {
 
     constructor(
         private configService: ConfigService,
-        private usersService: UsersService
+        private usersService: UsersService,
+        private prisma: PrismaService
     ) {
         this.keycloakUrl = this.configService.get('KEYCLOAK_URL') || 'http://localhost:8081';
         this.realm = this.configService.get('KEYCLOAK_REALM') || 'workflow';
@@ -281,6 +283,39 @@ export class UsersController {
                             }
                         } else {
                             console.warn(`[Users] Group with deptCode '${groupIdentifier}' not found`);
+                            
+                            // 2. Try to find in Teams
+                            const team = await this.prisma.team.findUnique({
+                                where: { id: groupIdentifier },
+                                include: { members: true },
+                            });
+
+                            if (team) {
+                                // Check if user is a member of the team
+                                const isMember = team.members.some(m => 
+                                    (m.memberType === 'user' && m.memberId === username) // TODO: Check by ID or Username? Schema says memberId is string. Service uses username for user type.
+                                );
+                                // Note: Schema check needed. TeamsService uses username for 'user' type memberId.
+                                // Let's verify if 'username' passed here matches what's stored in TeamMember.
+                                
+                                // Also handle 'department' type members in Team (recursive/nested?) - For now simple user check.
+                                if (isMember) {
+                                     return { isAssigned: true, matchType: 'group' };
+                                }
+
+                                // Check if user belongs to a department that is a member of the team
+                                // Get user's department codes
+                                const userGroups = await this.usersService.getUserGroupsWithDeptCode(username);
+                                const userDeptCodes = userGroups.map(g => g.deptCode).filter(Boolean);
+
+                                const isDeptMember = team.members.some(m => 
+                                    m.memberType === 'department' && userDeptCodes.includes(m.memberId)
+                                );
+                                
+                                if (isDeptMember) {
+                                     return { isAssigned: true, matchType: 'group' };
+                                }
+                            }
                         }
                     }
                 }
@@ -315,7 +350,7 @@ export class UsersController {
 
             // 担当者タイプに応じて表示名を解決
             const assignments = assignedTo.split(',').map(s => s.trim());
-            const displays = assignments.map(a => {
+            const displays = await Promise.all(assignments.map(async a => {
                 if (a.startsWith('user:')) {
                     return a.substring(5); // ユーザー名をそのまま返す
                 }
@@ -331,13 +366,21 @@ export class UsersController {
                 }
                 if (a.startsWith('group:')) {
                     const code = a.substring(6);
-                    return deptMap[code] || code;
+                    if (deptMap[code]) {
+                        return deptMap[code];
+                    }
+                    // Try to find in Teams
+                    const team = await this.prisma.team.findUnique({
+                        where: { id: code },
+                        select: { name: true }
+                    });
+                    return team ? team.name : code;
                 }
                 if (a === 'applicant_manager') {
                     return '申請者の上長';
                 }
                 return a;
-            });
+            }));
 
             return { display: displays.join(', ') };
         } catch (error) {

@@ -105,4 +105,35 @@ export class TeamsService {
             where: { id: member.id },
         });
     }
+
+    /**
+     * ユーザーが所属するチームを取得（個人指定 または 部署指定）
+     */
+    async getMyTeams(username: string) {
+        // 1. Get user's department info
+        const userGroups = await this.usersService.getUserGroupsWithDeptCode(username);
+        const userDeptCodes = userGroups.map(g => g.deptCode).filter((c): c is string => !!c);
+        
+        console.log(`[TeamsService] getMyTeams for ${username}. User DeptCodes: ${userDeptCodes.join(', ')}`);
+
+        // 2. Find teams where user is member OR user's department is member
+        // User Request: Strictly use deptCode for verification.
+        const teams = await this.prisma.team.findMany({
+            where: {
+                members: {
+                    some: {
+                        OR: [
+                            { memberType: 'user', memberId: username },
+                            // Check against DeptCodes only for department members
+                            { memberType: 'department', memberId: { in: userDeptCodes } } 
+                        ]
+                    }
+                }
+            }
+        });
+
+        console.log(`[TeamsService] Found ${teams.length} teams for user ${username}: ${teams.map(t => t.name).join(', ')}`);
+
+        return teams;
+    }
 }

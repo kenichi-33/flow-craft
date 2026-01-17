@@ -45,8 +45,8 @@ export class ApplicationsController {
     }
 
     @Get(':id')
-    findOne(@Param('id') id: string) {
-        return this.applicationsService.findOne(id);
+    findOne(@Param('id') id: string, @CurrentUser() user: AuthUser) {
+        return this.applicationsService.findOne(id, user.username);
     }
 
     @Put(':id')

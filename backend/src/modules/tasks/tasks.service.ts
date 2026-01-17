@@ -1,6 +1,8 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { Prisma, TaskStatus } from '@prisma/client';
+import { UsersService, UserSnapshot } from '../users/users.service';
+import { TeamsService } from '../teams/teams.service';
 
 export interface FindAllOptions {
     page?: number;
@@ -21,7 +23,11 @@ export interface FindAllOptions {
 
 @Injectable()
 export class TasksService {
-    constructor(private prisma: PrismaService) { }
+    constructor(
+        private prisma: PrismaService,
+        private usersService: UsersService,
+        private teamsService: TeamsService
+    ) { }
 
     /**
      * ユーザーがタスクを実行可能かチェック（クライアントサイドフィルタ用）
@@ -50,10 +56,17 @@ export class TasksService {
             // グループ指定
             else if (assignment.startsWith('group:')) {
                 const targetGroup = assignment.substring(6);
+                // 1. Check Keycloak Groups (deptCode, Path)
                 // ID match
                 if (userGroupCodes?.includes(targetGroup)) return true;
                 // Path match
                 if (userGroups?.some(g => g === targetGroup || g.startsWith(targetGroup + '/'))) return true;
+
+                // 2. Check Custom Teams (ID match)
+                // userGroupCodes might contain team IDs if we put them there (controller responsibility)
+                // But for explicit clarity, we might check passed team IDs if we add them to args.
+                // Assuming userGroupCodes includes Team IDs for now (Controller update needed to merge).
+                if (userGroupCodes?.includes(targetGroup)) return true;
             }
             // 申請者指定
             else if (assignment === 'applicant') {
@@ -76,8 +89,9 @@ export class TasksService {
         const {
             page, limit, search, sortBy = 'createdAt', sortOrder = 'desc',
             status, applicationNumber, dateFrom, dateTo,
-            userId, userRoles = [], userGroups = [], userGroupCodes = []
+            userId, userRoles = [], userGroups = []
         } = options;
+        let { userGroupCodes = [] } = options;
 
         // 基本検索条件（承認タスクのみ）
         const where: Prisma.WorkflowTaskWhereInput = {
@@ -149,6 +163,14 @@ export class TasksService {
 
             // ユーザーフィルタリングが指定されている場合
             if (userId) {
+                // My Teamsを取得してgroupCodesに追加
+                try {
+                    const myTeams = await this.teamsService.getMyTeams(userId);
+                    const teamIds = myTeams.map(t => t.id);
+                    userGroupCodes = [...(userGroupCodes || []), ...teamIds];
+                } catch (e) {
+                    console.warn(`[Tasks] Failed to fetch teams for user ${userId}`, e);
+                }
                 return tasks.filter(task => this.canUserAccessTask(task, userId, userRoles, userGroups, userGroupCodes));
             }
             return tasks;
@@ -161,6 +183,16 @@ export class TasksService {
 
         // まず全件取得してフィルタリング（ユーザーフィルタがある場合）
         if (userId) {
+            // My Teamsを取得してgroupCodesに追加
+            try {
+                const myTeams = await this.teamsService.getMyTeams(userId);
+                const teamIds = myTeams.map(t => t.id);
+                userGroupCodes = [...(userGroupCodes || []), ...teamIds];
+                console.log(`[Tasks] User ${userId} belongs to teams:`, teamIds);
+            } catch (e) {
+                console.warn(`[Tasks] Failed to fetch teams for user ${userId}`, e);
+            }
+
             const allTasks = await this.prisma.workflowTask.findMany({
                 where,
                 orderBy,
@@ -180,7 +212,13 @@ export class TasksService {
             );
 
             const total = filteredTasks.length;
-            const data = filteredTasks.slice(skip, skip + limitNum);
+            const slicedData = filteredTasks.slice(skip, skip + limitNum);
+
+            // Enrich with assignedToInfo
+            const data = await Promise.all(slicedData.map(async task => {
+                const assignedToInfo = await this.usersService.resolveAssignedToSnapshot(task.assignedTo || '');
+                return { ...task, assignedToInfo };
+            }));
 
             return {
                 data,
@@ -213,8 +251,14 @@ export class TasksService {
             this.prisma.workflowTask.count({ where }),
         ]);
 
+        // Enrich with assignedToInfo
+        const enrichedData = await Promise.all(data.map(async task => {
+            const assignedToInfo = await this.usersService.resolveAssignedToSnapshot(task.assignedTo || '');
+            return { ...task, assignedToInfo };
+        }));
+
         return {
-            data,
+            data: enrichedData,
             pagination: {
                 page: pageNum,
                 limit: limitNum,

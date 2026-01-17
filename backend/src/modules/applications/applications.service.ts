@@ -20,6 +20,8 @@ export interface FindAllOptions {
     requestUserId?: string; // アクセス制御用
 }
 
+import { WorkflowEngineService } from '../workflow-engine/workflow-engine.service';
+
 @Injectable()
 export class ApplicationsService {
     constructor(
@@ -27,7 +29,49 @@ export class ApplicationsService {
         private configService: ConfigService,
         private usersService: UsersService,
         private queueService: QueueService,
+        private workflowEngineService: WorkflowEngineService,
     ) {}
+
+    // ... (create method remains same)
+
+    // ... (findAll method remains same or can be updated later if needed)
+
+    async findOne(id: string, requestUserId?: string) {
+        const application = await this.prisma.application.findUnique({
+            where: { id },
+            include: {
+                formDefinition: true,
+                flowDefinition: true,
+                applicationDefinition: true,
+                history: {
+                    orderBy: { actedAt: 'asc' },
+                },
+                workflowTasks: {
+                    orderBy: { createdAt: 'desc' },
+                    include: {
+                        history: {
+                            orderBy: { executedAt: 'desc' },
+                        },
+                    },
+                },
+            },
+        });
+        if (!application) throw new NotFoundException(`Application with ID ${id} not found`);
+
+        const enrichedTasks = await Promise.all(application.workflowTasks.map(async (task) => {
+            let isExecutable = false;
+            if (requestUserId && task.status === 'PENDING') {
+                try {
+                    isExecutable = await this.workflowEngineService.canUserExecuteTask(task as any, requestUserId);
+                } catch (e) {
+                    // Ignore errors, default to false
+                }
+            }
+            return { ...task, isExecutable };
+        }));
+        
+        return { ...application, workflowTasks: enrichedTasks };
+    }
 
     async create(createApplicationDto: CreateApplicationDto) {
         const applicantInfo = await this.usersService.getUserSnapshotByUsername(createApplicationDto.applicantId);
@@ -221,31 +265,6 @@ export class ApplicationsService {
                 totalPages: Math.ceil(total / limitNum),
             },
         };
-    }
-
-    async findOne(id: string) {
-        const application = await this.prisma.application.findUnique({
-            where: { id },
-            include: {
-                formDefinition: true,
-                flowDefinition: true,
-                applicationDefinition: true,
-                history: {
-                    orderBy: { actedAt: 'asc' },
-                },
-                workflowTasks: {
-                    orderBy: { createdAt: 'desc' },
-                    include: {
-                        history: {
-                            orderBy: { executedAt: 'desc' },
-                        },
-                    },
-                },
-            },
-        });
-        if (!application) throw new NotFoundException(`Application with ID ${id} not found`);
-        
-        return application;
     }
 
     async update(id: string, updateData: { title?: string; inputData?: any; status?: string }) {

@@ -5,6 +5,8 @@ import { api } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
 import {
     LayoutDashboard, FileEdit, GitBranch, Search, History,
     ArrowLeft, Menu, Rocket, Loader2
@@ -33,6 +35,7 @@ export default function AppStudioLayout() {
     const queryClient = useQueryClient();
     const [sidebarOpen, setSidebarOpen] = useState(true);
     const [publishDialogOpen, setPublishDialogOpen] = useState(false);
+    const [publishComment, setPublishComment] = useState('');
 
     const { data: app, isLoading } = useQuery<AppDefinition>({
         queryKey: ['application-definition', id],
@@ -53,11 +56,13 @@ export default function AppStudioLayout() {
     const nextVersion = currentMaxVersion + 1;
 
     const publishMutation = useMutation({
-        mutationFn: () => api.post(`/application-definitions/${id}/publish`, {}),
+        mutationFn: () => api.post(`/application-definitions/${id}/publish`, { comment: publishComment }),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['application-definition', id] });
             queryClient.invalidateQueries({ queryKey: ['app-versions', id] });
+            toast.success('新しいバージョンを公開しました');
             setPublishDialogOpen(false);
+            setPublishComment('');
         },
         onError: (err: any) => {
             toast.error('公開に失敗しました: ' + (err.message || 'Unknown error'));
@@ -181,6 +186,15 @@ export default function AppStudioLayout() {
                     <p className="text-xs text-center text-muted-foreground">
                         ※ 公開後は新規申請にこの設定が適用されます。
                     </p>
+                    <div className="space-y-2 py-4">
+                        <Label htmlFor="publish-comment">コメント（任意）</Label>
+                        <Textarea
+                            id="publish-comment"
+                            placeholder="バージョン変更の概要を入力"
+                            value={publishComment}
+                            onChange={(e) => setPublishComment(e.target.value)}
+                        />
+                    </div>
                     <DialogFooter className="gap-2 sm:gap-0">
                         <Button variant="outline" onClick={() => setPublishDialogOpen(false)}>キャンセル</Button>
                         <Button className="bg-emerald-600 hover:bg-emerald-700" onClick={() => publishMutation.mutate()} disabled={publishMutation.isPending}>

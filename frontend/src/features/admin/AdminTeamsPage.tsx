@@ -364,12 +364,12 @@ function TeamDetailView({ selection, isAdmin, onDeleteTeam, customTeamOverride }
                                     <div className="border rounded-md max-h-60 overflow-auto">
                                         {departments?.map((d) => (
                                             <div key={d.path} 
-                                                className={cn("p-2 cursor-pointer hover:bg-muted flex items-center gap-2", memberId === d.path && "bg-muted")}
-                                                onClick={() => setMemberId(d.path)}
+                                                className={cn("p-2 cursor-pointer hover:bg-muted flex items-center gap-2", memberId === (d.deptCode || d.path) && "bg-muted")}
+                                                onClick={() => setMemberId(d.deptCode || d.path)}
                                                 style={{ paddingLeft: `${Math.max(8, (d.path.split('/').length - 1) * 12)}px` }}
                                             >   
                                                 {d.path === '/Company' ? <Building className="h-3 w-3" /> : <Folder className="h-3 w-3 text-muted-foreground" />}
-                                                <span>{d.name}</span>
+                                                <span>{d.name} {d.deptCode && <span className="text-xs text-muted-foreground">({d.deptCode})</span>}</span>
                                             </div>
                                         ))}
                                     </div>

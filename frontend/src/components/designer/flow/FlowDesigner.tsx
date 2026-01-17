@@ -143,16 +143,38 @@ export default function FlowDesigner({ appId }: { appId: string }) {
             setFlowName((app as any).flowDefinition.name || '');
             const flow = (app as any).flowDefinition;
             if (flow.nodes?.length) {
-                const nodesWithFields = flow.nodes.map((n: any) => 
-                    ['branch', 'apiCall', 'llmCall', 'approval', 'start'].includes(n.type) 
-                        ? { ...n, data: { ...n.data, formFields } } 
-                        : n
-                );
+                const nodesWithFields = flow.nodes.map((n: any) => {
+                    if (['branch', 'apiCall', 'llmCall', 'approval', 'start'].includes(n.type)) {
+                        let newData = { ...n.data, formFields };
+                        if (n.type === 'start') {
+                            newData = { 
+                                ...newData, 
+                                webhookToken: (app as any).webhookToken, 
+                                applicationId: (app as any).id 
+                            };
+                        }
+                        return { ...n, data: newData };
+                    }
+                    return n;
+                });
                 setNodes(nodesWithFields);
             }
             if (flow.edges?.length) setEdges(flow.edges);
         } else if (app) {
             setFlowName(`${(app as any).name}フロー`);
+            setNodes(nds => nds.map(n => {
+                if (n.type === 'start') {
+                    return { 
+                        ...n, 
+                        data: { 
+                            ...n.data, 
+                            webhookToken: (app as any).webhookToken, 
+                            applicationId: (app as any).id 
+                        } 
+                    };
+                }
+                return n;
+            }));
         }
     }, [app, setNodes, setEdges, formFields, versionId, versions]);
 

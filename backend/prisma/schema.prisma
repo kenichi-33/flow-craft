@@ -207,6 +207,7 @@ model AppVersion {
   flowEdges               Json?    @map("flow_edges")
   publishedAt             DateTime @default(now()) @map("published_at")
   publishedBy             String?  @map("published_by")
+  comment                 String?
 
   applicationDefinition   ApplicationDefinition @relation(fields: [applicationDefinitionId], references: [id])
 
