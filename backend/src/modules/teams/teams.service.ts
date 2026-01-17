@@ -107,6 +107,33 @@ export class TeamsService {
     }
 
     /**
+     * メンバー一括更新 (トランザクション)
+     */
+    async updateMembers(teamId: string, members: { memberType: 'user' | 'department'; memberId: string }[]) {
+        await this.findOne(teamId);
+        
+        return this.prisma.$transaction(async (tx) => {
+            // 1. Delete all existing members
+            await tx.teamMember.deleteMany({
+                where: { teamId }
+            });
+
+            // 2. Create new members
+            if (members.length > 0) {
+                await tx.teamMember.createMany({
+                    data: members.map(m => ({
+                        teamId,
+                        memberType: m.memberType,
+                        memberId: m.memberId
+                    }))
+                });
+            }
+            
+            return this.findOne(teamId);
+        });
+    }
+
+    /**
      * ユーザーが所属するチームを取得（個人指定 または 部署指定）
      */
     async getMyTeams(username: string) {

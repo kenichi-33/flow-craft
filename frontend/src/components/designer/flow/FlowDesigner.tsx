@@ -29,6 +29,12 @@ import {
     AccordionItem,
     AccordionTrigger,
 } from "@/components/ui/accordion";
+import {
+    Dialog,
+    DialogContent,
+} from "@/components/ui/dialog";
+import { Lock } from 'lucide-react';
+import PermissionMatrix from './PermissionMatrix';
 
 import StartNode from './nodes/StartNode';
 import ApprovalNode from './nodes/ApprovalNode';
@@ -189,6 +195,13 @@ export default function FlowDesigner({ appId }: { appId: string }) {
     
     // Real-time validation
     const validationResult = React.useMemo(() => validateFlow(nodes, edges), [nodes, edges]);
+    const [permissionMatrixOpen, setPermissionMatrixOpen] = useState(false);
+
+    const handlePermissionSave = (updatedNodes: Node[]) => {
+        setNodes(updatedNodes);
+        setPermissionMatrixOpen(false);
+        toast.success('権限設定を反映しました');
+    };
 
     useEffect(() => {
         const handler = (e: KeyboardEvent) => {
@@ -319,10 +332,16 @@ export default function FlowDesigner({ appId }: { appId: string }) {
                                     disabled={isReadOnly}
                                 />
                                 {!isReadOnly && (
-                                <Button size="sm" onClick={handleSave} disabled={saveMutation.isPending}>
-                                    {saveMutation.isPending ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Save className="h-4 w-4 mr-1" />}
-                                    下書き保存
-                                </Button>
+                                <>
+                                    <Button variant="outline" size="sm" onClick={() => setPermissionMatrixOpen(true)}>
+                                        <Lock className="h-4 w-4 mr-1" />
+                                        権限
+                                    </Button>
+                                    <Button size="sm" onClick={handleSave} disabled={saveMutation.isPending}>
+                                        {saveMutation.isPending ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Save className="h-4 w-4 mr-1" />}
+                                        下書き保存
+                                    </Button>
+                                </>
                                 )}
                             </Card>
                             {(app as any)?.flowDefinition?.updatedAt && (
@@ -337,6 +356,18 @@ export default function FlowDesigner({ appId }: { appId: string }) {
                     </ReactFlow>
                 </div>
             </div>
+
+            {/* Permission Matrix Dialog */}
+            <Dialog open={permissionMatrixOpen} onOpenChange={setPermissionMatrixOpen}>
+                <DialogContent className="max-w-4xl h-[80vh] p-0 overflow-hidden">
+                    <PermissionMatrix 
+                        nodes={nodes} 
+                        onSave={handlePermissionSave} 
+                        onCancel={() => setPermissionMatrixOpen(false)} 
+                        formFields={formFields}
+                    />
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }

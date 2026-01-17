@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
@@ -219,6 +219,23 @@ export default function AdminTeamsPage() {
 
 // --- Detail View Component ---
 
+const ConfirmDialog = ({ open, onOpenChange, title, description, onConfirm }: { open: boolean, onOpenChange: (open: boolean) => void, title: string, description: string, onConfirm: () => void }) => {
+    return (
+        <Dialog open={open} onOpenChange={onOpenChange}>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>{title}</DialogTitle>
+                    <DialogDescription>{description}</DialogDescription>
+                </DialogHeader>
+                <DialogFooter>
+                    <Button variant="outline" onClick={() => onOpenChange(false)}>キャンセル</Button>
+                    <Button variant="default" onClick={() => { onConfirm(); onOpenChange(false); }}>OK</Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    );
+};
+
 function TeamDetailView({ selection, isAdmin, onDeleteTeam, customTeamOverride }: { selection: SelectionType, isAdmin: boolean, onDeleteTeam: () => void, customTeamOverride?: LocalTeam }) {
     const queryClient = useQueryClient();
     
@@ -239,22 +256,52 @@ function TeamDetailView({ selection, isAdmin, onDeleteTeam, customTeamOverride }
         enabled: selection.type === 'custom'
     });
 
-    // Mutation for Local Team Members
-    const addMemberMutation = useMutation({ 
-        mutationFn: (d: any) => api.post(`/teams/${d.teamId}/members`, d), 
-        onSuccess: () => { 
-            queryClient.invalidateQueries({ queryKey: ['teams'] }); 
-            setAddMemberOpen(false); 
-            setMemberId(''); 
-            setSearchQuery('');
-        } 
-    });
-    const removeMemberMutation = useMutation({
-        mutationFn: (d: any) => api.delete(`/teams/${d.teamId}/members/${d.memberId}`),
-        onSuccess: () => queryClient.invalidateQueries({ queryKey: ['teams'] })
+    // Custom Team Local State Management
+    const initialMembers = customTeamOverride?.members || selection.type === 'custom' ? (selection as any).team.members : [];
+    const [localMembers, setLocalMembers] = useState<any[]>(initialMembers);
+    const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+    
+    // Sync local state when selection changes
+    useEffect(() => {
+        if (selection.type === 'custom') {
+            const currentMembers = customTeamOverride?.members || (selection as any).team.members || [];
+            setLocalMembers(currentMembers);
+            setHasUnsavedChanges(false);
+        }
+    }, [selection, customTeamOverride]);
+
+    const handleAddMember = (member: { memberType: 'user' | 'department', memberId: string, memberInfo?: any }) => {
+        // Build a temporary member object for display
+        const newMember = {
+            id: `temp-${Date.now()}`, // temporary ID
+            ...member
+        };
+        setLocalMembers([...localMembers, newMember]);
+        setHasUnsavedChanges(true);
+        setAddMemberOpen(false);
+        setMemberId('');
+        setSearchQuery('');
+    };
+
+    const handleRemoveMember = (memberId: string) => {
+        setLocalMembers(localMembers.filter(m => m.memberId !== memberId));
+        setHasUnsavedChanges(true);
+    };
+
+    // Dialog States
+    const [addMemberOpen, setAddMemberOpen] = useState(false);
+    const [confirmDeleteMember, setConfirmDeleteMember] = useState<{ open: boolean, memberId: string | null }>({ open: false, memberId: null });
+    const [confirmSave, setConfirmSave] = useState(false);
+
+    // Save Mutation (Batch Update)
+    const saveMembersMutation = useMutation({
+        mutationFn: (data: { teamId: string, members: any[] }) => api.put(`/teams/${data.teamId}/members`, { members: data.members }),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['teams'] });
+            setHasUnsavedChanges(false);
+        }
     });
 
-    const [addMemberOpen, setAddMemberOpen] = useState(false);
     const [memberType, setMemberType] = useState<'user' | 'department'>('user');
     const [searchQuery, setSearchQuery] = useState('');
     const [memberId, setMemberId] = useState<string>(''); // Stores username or department path
@@ -278,6 +325,7 @@ function TeamDetailView({ selection, isAdmin, onDeleteTeam, customTeamOverride }
                     <div>
                         <div className="flex items-center gap-2 mb-1">
                             <Badge variant="outline" className="text-blue-500 border-blue-200 bg-blue-50">Custom Team</Badge>
+                            {hasUnsavedChanges && <Badge variant="destructive" className="ml-2">未保存の変更あり</Badge>}
                         </div>
                         <h1 className="text-2xl font-bold">{team.name}</h1>
                         {team.description && <p className="text-muted-foreground mt-1">{team.description}</p>}
@@ -285,18 +333,22 @@ function TeamDetailView({ selection, isAdmin, onDeleteTeam, customTeamOverride }
                     {isAdmin && (
                         <div className="flex gap-2">
                              <Button onClick={() => { setMemberType('user'); setMemberId(''); setAddMemberOpen(true); }}><UserPlus className="h-4 w-4 mr-2" />メンバー追加</Button>
+                             <Button onClick={() => setConfirmSave(true)} disabled={!hasUnsavedChanges || saveMembersMutation.isPending}>
+                                {saveMembersMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                                変更を保存
+                             </Button>
                              <Button variant="ghost" size="icon" className="text-destructive hover:bg-destructive/10" onClick={onDeleteTeam}><Trash2 className="h-4 w-4" /></Button>
                         </div>
                     )}
                 </div>
 
                 <Card>
-                    <CardHeader><CardTitle>メンバー一覧 ({team.members?.length || 0})</CardTitle></CardHeader>
+                    <CardHeader><CardTitle>メンバー一覧 ({localMembers.length})</CardTitle></CardHeader>
                     <CardContent>
-                         {team.members && team.members.length > 0 ? (
+                         {localMembers.length > 0 ? (
                             <div className="grid gap-2">
-                                {team.members.map((m) => (
-                                    <div key={m.id} className="flex items-center justify-between p-3 rounded-lg border bg-card text-card-foreground shadow-sm">
+                                {localMembers.map((m) => (
+                                    <div key={m.memberId} className="flex items-center justify-between p-3 rounded-lg border bg-card text-card-foreground shadow-sm">
                                         <div className="flex items-center gap-3">
                                             {m.memberType === 'user' ? (
                                                 <Avatar>
@@ -314,7 +366,7 @@ function TeamDetailView({ selection, isAdmin, onDeleteTeam, customTeamOverride }
                                             <Badge variant="secondary" className="ml-2">{m.memberType === 'user' ? 'User' : 'Dept'}</Badge>
                                         </div>
                                         {isAdmin && (
-                                            <Button variant="ghost" size="icon" onClick={() => removeMemberMutation.mutate({ teamId: team.id, memberId: m.memberId })}>
+                                            <Button variant="ghost" size="icon" onClick={() => setConfirmDeleteMember({ open: true, memberId: m.memberId })}>
                                                 <Trash2 className="h-4 w-4 text-muted-foreground hover:text-destructive" />
                                             </Button>
                                         )}
@@ -379,12 +431,44 @@ function TeamDetailView({ selection, isAdmin, onDeleteTeam, customTeamOverride }
                         </div>
                         <DialogFooter>
                             <Button variant="outline" onClick={() => setAddMemberOpen(false)}>キャンセル</Button>
-                            <Button onClick={() => addMemberMutation.mutate({ teamId: team.id, memberType, memberId })} disabled={!memberId || addMemberMutation.isPending}>
-                                {addMemberMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : '追加'}
+                            <Button onClick={() => {
+                                // Find user info for display
+                                let memberInfo = {};
+                                if (memberType === 'user') {
+                                    const u = searchResults?.find((r: any) => r.username === memberId);
+                                    if (u) memberInfo = { displayName: u.displayName || u.username, email: u.email };
+                                    else memberInfo = { displayName: memberId };
+                                } else {
+                                     // For department, we don't have full info in local scope easily without re-finding, but we have the path/code
+                                     memberInfo = { displayName: memberId };
+                                }
+                                handleAddMember({ memberType, memberId, memberInfo });
+                            }} disabled={!memberId}>
+                                追加
                             </Button>
                         </DialogFooter>
                     </DialogContent>
                 </Dialog>
+
+                {/* Confirm Delete Member Dialog */}
+                <ConfirmDialog 
+                    open={confirmDeleteMember.open} 
+                    onOpenChange={(o) => setConfirmDeleteMember({ open: o, memberId: null })}
+                    title="メンバー削除の確認"
+                    description="このメンバーをリストから削除しますか？（変更を保存するまで反映されません）"
+                    onConfirm={() => {
+                        if (confirmDeleteMember.memberId) handleRemoveMember(confirmDeleteMember.memberId);
+                    }}
+                />
+
+                {/* Confirm Save Dialog */}
+                <ConfirmDialog 
+                    open={confirmSave} 
+                    onOpenChange={setConfirmSave}
+                    title="変更の保存"
+                    description="メンバー構成の変更を保存しますか？"
+                    onConfirm={() => saveMembersMutation.mutate({ teamId: team.id, members: localMembers })}
+                />
             </div>
         );
     }

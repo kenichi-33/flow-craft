@@ -48,4 +48,13 @@ export class TeamsController {
     removeMember(@Param('id') teamId: string, @Param('memberId') memberId: string) {
         return this.teamsService.removeMember(teamId, memberId);
     }
+
+    @Put(':id/members')
+    @Roles('wf_admin')
+    updateMembers(
+        @Param('id') teamId: string,
+        @Body() body: { members: { memberType: 'user' | 'department'; memberId: string }[] },
+    ) {
+        return this.teamsService.updateMembers(teamId, body.members);
+    }
 }
