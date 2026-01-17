@@ -93,9 +93,9 @@ export class TasksService {
         } = options;
         let { userGroupCodes = [] } = options;
 
-        // 基本検索条件（承認タスクのみ）
+        // 基本検索条件（承認タスクと入力タスク）
         const where: Prisma.WorkflowTaskWhereInput = {
-            type: 'approval',  // 承認タスクのみ
+            type: { in: ['approval', 'input'] }, 
         };
 
         // ステータスフィルタ
@@ -298,7 +298,7 @@ export class TasksService {
     async findPending(assignedTo?: string) {
         return this.prisma.workflowTask.findMany({
             where: {
-                type: 'approval',  // 承認タスクのみ
+                type: { in: ['approval', 'input'] },
                 status: 'PENDING',
                 ...(assignedTo ? { assignedTo } : {}),
             },

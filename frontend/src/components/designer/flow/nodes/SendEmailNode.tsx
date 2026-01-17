@@ -1,23 +1,22 @@
 import React, { memo } from 'react';
 import { Handle, Position } from '@xyflow/react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Mail, Settings } from 'lucide-react';
+import { Mail, Pencil } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
     Dialog,
     DialogContent,
     DialogHeader,
     DialogTitle,
-    DialogTrigger,
     DialogFooter,
 } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { Badge } from '@/components/ui/badge';
+
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
-const SendEmailNode = ({ data, isConnectable }: any) => {
+const SendEmailNode = ({ data }: any) => {
     const [open, setOpen] = React.useState(false);
     const [config, setConfig] = React.useState({
         to: data.to || '',
@@ -40,13 +39,18 @@ const SendEmailNode = ({ data, isConnectable }: any) => {
         <>
             <div
                 className="min-w-[140px] min-h-[60px] px-4 py-2 rounded-lg bg-gradient-to-br from-blue-500 to-blue-700 flex flex-col items-center justify-center shadow-lg border-2 border-white/50 relative"
-                style={{ cursor: 'pointer' }}
-                onClick={() => setOpen(true)}
+                style={{ cursor: readOnly ? 'pointer' : 'default' }}
+                onClick={readOnly ? () => setOpen(true) : undefined}
             >
                 <Handle type="target" position={Position.Left} className="!bg-blue-800 !w-2.5 !h-2.5 !border-2 !border-white" />
                 <div className="flex items-center gap-1">
                     <Mail className="h-4 w-4 text-white" />
                     <span className="text-sm text-white font-bold drop-shadow-sm">メール送信</span>
+                    {!readOnly && (
+                        <button className="p-0.5 text-white hover:bg-white/20 rounded ml-1" onClick={() => setOpen(true)} onMouseDown={(e) => e.stopPropagation()}>
+                            <Pencil className="h-3.5 w-3.5" />
+                        </button>
+                    )}
                 </div>
                 <div className="text-[9px] text-white/80 mt-1 truncate max-w-[120px]">
                     {config.to ? `To: ${config.to}` : '設定なし'}

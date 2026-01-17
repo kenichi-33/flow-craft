@@ -25,6 +25,7 @@ import {
 
 interface TaskDetail {
     id: string;
+    type: string;
     taskType: string;
     status: string;
     stepId: string;
@@ -305,7 +306,7 @@ export default function TaskDetailPage() {
                             <Label htmlFor="comment">コメント</Label>
                             <Textarea
                                 id="comment"
-                                placeholder="コメントを入力（却下の場合は必須）"
+                                placeholder={task.type === 'input' ? "コメントを入力（任意）" : "コメントを入力（却下の場合は必須）"}
                                 value={comment}
                                 onChange={(e) => setComment(e.target.value)}
                                 className="mt-2"
@@ -313,41 +314,45 @@ export default function TaskDetailPage() {
                             />
                         </div>
                         <div className="flex gap-3 justify-center pt-4">
+                            {task.type !== 'input' && (
+                                <>
+                                    <Button
+                                        variant="destructive"
+                                        onClick={() => handleAction('REJECT')}
+                                        disabled={!!actionInProgress}
+                                    >
+                                        {actionInProgress === 'REJECT' ? (
+                                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                        ) : (
+                                            <XCircle className="h-4 w-4 mr-2" />
+                                        )}
+                                        却下
+                                    </Button>
+                                    <Button
+                                        variant="outline"
+                                        onClick={() => handleAction('REMAND')}
+                                        disabled={!!actionInProgress}
+                                    >
+                                        {actionInProgress === 'REMAND' ? (
+                                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                        ) : (
+                                            <AlertCircle className="h-4 w-4 mr-2" />
+                                        )}
+                                        差戻し
+                                    </Button>
+                                </>
+                            )}
                             <Button
-                                variant="destructive"
-                                onClick={() => handleAction('REJECT')}
+                                onClick={() => handleAction(task.type === 'input' ? 'SUBMIT' : 'APPROVE')}
                                 disabled={!!actionInProgress}
+                                className={task.type === 'input' ? "bg-blue-600 hover:bg-blue-700" : "bg-emerald-600 hover:bg-emerald-700"}
                             >
-                                {actionInProgress === 'REJECT' ? (
-                                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                                ) : (
-                                    <XCircle className="h-4 w-4 mr-2" />
-                                )}
-                                却下
-                            </Button>
-                            <Button
-                                variant="outline"
-                                onClick={() => handleAction('REMAND')}
-                                disabled={!!actionInProgress}
-                            >
-                                {actionInProgress === 'REMAND' ? (
-                                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                                ) : (
-                                    <AlertCircle className="h-4 w-4 mr-2" />
-                                )}
-                                差戻し
-                            </Button>
-                            <Button
-                                onClick={() => handleAction('APPROVE')}
-                                disabled={!!actionInProgress}
-                                className="bg-emerald-600 hover:bg-emerald-700"
-                            >
-                                {actionInProgress === 'APPROVE' ? (
+                                {actionInProgress === 'APPROVE' || actionInProgress === 'SUBMIT' ? (
                                     <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                                 ) : (
                                     <CheckCircle className="h-4 w-4 mr-2" />
                                 )}
-                                承認
+                                {task.type === 'input' ? '完了' : '承認'}
                             </Button>
                         </div>
                     </CardContent>

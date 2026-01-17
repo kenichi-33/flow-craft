@@ -1,4 +1,4 @@
-import React, { memo, useEffect, useState } from 'react';
+import { memo, useState } from 'react';
 import { Handle, Position } from '@xyflow/react';
 import { Card, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Workflow, Pencil } from 'lucide-react';
@@ -8,19 +8,11 @@ import {
     DialogContent,
     DialogHeader,
     DialogTitle,
-    DialogTrigger,
     DialogFooter,
 } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
-import { 
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue 
-} from '@/components/ui/select';
 
 // Mock hook or props for fetching definitions. 
 // Ideally should use a query hook.
@@ -54,8 +46,8 @@ const SubProcessNode = ({ data }: any) => {
         <>
             <div
                 className="min-w-[140px] min-h-[60px] px-4 py-2 rounded-lg bg-gradient-to-br from-teal-500 to-teal-700 flex flex-col items-center justify-center shadow-lg border-2 border-white/50 relative"
-                style={{ cursor: 'pointer' }}
-                onClick={() => setOpen(true)}
+                style={{ cursor: readOnly ? 'pointer' : 'default' }}
+                onClick={readOnly ? () => setOpen(true) : undefined}
             >
                 <Handle type="target" position={Position.Left} className="!bg-teal-800 !w-2.5 !h-2.5 !border-2 !border-white" />
                 <div className="flex items-center gap-1">

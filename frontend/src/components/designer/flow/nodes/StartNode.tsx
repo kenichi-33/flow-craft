@@ -37,7 +37,8 @@ export default function StartNode({ id, data }: { id: string, data: any }) {
                             fieldPermissions,
                             triggerType,
                             // Clear cron if not scheduled mode
-                            scheduleCron: triggerType === 'scheduled' ? scheduleCron : null
+                            scheduleCron: triggerType === 'scheduled' ? scheduleCron : null,
+                            cron: null // Explicitly clear legacy field to prevent backend fallback
                         },
                     }
                     : node

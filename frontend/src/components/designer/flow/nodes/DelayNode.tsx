@@ -42,8 +42,8 @@ const DelayNode = ({ data }: any) => {
         <>
             <div
                 className="min-w-[140px] min-h-[60px] px-4 py-2 rounded-lg bg-gradient-to-br from-yellow-400 to-yellow-600 flex flex-col items-center justify-center shadow-lg border-2 border-white/50 relative"
-                style={{ cursor: 'pointer' }}
-                onClick={() => setOpen(true)}
+                style={{ cursor: readOnly ? 'pointer' : 'default' }}
+                onClick={readOnly ? () => setOpen(true) : undefined}
             >
                 <Handle type="target" position={Position.Left} className="!bg-yellow-700 !w-2.5 !h-2.5 !border-2 !border-white" />
                 <div className="flex items-center gap-1">
@@ -76,24 +76,28 @@ const DelayNode = ({ data }: any) => {
                             className="grid grid-cols-2 gap-4"
                             disabled={readOnly}
                         >
-                            <div>
+                            <div className="relative">
                                 <RadioGroupItem value="duration" id="duration" className="peer sr-only" />
                                 <Label
                                     htmlFor="duration"
-                                    className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary"
+                                    className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary peer-data-[state=checked]:bg-blue-50/50 [&:has([data-state=checked])]:border-primary transition-all cursor-pointer"
                                 >
-                                    <Clock className="mb-3 h-6 w-6" />
+                                    <Clock className="mb-3 h-6 w-6 text-primary" />
                                     期間を指定
+                                    <div className="hidden peer-data-[state=checked]:block absolute top-2 right-2 text-primary">
+                                        <Check className="h-4 w-4" />
+                                    </div>
                                 </Label>
                             </div>
-                            <div>
+                            <div className="relative">
                                 <RadioGroupItem value="fixed" id="fixed" className="peer sr-only" disabled />
                                 <Label
                                     htmlFor="fixed"
-                                    className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary opacity-50 cursor-not-allowed"
+                                    className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 opacity-50 cursor-not-allowed"
                                 >
                                     <Check className="mb-3 h-6 w-6" />
-                                    日時を指定 (未実装)
+                                    日時を指定
+                                    <span className="text-[10px] text-muted-foreground mt-1">(開発中)</span>
                                 </Label>
                             </div>
                         </RadioGroup>

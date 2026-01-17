@@ -169,8 +169,30 @@ export default function FlowVisualization({
         return { displayNodes, displayEdges };
     }, [rawNodes, rawEdges, currentStepIds, completedStepIds]);
 
+    // Input node
+    const InputNode = ({ data }: { data: any }) => (
+        <div className="p-2 text-center min-w-[120px] min-h-[60px] flex flex-col items-center justify-center relative">
+            <CommonHandles />
+            <span className="text-sm font-bold">{data?.title || '入力'}</span>
+            <span className="text-xs text-muted-foreground mt-0.5">{data?.assignedTo === 'applicant' ? '申請者' : (data?.assignedTo || '未割当')}</span>
+            {data?.isCurrent && <Badge className="mt-1 h-4 text-[10px] px-1.5">現在</Badge>}
+            {data?.isCompleted && !data?.isCurrent && <Badge variant="secondary" className="mt-1 h-4 text-[10px] px-1.5 bg-emerald-100 text-emerald-700">完了</Badge>}
+        </div>
+    );
+
+    // Generic Action Node (for simple actions like SendEmail, UpdateRecord etc.)
+    const ActionNode = ({ data, label, bgColor }: { data: any, label: string, bgColor?: string }) => (
+        <div className="p-2 text-center min-w-[120px] min-h-[50px] flex flex-col items-center justify-center relative" style={{ backgroundColor: bgColor }}>
+            <CommonHandles />
+            <span className="text-xs font-bold">{label}</span>
+            {data?.isCurrent && <Badge className="mt-1 h-4 text-[10px] px-1.5">現在</Badge>}
+            {data?.isCompleted && !data?.isCurrent && <Badge variant="secondary" className="mt-1 h-4 text-[10px] px-1.5 bg-emerald-100 text-emerald-700">完了</Badge>}
+        </div>
+    );
+
     const nodeTypes = useMemo(() => ({
         approval: ApprovalNode,
+        input: InputNode,
         apiCall: SimpleNode,
         llmCall: SimpleNode,
         start: CycleNode,
@@ -179,6 +201,13 @@ export default function FlowVisualization({
         join: GatewayNode,
         branch: GatewayNode,
         swimlane: SwimlaneNode,
+        // Added missing nodes
+        sendEmail: (props: any) => <ActionNode {...props} label="メール送信" />,
+        slack: (props: any) => <ActionNode {...props} label="Slack通知" />,
+        delay: (props: any) => <ActionNode {...props} label="待機" />,
+        updateRecord: (props: any) => <ActionNode {...props} label="レコード更新" />,
+        setVariable: (props: any) => <ActionNode {...props} label="変数設定" />,
+        subProcess: (props: any) => <ActionNode {...props} label="サブプロセス" />,
     }), []);
 
     if (displayNodes.length === 0) {

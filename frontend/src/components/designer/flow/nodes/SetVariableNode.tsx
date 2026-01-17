@@ -8,7 +8,6 @@ import {
     DialogContent,
     DialogHeader,
     DialogTitle,
-    DialogTrigger,
     DialogFooter,
 } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
@@ -52,8 +51,8 @@ const SetVariableNode = ({ data }: any) => {
         <>
             <div
                 className="min-w-[140px] min-h-[60px] px-4 py-2 rounded-lg bg-gradient-to-br from-indigo-500 to-indigo-700 flex flex-col items-center justify-center shadow-lg border-2 border-white/50 relative"
-                style={{ cursor: 'pointer' }}
-                onClick={() => setOpen(true)}
+                style={{ cursor: readOnly ? 'pointer' : 'default' }}
+                onClick={readOnly ? () => setOpen(true) : undefined}
             >
                 <Handle type="target" position={Position.Left} className="!bg-indigo-800 !w-2.5 !h-2.5 !border-2 !border-white" />
                 <div className="flex items-center gap-1">

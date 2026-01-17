@@ -178,7 +178,7 @@ function FlowDesignerContent({ appId, isStatsMode, statsOverlay }: { appId: stri
                 }
                 
                 // For other nodes
-                if (['branch', 'apiCall', 'llmCall', 'approval'].includes(n.type)) {
+                if (['branch', 'apiCall', 'llmCall', 'approval', 'input'].includes(n.type)) {
                    return { ...n, data: newData };
                 }
                 // Even simpler default
@@ -251,7 +251,7 @@ function FlowDesignerContent({ appId, isStatsMode, statsOverlay }: { appId: stri
                 assignee: type === 'approval' ? 'role:wf_approver' : undefined,
                 assigneeType: type === 'approval' ? 'role' : undefined,
                 assigneeRole: type === 'approval' ? 'wf_approver' : undefined,
-                formFields: ['branch', 'apiCall', 'llmCall', 'approval', 'start'].includes(type) ? formFields : undefined, 
+                formFields: ['branch', 'apiCall', 'llmCall', 'approval', 'start', 'input'].includes(type) ? formFields : undefined, 
                 ...(type === 'swimlane' && { width: 800, height: 200, color: '#e3f2fd' }) 
             },
             ...(type === 'swimlane' && { style: { width: 800, height: 200 }, zIndex: -100 }),
