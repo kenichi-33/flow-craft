@@ -306,7 +306,7 @@ export default function TaskDetailPage() {
                             <Label htmlFor="comment">コメント</Label>
                             <Textarea
                                 id="comment"
-                                placeholder={task.type === 'input' ? "コメントを入力（任意）" : "コメントを入力（却下の場合は必須）"}
+                                placeholder={['input', 'userInput'].includes(task.type) ? "コメントを入力（任意）" : "コメントを入力（却下の場合は必須）"}
                                 value={comment}
                                 onChange={(e) => setComment(e.target.value)}
                                 className="mt-2"
@@ -314,7 +314,7 @@ export default function TaskDetailPage() {
                             />
                         </div>
                         <div className="flex gap-3 justify-center pt-4">
-                            {task.type !== 'input' && (
+                            {!['input', 'userInput'].includes(task.type) && (
                                 <>
                                     <Button
                                         variant="destructive"
@@ -343,16 +343,16 @@ export default function TaskDetailPage() {
                                 </>
                             )}
                             <Button
-                                onClick={() => handleAction(task.type === 'input' ? 'SUBMIT' : 'APPROVE')}
+                                onClick={() => handleAction(['input', 'userInput'].includes(task.type) ? 'SUBMIT' : 'APPROVE')}
                                 disabled={!!actionInProgress}
-                                className={task.type === 'input' ? "bg-blue-600 hover:bg-blue-700" : "bg-emerald-600 hover:bg-emerald-700"}
+                                className={['input', 'userInput'].includes(task.type) ? "bg-blue-600 hover:bg-blue-700" : "bg-emerald-600 hover:bg-emerald-700"}
                             >
                                 {actionInProgress === 'APPROVE' || actionInProgress === 'SUBMIT' ? (
                                     <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                                 ) : (
                                     <CheckCircle className="h-4 w-4 mr-2" />
                                 )}
-                                {task.type === 'input' ? '完了' : '承認'}
+                                {['input', 'userInput'].includes(task.type) ? '完了' : '承認'}
                             </Button>
                         </div>
                     </CardContent>

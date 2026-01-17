@@ -170,7 +170,7 @@ export default function FlowVisualization({
     }, [rawNodes, rawEdges, currentStepIds, completedStepIds]);
 
     // Input node
-    const InputNode = ({ data }: { data: any }) => (
+    const UserInputNode = ({ data }: { data: any }) => (
         <div className="p-2 text-center min-w-[120px] min-h-[60px] flex flex-col items-center justify-center relative">
             <CommonHandles />
             <span className="text-sm font-bold">{data?.title || '入力'}</span>
@@ -192,7 +192,8 @@ export default function FlowVisualization({
 
     const nodeTypes = useMemo(() => ({
         approval: ApprovalNode,
-        input: InputNode,
+        userInput: UserInputNode,
+        input: UserInputNode, // Backward compatibility
         apiCall: SimpleNode,
         llmCall: SimpleNode,
         start: CycleNode,

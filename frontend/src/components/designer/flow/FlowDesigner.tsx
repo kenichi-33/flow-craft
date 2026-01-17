@@ -48,7 +48,7 @@ import JoinGatewayNode from './nodes/JoinGatewayNode';
 import SwimLaneNode from './nodes/SwimLaneNode';
 import SendEmailNode from './nodes/SendEmailNode';
 import DelayNode from './nodes/DelayNode';
-import InputNode from './nodes/InputNode';
+import UserInputNode from './nodes/UserInputNode';
 import UpdateRecordNode from './nodes/UpdateRecordNode';
 import SetVariableNode from './nodes/SetVariableNode';
 import SubProcessNode from './nodes/SubProcessNode';
@@ -66,7 +66,7 @@ const nodeTypes = {
     swimlane: SwimLaneNode,
     sendEmail: SendEmailNode,
     delay: DelayNode,
-    input: InputNode,
+    userInput: UserInputNode,
     updateRecord: UpdateRecordNode,
     setVariable: SetVariableNode,
     subProcess: SubProcessNode,
@@ -77,7 +77,7 @@ const nodeTypes = {
 const TOOLBOX_GROUPS = [
     { name: 'スイムレーン', items: [{ type: 'swimlane', label: 'レーン', color: '#90caf9', icon: '═' }] },
     { name: 'イベント', items: [{ type: 'end', label: '終了', color: '#ef5350', icon: '●' }] },
-    { name: 'アクティビティ', items: [{ type: 'approval', label: '承認タスク', color: '#42a5f5', icon: '□' }, { type: 'input', label: '入力タスク', color: '#2196f3', icon: '⌨' }] },
+    { name: 'アクティビティ', items: [{ type: 'approval', label: '承認タスク', color: '#42a5f5', icon: '□' }, { type: 'userInput', label: '入力タスク', color: '#2196f3', icon: '⌨' }] },
     { name: '通信', items: [{ type: 'sendEmail', label: 'メール送信', color: '#ff9800', icon: '✉' }, { type: 'slack', label: 'Slack通知', color: '#3f51b5', icon: '#' }] },
     { name: '制御フロー', items: [{ type: 'delay', label: '待機 (タイマー)', color: '#ffd600', icon: '⏰' }] },
     { name: 'データ操作', items: [{ type: 'updateRecord', label: 'レコード更新', color: '#ff7043', icon: '💾' }, { type: 'setVariable', label: '変数設定', color: '#5c6bc0', icon: '∑' }] },
@@ -178,7 +178,7 @@ function FlowDesignerContent({ appId, isStatsMode, statsOverlay }: { appId: stri
                 }
                 
                 // For other nodes
-                if (['branch', 'apiCall', 'llmCall', 'approval', 'input'].includes(n.type)) {
+                if (['branch', 'apiCall', 'llmCall', 'approval', 'userInput'].includes(n.type || '')) {
                    return { ...n, data: newData };
                 }
                 // Even simpler default
@@ -251,7 +251,7 @@ function FlowDesignerContent({ appId, isStatsMode, statsOverlay }: { appId: stri
                 assignee: type === 'approval' ? 'role:wf_approver' : undefined,
                 assigneeType: type === 'approval' ? 'role' : undefined,
                 assigneeRole: type === 'approval' ? 'wf_approver' : undefined,
-                formFields: ['branch', 'apiCall', 'llmCall', 'approval', 'start', 'input'].includes(type) ? formFields : undefined, 
+                formFields: ['branch', 'apiCall', 'llmCall', 'approval', 'start', 'userInput'].includes(type) ? formFields : undefined, 
                 ...(type === 'swimlane' && { width: 800, height: 200, color: '#e3f2fd' }) 
             },
             ...(type === 'swimlane' && { style: { width: 800, height: 200 }, zIndex: -100 }),

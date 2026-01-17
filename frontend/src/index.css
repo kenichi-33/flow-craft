@@ -46,29 +46,4 @@ body {
   min-height: 100vh;
 }
 
-/* Override ReactFlow default selection style */
-/* Override ReactFlow default selection style */
-.react-flow__node.selected,
-.react-flow__node:focus,
-.react-flow__node:focus-visible,
-.react-flow__node-input.selected,
-.react-flow__node-input:focus {
-    outline: none !important;
-    box-shadow: none !important;
-    border: none !important;
-}
-
-/* Neutralize built-in Input Node styles that interfere with custom design */
-.react-flow__node-input {
-    background: transparent !important;
-    border: none !important;
-    width: auto !important;
-    padding: 0 !important;
-}
-
-/* Ensure inner node styling is preserved but outer wrapper is invisible */
-.react-flow__node {
-    border: none !important;
-}
-
 

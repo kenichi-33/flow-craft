@@ -21,7 +21,7 @@ import {
 } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
-export default function InputNode({ data, id }: { data: any, id: string }) {
+export default function UserInputNode({ data, id }: { data: any, id: string }) {
     const [open, setOpen] = useState(false);
     const { setNodes } = useReactFlow();
     const [config, setConfig] = useState({
