@@ -328,18 +328,20 @@ export default function TaskDetailPage() {
                                         )}
                                         却下
                                     </Button>
-                                    <Button
-                                        variant="outline"
-                                        onClick={() => handleAction('REMAND')}
-                                        disabled={!!actionInProgress}
-                                    >
-                                        {actionInProgress === 'REMAND' ? (
-                                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                                        ) : (
-                                            <AlertCircle className="h-4 w-4 mr-2" />
-                                        )}
-                                        差戻し
-                                    </Button>
+                                    {currentNode?.data?.allowRemand === true && (
+                                        <Button
+                                            variant="outline"
+                                            onClick={() => handleAction('REMAND')}
+                                            disabled={!!actionInProgress}
+                                        >
+                                            {actionInProgress === 'REMAND' ? (
+                                                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                            ) : (
+                                                <AlertCircle className="h-4 w-4 mr-2" />
+                                            )}
+                                            差戻し
+                                        </Button>
+                                    )}
                                 </>
                             )}
                             <Button

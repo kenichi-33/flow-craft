@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, Eye, GitBranch, ArrowUpDown } from 'lucide-react';
+import { Loader2, Eye, ArrowUpDown } from 'lucide-react';
 import { UserDisplay, type UserSnapshot } from '@/components/common/UserDisplay';
 
 interface Application {
@@ -95,11 +95,8 @@ export default function AdminWorkflowsPage() {
         { accessorKey: 'updatedAt', header: '更新日時', cell: ({ row }) => new Date(row.getValue('updatedAt') as string).toLocaleString('ja-JP') },
         { id: 'actions', header: '操作', cell: ({ row }) => (
             <div className="flex gap-1">
-                <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); navigate(`/admin/workflows/${row.original.id}`); }} title="進捗を見る">
-                    <GitBranch className="h-3 w-3 mr-1" />進捗
-                </Button>
                 <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); navigate(`/applications/${row.original.id}`); }} title="詳細を見る">
-                    <Eye className="h-3 w-3" />
+                    <Eye className="h-3 w-3 mr-1" />詳細
                 </Button>
             </div>
         )},

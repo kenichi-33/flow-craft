@@ -39,11 +39,8 @@ export default function PermissionMatrix({ nodes, onSave, onCancel, formFields }
 
     useEffect(() => {
         // Initialize matrix from nodes
-        // Only target ApprovalNodes and InputNodes (if they support permissions - InputNode currently doesn't, so focusing on Approval)
-        // Also APICall/LLMCall might use fields, but permissions are usually for Human Tasks.
-        // Let's target 'approval' nodes for now as per user request/context.
-        
-        const targetNodes = nodes.filter(n => n.type === 'approval');
+        // Target ApprovalNodes and InputNodes
+        const targetNodes = nodes.filter(n => n.type === 'approval' || n.type === 'userInput');
         
         const initialData: NodePermissionData[] = targetNodes.map(node => {
             return {
@@ -109,7 +106,7 @@ export default function PermissionMatrix({ nodes, onSave, onCancel, formFields }
     if (matrix.length === 0) {
         return (
             <div className="text-center p-8 space-y-4">
-                <p className="text-muted-foreground">承認ノードが見つかりません。フローに「承認ステップ」を追加してください。</p>
+                <p className="text-muted-foreground">対象となるノード（承認タスク、入力タスク）が見つかりません。</p>
                 <Button onClick={onCancel}>閉じる</Button>
             </div>
         );

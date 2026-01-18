@@ -314,31 +314,22 @@ export class WorkflowEngineService {
                     include: { flowDefinition: true },
                 });
                 const nodes = (application?.flowNodes || application?.flowDefinition?.nodes || []) as any[];
-                const endNode = nodes.find((n: any) => n.type === 'end'); // Ideally find specific reject end or terminate
+                const endNode = nodes.find((n: any) => n.type === 'end');
 
                 await tx.application.update({
                     where: { id: task.applicationId },
                     data: {
                         status: 'REJECTED',
-                        currentNodeId: endNode?.id || null, // Move to End
+                        currentNodeId: endNode?.id || null,
                     },
                 });
-                // Do not advance automatically if we move to End manually here.
-                // Or let advanceToNextNode execute the EndNode? 
-                // Using helper.advanceToNextNode is better if we set currentNodeId to EndNode.
-                // But current logic for REJECT in original code was manual update.
-                // If we set currentNodeId to endNode, then running processNode will execute EndNodeProcessor -> which sets status to COMPLETED (not REJECTED)?
-                // EndNodeProcessor sets status based on Node Config.
-                // So if we find an End Node, we better use it.
-                if (endNode) shouldAdvance = true; 
+                if (endNode) shouldAdvance = true;
             } else if (input.action === 'REMAND') {
-                // Check if Remand is allowed
                 const taskConfig = task.config as any;
-                if (taskConfig?.advancedSettings?.allowRemand === false) {
+                if (taskConfig?.allowRemand !== true) {
                      throw new BadRequestException('This task does not allow remand action');
                 }
 
-                // Remand Logic
                 const application = await tx.application.findUnique({
                     where: { id: task.applicationId },
                     include: { flowDefinition: true },
@@ -363,8 +354,6 @@ export class WorkflowEngineService {
                         currentNodeId: startNode?.id || null,
                     },
                 });
-                // Remand stops flow or restarts? 
-                // Usually stops until user resubmits.
                 shouldAdvance = false; 
             }
         });

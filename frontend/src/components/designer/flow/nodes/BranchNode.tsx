@@ -117,6 +117,11 @@ export default function BranchNode({ id, data }: { id: string; data: any }) {
                 {/* Labels */}
                 <span className="absolute -right-8 top-1/2 -translate-y-1/2 text-[9px] font-bold text-green-500">{yesLabel || 'はい'}</span>
                 <span className="absolute -bottom-5 left-1/2 -translate-x-1/2 text-[9px] font-bold text-red-500">{noLabel || 'いいえ'}</span>
+                {data.statCount !== undefined && data.statCount > 0 && (
+                    <div className="absolute -top-3 -right-3 bg-red-500 text-white text-xs font-bold px-2 py-1 rounded-full border border-white shadow-sm z-10 animate-pulse">
+                        {data.statCount}
+                    </div>
+                )}
             </div>
 
             <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>

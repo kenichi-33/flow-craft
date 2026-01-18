@@ -10,9 +10,10 @@ interface ApprovalActionProps {
     onReject: (comment: string) => void;
     onRemand: (comment: string) => void;
     isPending: boolean;
+    allowRemand?: boolean;
 }
 
-export default function ApprovalAction({ onApprove, onReject, onRemand, isPending }: ApprovalActionProps) {
+export default function ApprovalAction({ onApprove, onReject, onRemand, isPending, allowRemand }: ApprovalActionProps) {
     const [comment, setComment] = useState('');
 
     return (
@@ -41,6 +42,7 @@ export default function ApprovalAction({ onApprove, onReject, onRemand, isPendin
                     className="border-orange-500 text-orange-600 hover:bg-orange-50 hover:text-orange-700" 
                     onClick={() => onRemand(comment)}
                     disabled={isPending}
+                    style={{ display: allowRemand === false ? 'none' : 'flex' }}
                 >
                     {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <AlertCircle className="h-4 w-4 mr-2" />}
                     差戻し

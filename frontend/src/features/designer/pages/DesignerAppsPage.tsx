@@ -126,14 +126,14 @@ export default function DesignerAppsPage() {
             header: '構成',
             cell: ({ row }) => (
                 <div className="flex flex-col gap-1 text-xs">
-                    <div className="flex items-center gap-1">
-                        <span className="text-muted-foreground w-10">フォーム:</span>
+                    <div className="flex items-center gap-2">
+                        <span className="text-muted-foreground min-w-[3.5rem] text-right">フォーム:</span>
                         {row.original.formDefinition ? (
                             <Badge variant="outline" className="font-normal">{row.original.formDefinition.name}</Badge>
                         ) : <span className="text-destructive">未設定</span>}
                     </div>
-                    <div className="flex items-center gap-1">
-                        <span className="text-muted-foreground w-10">フロー:</span>
+                    <div className="flex items-center gap-2">
+                        <span className="text-muted-foreground min-w-[3.5rem] text-right">フロー:</span>
                         {row.original.flowDefinition ? (
                             <Badge variant="outline" className="font-normal">{row.original.flowDefinition.name}</Badge>
                         ) : <span className="text-destructive">未設定</span>}

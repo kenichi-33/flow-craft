@@ -32,6 +32,11 @@ export default function JoinGatewayNode({ id, data }: { id: string; data: any })
                     <Handle type="source" position={Position.Right} id="output" className="!bg-yellow-500 !w-2 !h-2 !right-0 !bottom-0 !translate-x-1/2 !translate-y-1/2" />
                 </div>
                 <span className="absolute top-14 left-1/2 -translate-x-1/2 w-24 text-center text-xs font-bold drop-shadow-sm pointer-events-none">{data.label || '合流'}</span>
+                {data.statCount !== undefined && data.statCount > 0 && (
+                    <div className="absolute -top-3 -right-3 bg-red-500 text-white text-xs font-bold px-2 py-1 rounded-full border border-white shadow-sm z-10 animate-pulse">
+                        {data.statCount}
+                    </div>
+                )}
             </div>
 
             <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>

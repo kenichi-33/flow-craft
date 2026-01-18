@@ -15,6 +15,8 @@ import {
 import { arrayMove } from '@dnd-kit/sortable';
 import { toast } from 'sonner';
 import { Eye, Edit3, Save, Loader2 } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { api } from '@/lib/api';
 
@@ -33,6 +35,10 @@ export default function FormDesigner({ appId }: { appId: string }) {
     const [selectedFieldId, setSelectedFieldId] = useState<string | null>(null);
     const [activeDragItem, setActiveDragItem] = useState<any | null>(null);
     const [isPreviewMode, setIsPreviewMode] = useState(false);
+    
+    // Form Settings
+    const [formName, setFormName] = useState('');
+    const [layoutType, setLayoutType] = useState('one-column');
 
     // Fetch Application Definition
     const { data: appDef, isLoading } = useQuery({
@@ -43,6 +49,15 @@ export default function FormDesigner({ appId }: { appId: string }) {
         },
         enabled: !!appId,
     });
+
+    // Initialize Form Name
+    useEffect(() => {
+        if (appDef?.formDefinition?.name) {
+             setFormName(appDef.formDefinition.name);
+        } else if (appDef?.appName) {
+             setFormName(`${appDef.appName} Form`);
+        }
+    }, [appDef]);
 
     // Fetch Versions (for read-only mode)
     const { data: versions } = useQuery({
@@ -60,7 +75,7 @@ export default function FormDesigner({ appId }: { appId: string }) {
             
             if (!formId) {
                 const newForm = await api.post<any>('/forms', {
-                    name: `${appDef?.appName || 'New Application'} Form`,
+                    name: formName || `${appDef?.appName || 'New Application'} Form`,
                     schema: data.schema
                 });
                 
@@ -70,7 +85,10 @@ export default function FormDesigner({ appId }: { appId: string }) {
                 });
                 return newForm;
             } else {
-                return api.put(`/forms/${formId}`, { schema: data.schema });
+                return api.put(`/forms/${formId}`, { 
+                    name: formName,
+                    schema: data.schema 
+                });
             }
         },
         onSuccess: () => {
@@ -97,6 +115,10 @@ export default function FormDesigner({ appId }: { appId: string }) {
             const properties = schema.properties || {};
             const layout = schema['x-layout'] || [];
             
+            if (targetSchema['x-layout-type']) {
+                setLayoutType(targetSchema['x-layout-type']);
+            }
+
             const allFields: FormField[] = Object.entries(properties).map(([fieldId, config]: [string, any]) => ({
                 id: fieldId,
                 type: config.type || config['x-type'] || 'text',
@@ -390,7 +412,7 @@ export default function FormDesigner({ appId }: { appId: string }) {
         processFields(fields);
 
         return {
-            schema: { type: 'object', properties, required, 'x-layout': layout },
+            schema: { type: 'object', properties, required, 'x-layout': layout, 'x-layout-type': layoutType },
             layout: layout
         };
     };
@@ -414,9 +436,28 @@ export default function FormDesigner({ appId }: { appId: string }) {
         <DndContext sensors={sensors} collisionDetection={pointerWithin} onDragStart={handleDragStart} onDragOver={handleDragOver} onDragEnd={handleDragEnd}>
             <div className="h-full flex flex-col bg-background">
                 <header className="h-14 border-b flex items-center justify-between px-4 bg-background z-20">
-                    <div className="flex items-center gap-2">
-                        <h2 className="font-semibold text-lg">フォームエディタ</h2>
-                        {appDef && <span className="text-sm text-muted-foreground ml-2">- {appDef.appName} {isReadOnly && '(読取専用)'}</span>}
+                    <div className="flex items-center gap-4">
+                        <h2 className="font-semibold text-lg whitespace-nowrap">フォームエディタ</h2>
+                        {!isReadOnly && (
+                            <div className="flex items-center gap-2">
+                                <Input 
+                                    value={formName} 
+                                    onChange={(e) => setFormName(e.target.value)} 
+                                    className="h-8 w-64" 
+                                    placeholder="フォーム名"
+                                />
+                                <Select value={layoutType} onValueChange={setLayoutType}>
+                                    <SelectTrigger className="h-8 w-32">
+                                        <SelectValue placeholder="レイアウト" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="one-column">1カラム</SelectItem>
+                                        <SelectItem value="two-column">2カラム</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                        )}
+                        {isReadOnly && appDef && <span className="text-sm text-muted-foreground">- {appDef.appName} (読取専用)</span>}
                     </div>
                     <div className="flex items-center gap-2">
                         <Button variant={isPreviewMode ? "outline" : "default"} size="sm" onClick={() => setIsPreviewMode(!isPreviewMode)} className="gap-2">

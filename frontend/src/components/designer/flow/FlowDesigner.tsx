@@ -97,6 +97,25 @@ const VALIDATION_RULES: ValidationRule[] = [
     { id: 'gateway-connections', name: 'ゲートウェイ接続', description: 'ゲートウェイは1入力・2出力が必要です', category: 'connectivity', check: (nodes, edges) => { for (const n of nodes.filter(nd => nd.type === 'branch')) { if (!edges.some(e => e.target === n.id)) return `ゲートウェイ "${n.data?.label || '分岐'}" への入力がありません`; if (edges.filter(e => e.source === n.id).length < 2) return `ゲートウェイ "${n.data?.label || '分岐'}" には2つの出力が必要です`; } return null; } },
     { id: 'path-reachable', name: 'パス到達性', description: '開始から終了へ到達可能なパスが必要です', category: 'path', check: (nodes, edges) => { const start = nodes.find(n => n.type === 'start'); const ends = nodes.filter(n => n.type === 'end'); if (!start || ends.length === 0) return null; const reachable = new Set<string>(); const queue = [start.id]; while (queue.length) { const cur = queue.shift()!; if (reachable.has(cur)) continue; reachable.add(cur); edges.filter(e => e.source === cur).forEach(e => queue.push(e.target)); } return ends.some(e => reachable.has(e.id)) ? null : '開始から終了へ到達可能なパスがありません'; } },
     { id: 'node-connectivity', name: 'ノード接続', description: '全てのノード（終了以外）は次のノードに接続されている必要があります', category: 'connectivity', check: (nodes, edges) => { const brokenNodes = nodes.filter(n => n.type !== 'end' && !edges.some(e => e.source === n.id)); if (brokenNodes.length > 0) return `次のノードに接続されていないノードがあります: ${brokenNodes.map(n => n.data?.label || n.id).join(', ')}`; return null; } },
+    { 
+        id: 'required-fields', 
+        name: '必須項目', 
+        description: '各ノードの必須項目を設定してください', 
+        category: 'structure', 
+        check: (nodes) => {
+            for (const node of nodes) {
+                if (node.type === 'approval') {
+                    if (!node.data.assignee && !node.data.assigneeRole) return `承認タスク "${node.data.label}" の担当者が設定されていません`;
+                }
+                if (node.type === 'apiCall') {
+                    if (!node.data.url) return `API呼び出し "${node.data.label}" のURLが設定されていません`;
+                    if (!node.data.method) return `API呼び出し "${node.data.label}" のメソッドが設定されていません`;
+                }
+                // Branch nodes might require at least one condition eventually, but for now simple check
+            }
+            return null;
+        } 
+    },
 ];
 
 import ValidationPanel from './ValidationPanel';

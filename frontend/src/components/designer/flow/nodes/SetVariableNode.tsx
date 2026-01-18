@@ -1,6 +1,5 @@
 import React, { memo } from 'react';
 import { Handle, Position } from '@xyflow/react';
-import { Card, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Variable, Plus, Trash2, Pencil } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -72,6 +71,11 @@ const SetVariableNode = ({ data }: any) => {
                     {variables.length} 変数
                 </div>
                 <Handle type="source" position={Position.Right} className="!bg-indigo-800 !w-2.5 !h-2.5 !border-2 !border-white" />
+                {data.statCount !== undefined && data.statCount > 0 && (
+                    <div className="absolute -top-3 -right-3 bg-red-500 text-white text-xs font-bold px-2 py-1 rounded-full border border-white shadow-sm z-10 animate-pulse">
+                        {data.statCount}
+                    </div>
+                )}
             </div>
 
             <Dialog open={open} onOpenChange={setOpen}>
