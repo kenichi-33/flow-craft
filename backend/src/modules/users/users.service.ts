@@ -208,6 +208,50 @@ export class UsersService {
         return found || null;
     }
 
+    async getGroupMembersByIdentifier(identifier: string): Promise<UserSnapshot[]> {
+        // 1. Try Keycloak Groups (DeptCode or Path)
+        const groups = await this.getGroups();
+        const group = groups.find(g => g.deptCode === identifier || g.path === identifier || g.id === identifier);
+        
+        if (group) {
+            return this.getGroupMembers(group.id);
+        }
+
+        // 2. Try Team (Prisma)
+        try {
+            const team = await this.prisma.team.findUnique({
+                where: { id: identifier },
+                include: { members: true }
+            });
+            
+            if (team) {
+                 const snapshots: UserSnapshot[] = [];
+                 for (const m of team.members) {
+                     if (m.memberType === 'user') {
+                         const s = await this.getUserSnapshotByUsername(m.memberId);
+                         snapshots.push(s);
+                     } else if (m.memberType === 'department') {
+                         // Recursive group members fetch
+                         // identifier might be path or deptCode
+                         const groupSnaps = await this.getGroupMembersByIdentifier(m.memberId);
+                         snapshots.push(...groupSnaps);
+                     }
+                 }
+                 // Deduplicate by username/email
+                 const unique = new Map<string, UserSnapshot>();
+                 snapshots.forEach(s => {
+                     if (s.email) unique.set(s.email, s);
+                     else unique.set(s.username, s);
+                 });
+                 return Array.from(unique.values());
+            }
+        } catch (e) {
+             console.warn(`[UsersService] Failed to lookup team members for ${identifier}`, e);
+        }
+
+        return [];
+    }
+
     /**
      * ユーザーIDからスナップショット情報を取得
      */

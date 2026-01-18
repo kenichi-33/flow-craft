@@ -123,6 +123,7 @@ export class ApplicationRecoveryService {
                 // The worker is idempotent enough to handle re-processing or determining next step
                 await this.queueService.enqueue('WORKFLOW_NODE_PROCESS', {
                     applicationId: app.id,
+                    targetNodeId: app.currentNodeId, // Explicitly target current node to prevent auto-advancement
                 });
 
                 // Update timestamp to prevent immediate re-processing loop if queue is just slow

@@ -392,6 +392,20 @@ export class WorkflowEngineService {
             throw new NotFoundException('Task not found');
         }
 
+        if (task.status !== 'FAILED') {
+            throw new BadRequestException('Only FAILED tasks can be retried');
+        }
+
+        // Reuse existing task: Reset to QUEUED and increment retries
+        await this.prisma.workflowTask.update({
+            where: { id: taskId },
+            data: {
+                status: 'QUEUED',
+                retries: { increment: 1 },
+                error: null, // Clear previous error
+            }
+        });
+
         const job: any = {
             taskId: task.id,
             applicationId: task.applicationId,
@@ -402,8 +416,9 @@ export class WorkflowEngineService {
             applicantId: task.application?.applicantId || '',
         };
 
-        await this.queueService.enqueue('WORKFLOW_NODE_PROCESS', { applicationId: task.applicationId, targetNodeId: task.stepId, fromNodeId: task.stepId }); // Retry target
-        this.logger.log(`Retrying task ${taskId} (type: ${task.type})`);
+        // Enqueue directly to GenericWorker (TASK_EXECUTE) instead of NodeProcessor
+        await this.queueService.enqueue('TASK_EXECUTE', job);
+        this.logger.log(`Retrying task ${taskId} (type: ${task.type}) - Re-queued directly`);
     }
 
     async resubmitApplication(applicationId: string, inputData: any) {

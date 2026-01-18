@@ -15,6 +15,9 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { UserSelector } from '@/components/common/UserSelector';
+import { GroupSelector } from '@/components/common/GroupSelector';
 
 const SendEmailNode = ({ data }: any) => {
     const [open, setOpen] = React.useState(false);
@@ -85,16 +88,43 @@ const SendEmailNode = ({ data }: any) => {
                             </div>
 
                             <div className="space-y-2">
-                                <Label htmlFor="to">宛先 (Email or 変数)</Label>
-                                <Input 
-                                    id="to" 
-                                    value={config.to} 
-                                    onChange={(e) => setConfig({...config, to: e.target.value})}
-                                    placeholder="user@example.com or {{applicant.email}}"
-                                    disabled={readOnly}
-                                />
+                                <Label htmlFor="to">宛先 (Email, User, Group, 変数)</Label>
+                                <div className="flex gap-2">
+                                    <Input 
+                                        id="to" 
+                                        value={config.to} 
+                                        onChange={(e) => setConfig({...config, to: e.target.value})}
+                                        placeholder="user@example.com, applicant, user:kb, group:dev"
+                                        disabled={readOnly}
+                                    />
+                                </div>
+                                {!readOnly && (
+                                    <div className="flex flex-wrap gap-2 mt-2 p-2 bg-muted rounded-md border">
+                                        <span className="text-xs font-bold text-muted-foreground w-full">宛先追加ヘルパー:</span>
+                                        <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => setConfig(prev => ({ ...prev, to: prev.to ? `${prev.to}, applicant` : 'applicant' }))}>
+                                            + 申請者
+                                        </Button>
+                                        <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => setConfig(prev => ({ ...prev, to: prev.to ? `${prev.to}, manager` : 'manager' }))}>
+                                            + 上長
+                                        </Button>
+                                        <div className="w-[180px]">
+                                            <UserSelector 
+                                                value=""
+                                                onChange={(val) => val && setConfig(prev => ({ ...prev, to: prev.to ? `${prev.to}, user:${val}` : `user:${val}` }))}
+                                                placeholder="+ ユーザーを追加..."
+                                            />
+                                        </div>
+                                        <div className="w-[180px]">
+                                            <GroupSelector 
+                                                value=""
+                                                onChange={(val) => val && setConfig(prev => ({ ...prev, to: prev.to ? `${prev.to}, group:${val}` : `group:${val}` }))}
+                                                placeholder="+ 部署を追加..."
+                                            />
+                                        </div>
+                                    </div>
+                                )}
                                 <p className="text-xs text-muted-foreground">
-                                    直接入力または変数 (例: {'{{applicant.email}}'}) が使用可能です
+                                    カンマ区切りで複数指定可能。直接Emailアドレスも使用できます。
                                 </p>
                             </div>
                             
@@ -124,7 +154,42 @@ const SendEmailNode = ({ data }: any) => {
                         
                         <TabsContent value="template" className="space-y-4 py-4">
                             <div className="space-y-2">
-                                <Label htmlFor="templateId">テンプレートID (オプション)</Label>
+                                <Label htmlFor="templateSelect">テンプレート選択</Label>
+                                <Select onValueChange={(val) => {
+                                    if (val === 'approval_request') {
+                                        setConfig(prev => ({
+                                            ...prev,
+                                            templateId: val,
+                                            subject: '【承認依頼】{{application.title}}',
+                                            body: '{{applicant.name}} さんから申請「{{application.title}}」が提出されました。\n以下のリンクから内容を確認し、承認または却下を行ってください。\n\n{{applicationUrl}}'
+                                        }));
+                                    } else if (val === 'approval_remind') {
+                                        setConfig(prev => ({
+                                            ...prev,
+                                            templateId: val,
+                                            subject: '【承認督促】{{application.title}}',
+                                            body: '申請「{{application.title}}」が未承認のままです。\n至急確認をお願いします。\n\n{{applicationUrl}}'
+                                        }));
+                                    } else if (val === 'notification_default') {
+                                        setConfig(prev => ({
+                                            ...prev,
+                                            templateId: val,
+                                            subject: '【通知】{{application.title}}',
+                                            body: '申請「{{application.title}}」に関する通知です。\n\nステータス: {{application.status}}\n\n{{applicationUrl}}'
+                                        }));
+                                    }
+                                }} disabled={readOnly}>
+                                    <SelectTrigger><SelectValue placeholder="テンプレートを選択..." /></SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="approval_request">承認依頼メール</SelectItem>
+                                        <SelectItem value="approval_remind">承認督促メール</SelectItem>
+                                        <SelectItem value="notification_default">汎用通知メール</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </div>
+
+                            <div className="space-y-2">
+                                <Label htmlFor="templateId">テンプレートID (手動入力)</Label>
                                 <Input 
                                     id="templateId" 
                                     value={config.templateId} 
@@ -133,7 +198,7 @@ const SendEmailNode = ({ data }: any) => {
                                     disabled={readOnly}
                                 />
                                 <p className="text-xs text-muted-foreground">
-                                    事前定義されたテンプレートを使用する場合に入力してください
+                                    サーバー側で定義されたカスタムテンプレートIDを指定することも可能です
                                 </p>
                             </div>
                         </TabsContent>

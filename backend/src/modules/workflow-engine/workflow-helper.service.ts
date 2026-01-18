@@ -105,6 +105,83 @@ export class WorkflowHelperService {
 
         return assignee;
     }
+
+    /**
+     * 宛先リスト（配列またはカンマ区切り文字列）からメールアドレスのリスト解決する
+     */
+    async resolveEmails(recipients: string | string[], applicantId: string): Promise<string[]> {
+        const results = new Set<string>();
+        const list = Array.isArray(recipients) ? recipients : (recipients ? [recipients] : []);
+        
+        // Split comma separated strings if any
+        const flattened: string[] = [];
+        for (const item of list) {
+             if (item.includes(',')) {
+                 flattened.push(...item.split(',').map(s => s.trim()));
+             } else {
+                 flattened.push(item);
+             }
+        }
+
+        for (const recipient of flattened) {
+            if (!recipient) continue;
+
+            // 1. Direct Email
+            if (recipient.includes('@')) {
+                results.add(recipient);
+                continue;
+            }
+
+            // 2. Applicant
+            if (recipient === 'applicant') {
+                const user = await this.usersService.getUserSnapshot(applicantId);
+                if (user && user.email) results.add(user.email);
+                continue;
+            }
+
+            // 3. Manager
+            if (recipient === 'applicant_manager') {
+                const manager = await this.usersService.getManager(applicantId);
+                if (manager && manager.email) results.add(manager.email);
+                continue;
+            }
+
+            // 4. User
+            if (recipient.startsWith('user:')) {
+                const username = recipient.substring(5);
+                const user = await this.usersService.getUserSnapshotByUsername(username);
+                if (user && user.email) results.add(user.email);
+                continue;
+            }
+
+            // 5. Group
+            if (recipient.startsWith('group:')) {
+                const identifier = recipient.substring(6);
+                const members = await this.usersService.getGroupMembersByIdentifier(identifier);
+                members.forEach(m => {
+                    if (m.email) results.add(m.email);
+                });
+                continue;
+            }
+
+            // 6. Role (Optional check, if supported)
+            if (recipient.startsWith('role:')) {
+                // Not supported yet in UsersService fully for fetching users
+                this.logger.warn(`Role recipient not supported yet: ${recipient}`);
+                continue;
+            }
+            
+            // 7. Fallback: Treat as username if no other match and looks valid?
+            // Or assume it might be a variable that wasn't substituted?
+            // If it's a simple string, we try to resolve as username
+            const user = await this.usersService.getUserSnapshotByUsername(recipient);
+            if (user && user.email && user.username !== 'unknown') {
+                results.add(user.email);
+            }
+        }
+
+        return Array.from(results);
+    }
     
     async resolveAssignedToSnapshot(assignee: string): Promise<any> {
         return this.usersService.resolveAssignedToSnapshot(assignee);

@@ -64,6 +64,7 @@ interface FlowVisualizationProps {
     edges: any[];
     currentNodeId?: string | string[] | null;
     completedStepIds?: Set<string> | string[];
+    failedStepIds?: Set<string> | string[];
     height?: number;
     showBackground?: boolean;
     onNodeClick?: (event: React.MouseEvent, node: any) => void;
@@ -74,11 +75,14 @@ export default function FlowVisualization({
     edges: rawEdges,
     currentNodeId,
     completedStepIds: completedStepIdsInput = [],
+    failedStepIds: failedStepIdsInput = [],
     height = 280,
     showBackground = false,
     onNodeClick,
 }: FlowVisualizationProps) {
     const completedStepIds = completedStepIdsInput instanceof Set ? completedStepIdsInput : new Set(completedStepIdsInput);
+    const failedStepIds = failedStepIdsInput instanceof Set ? failedStepIdsInput : new Set(failedStepIdsInput);
+
     const currentStepIds = useMemo(() => {
         if (!currentNodeId) return new Set<string>();
         return new Set(Array.isArray(currentNodeId) ? currentNodeId : [currentNodeId]);
@@ -102,6 +106,7 @@ export default function FlowVisualization({
             }
 
             const isCurrent = currentStepIds.has(node.id);
+            const isFailed = failedStepIds.has(node.id); // Add failure check
             const isStart = node.type === 'start';
             const isEnd = node.type === 'end';
             const isGateway = ['parallel', 'join', 'branch'].includes(node.type);
@@ -127,7 +132,8 @@ export default function FlowVisualization({
 
             // Colors
             let bgColor = '#f5f5f5', borderColor = '#ccc', color = '#333';
-            if (isCurrent) { bgColor = '#e3f2fd'; borderColor = '#2196f3'; color = '#0d47a1'; }
+            if (isFailed) { bgColor = '#fee2e2'; borderColor = '#ef4444'; color = '#b91c1c'; } // Red for failed
+            else if (isCurrent) { bgColor = '#e3f2fd'; borderColor = '#2196f3'; color = '#0d47a1'; }
             else if (isStart) { bgColor = isCompleted ? '#eceff1' : '#fff'; borderColor = isCompleted ? '#455a64' : '#607d8b'; }
             else if (isEnd) { bgColor = isCompleted ? '#ffebee' : '#fafafa'; borderColor = isCompleted ? '#d32f2f' : '#ef5350'; color = isCompleted ? '#b71c1c' : '#e53935'; }
             else if (isCompleted) { bgColor = '#e8f5e9'; borderColor = '#4caf50'; }
@@ -137,7 +143,7 @@ export default function FlowVisualization({
             else if (isGateway) { nodeStyle = { background: 'transparent', border: 'none', width: 50, height: 50, display: 'flex', alignItems: 'center', justifyContent: 'center' }; node.data = { ...node.data, bgColor, borderColor }; }
             else nodeStyle = { ...nodeStyle, borderRadius: 8, padding: 0, minWidth: 100 };
 
-            return { ...node, zIndex: 1, style: nodeStyle, data: { ...node.data, bgColor, borderColor, isCurrent, isCompleted } };
+            return { ...node, zIndex: 1, style: nodeStyle, data: { ...node.data, bgColor, borderColor, isCurrent, isCompleted, isFailed } };
         });
 
         const displayEdges = rawEdges.map((edge: any) => {
@@ -186,8 +192,9 @@ export default function FlowVisualization({
         <div className="p-2 text-center min-w-[120px] min-h-[50px] flex flex-col items-center justify-center relative" style={{ backgroundColor: bgColor }}>
             <CommonHandles />
             <span className="text-xs font-bold">{label}</span>
-            {data?.isCurrent && <Badge className="mt-1 h-4 text-[10px] px-1.5">現在</Badge>}
-            {data?.isCompleted && !data?.isCurrent && <Badge variant="secondary" className="mt-1 h-4 text-[10px] px-1.5 bg-emerald-100 text-emerald-700">完了</Badge>}
+            {data?.isFailed && <Badge variant="destructive" className="mt-1 h-4 text-[10px] px-1.5">失敗</Badge>}
+            {data?.isCurrent && !data?.isFailed && <Badge className="mt-1 h-4 text-[10px] px-1.5">現在</Badge>}
+            {data?.isCompleted && !data?.isCurrent && !data?.isFailed && <Badge variant="secondary" className="mt-1 h-4 text-[10px] px-1.5 bg-emerald-100 text-emerald-700">完了</Badge>}
         </div>
     );
 

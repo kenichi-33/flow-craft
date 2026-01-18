@@ -6,12 +6,38 @@ import { MailService } from '../../../notifications/mail.service';
  * メール送信タスクハンドラー
  * 非同期でメール送信を実行する
  */
+import { WorkflowHelperService } from '../../workflow-helper.service';
+
+/**
+ * 簡易テンプレートレジストリ
+ * 将来的にはDBまたは外部設定に移動
+ */
+const EMAIL_TEMPLATES: Record<string, { subject: string; body: string }> = {
+    'approval_request': {
+        subject: '【承認依頼】{{application.title}}',
+        body: '申請「{{application.title}}」の承認依頼が届いています。\n\n申請者: {{applicant.username}}\nリンク: {{env.APP_URL}}/applications/{{application.id}}'
+    },
+    'approval_remind': {
+        subject: '【リマインド】承認期限が迫っています',
+        body: '以下の申請の承認をお願いします。\n\n件名: {{application.title}}\n期限: {{task.dueDate}}'
+    },
+    'notification_default': {
+        subject: '通知: {{application.title}}',
+        body: 'システムからの通知です。\n\n{{input.message}}'
+    }
+};
+
+/**
+ * メール送信タスクハンドラー
+ * 非同期でメール送信を実行する
+ */
 @Injectable()
 export class EmailTaskHandler implements ITaskHandler {
     private readonly logger = new Logger(EmailTaskHandler.name);
 
     constructor(
         private readonly mailService: MailService,
+        private readonly helper: WorkflowHelperService,
     ) {}
 
     get taskType(): string {
@@ -23,54 +49,73 @@ export class EmailTaskHandler implements ITaskHandler {
         this.logger.log(`Executing Email Task ${taskId} (Node: ${nodeId})`);
 
         try {
-            // 変数置換はProcessorで行うか、ここで行うか？
-            // Processorで行ったほうが「送信予定内容」として記録しやすいが、
-            // 変数がHandler実行時(遅延後)に評価されるべきならここ。
-            // 今回はProcessorで置換済みの値が `nodeData` (config) に入っている前提ではなく、
-            // Contextの `nodeData` はフロー定義そのもの。
-            // よってここで置換を行う必要がある。ただし、GenericWorkerの実行コンテキストには Helper がない。
-            // HelperServiceを注入して使うか、簡単な正規表現でやるか。
-            // ここでは簡易実装として正規表現で行う。
-
             const config = nodeData || {};
-            
-            // シンプルな置換ロジック (HelperServiceと同等)
-            const substitute = (text: string, data: any) => {
-                if (!text) return '';
-                return text.replace(/\{\{([^}]+)\}\}/g, (_, key) => {
-                    const keys = key.trim().split('.');
-                    let val = data;
-                    for (const k of keys) {
-                        val = val ? val[k] : undefined;
-                    }
-                    return val !== undefined ? String(val) : `{{${key}}}`;
-                });
-            };
+            let templateSubject = '';
+            let templateBody = '';
 
-            const substitutionData = {
-                application: { ...inputData }, 
-                applicant: { id: applicantId }, 
-                input: inputData // alias
-            };
-
-            const to = substitute(config.to, substitutionData);
-            const subject = substitute(config.subject, substitutionData);
-            const body = substitute(config.body, substitutionData);
-
-            if (!to) {
-                throw new Error('Email "to" address is missing');
+            // Template resolution
+            if (config.templateId && EMAIL_TEMPLATES[config.templateId]) {
+                const tmpl = EMAIL_TEMPLATES[config.templateId];
+                templateSubject = tmpl.subject;
+                templateBody = tmpl.body;
             }
 
-            this.logger.log(`Sending email to ${to}`);
+            // Fallback to configured subject/body if no template or override?
+            // Usually template overrides manual input, or manual input overrides template if provided?
+            // Let's assume manual input takes precedence if provided (allowing customization), 
+            // OR if template is selected, use template.
+            // UI usually clears manual input when template selected.
+            // Let's use config values if present, else template.
             
-            await this.mailService.sendEmail(to, subject, body);
+            const rawSubject = config.subject || templateSubject;
+            const rawBody = config.body || templateBody;
+
+            // Simple substitution logic (using helper's logic if available, but helper needs whole context object)
+            // Helper's substituteVariables takes (text, context).
+            
+            const substitutionData = {
+                application: { ...inputData, title: inputData.title || '（件名なし）', id: context.applicationId }, 
+                applicant: { id: applicantId }, 
+                input: inputData,
+                env: { APP_URL: process.env.APP_URL || 'http://localhost:3000' },
+                task: { id: taskId, nodeId }
+            };
+            
+            // Note: We need to fetch applicant details for substitution?
+            // Input data might not have username.
+            // Let's try to fetch applicant snapshot for better substitution?
+            // For performance, maybe just use what we have. 
+            // MailService usually fetches user data? No, MailService sends generic mail.
+            
+            const toStr = this.helper.substituteVariables(config.to, substitutionData);
+            const subject = this.helper.substituteVariables(rawSubject, substitutionData);
+            const body = this.helper.substituteVariables(rawBody, substitutionData);
+            
+            // Resolve Recipients
+            // config.to can be "user:A, group:B, applicant"
+            const toList = await this.helper.resolveEmails(toStr, applicantId);
+
+            if (toList.length === 0) {
+                // If "to" was specified but resolved to nothing (e.g. empty group), validation failed?
+                // Or if "to" was empty to begin with.
+                if (!toStr) throw new Error('Email "to" address is missing');
+                this.logger.warn(`Email task ${taskId}: Resolved 0 recipients from "${toStr}"`);
+                // Should fail or skip?
+                // Failing allows retry or correction.
+                throw new Error(`Resolved 0 recipients from "${toStr}"`);
+            }
+
+            this.logger.log(`Sending email to ${toList.length} recipients: ${toList.join(', ')}`);
+            
+            // Send to all
+            await Promise.all(toList.map(email => this.mailService.sendEmail(email, subject, body)));
 
             return {
                 success: true,
                 shouldAdvance: true,
                 outputData: {
                     [`email_sent_${nodeId}`]: true,
-                    [`email_to_${nodeId}`]: to
+                    [`email_to_${nodeId}`]: toStr
                 }
             };
 

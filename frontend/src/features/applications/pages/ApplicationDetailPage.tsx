@@ -1,4 +1,5 @@
 import { useParams, useNavigate } from 'react-router-dom';
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { Button } from '@/components/ui/button';
@@ -13,6 +14,16 @@ import FlowVisualization from '@/components/designer/flow/FlowVisualization';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 
 interface ApplicationDetail {
     id: string;
@@ -93,6 +104,8 @@ export default function ApplicationDetailPage() {
     const navigate = useNavigate();
     const { user } = useAuthStore();
     const queryClient = useQueryClient();
+    const [retryDialogOpen, setRetryDialogOpen] = useState(false);
+    const [retryTargetId, setRetryTargetId] = useState<string | null>(null);
 
     const { data: application, isLoading, error } = useQuery<ApplicationDetail>({
         queryKey: ['application', id],
@@ -170,15 +183,25 @@ export default function ApplicationDetailPage() {
         });
     };
 
-    const handleRetry = async (taskId: string) => {
-        if (!confirm('再実行してもよろしいですか？')) return;
+
+
+    const handleRetry = (taskId: string) => {
+        setRetryTargetId(taskId);
+        setRetryDialogOpen(true);
+    };
+
+    const confirmRetry = async () => {
+        if (!retryTargetId) return;
         try {
-            await api.post(`/workflow/tasks/${taskId}/retry`, {});
+            await api.post(`/workflow/tasks/${retryTargetId}/retry`, {});
             queryClient.invalidateQueries({ queryKey: ['application', id] });
             toast.success('再実行リクエストを送信しました');
         } catch (e) {
             console.error(e);
             toast.error('再実行に失敗しました');
+        } finally {
+            setRetryDialogOpen(false);
+            setRetryTargetId(null);
         }
     };
 
@@ -313,11 +336,38 @@ export default function ApplicationDetailPage() {
                             nodes={application.flowNodes || application.flowDefinition?.nodes || []}
                             edges={application.flowEdges || application.flowDefinition?.edges || []}
                             currentNodeId={
-                                // For parallel execution: derive from pending interactive tasks
-                                application.workflowTasks?.filter((t: any) => ['approval', 'input', 'userInput'].includes(t.type) && t.status === 'PENDING').map((t: any) => t.stepId) || 
-                                (application.currentNodeId ? [application.currentNodeId] : [])
+                                (() => {
+                                    // Group tasks by stepId to find the latest one
+                                    const latestTasks = new Map<string, any>();
+                                    // tasks are ordered by desc, so first one is latest
+                                    application.workflowTasks?.forEach((t: any) => {
+                                        if (!latestTasks.has(t.stepId)) latestTasks.set(t.stepId, t);
+                                    });
+
+                                    // If latest task is PENDING, it's a current node
+                                    const pendingStepIds = Array.from(latestTasks.values())
+                                        .filter(t => ['approval', 'input', 'userInput'].includes(t.type) && t.status === 'PENDING')
+                                        .map(t => t.stepId);
+                                    
+                                    // Also consider application.currentNodeId (mostly for non-task nodes or initial state)
+                                    // But if we have tasks, they prioritize.
+                                    if (pendingStepIds.length > 0) return pendingStepIds;
+                                    return application.currentNodeId ? [application.currentNodeId] : [];
+                                })()
                             }
                             completedStepIds={application.history?.filter((h: any) => h.action !== 'REMAND' && h.action !== 'ASSIGN_INPUT').map((h: any) => h.stepId) || []}
+                            failedStepIds={
+                                (() => {
+                                    const latestTasks = new Map<string, any>();
+                                    application.workflowTasks?.forEach((t: any) => {
+                                        if (!latestTasks.has(t.stepId)) latestTasks.set(t.stepId, t);
+                                    });
+                                    // If latest task is FAILED, mark as failed step
+                                    return Array.from(latestTasks.values())
+                                        .filter(t => t.status === 'FAILED')
+                                        .map(t => t.stepId);
+                                })()
+                            }
                             height={250}
                         />
                     </CardContent>
@@ -353,17 +403,23 @@ export default function ApplicationDetailPage() {
             )}
 
             {/* System History */}
-            {application.workflowTasks && application.workflowTasks.filter(t => ['apiCall', 'llmCall'].includes(t.type)).length > 0 && (
+            {application.workflowTasks && application.workflowTasks.filter(t => !['approval', 'input', 'userInput', 'start', 'end', 'branch', 'parallel', 'join', 'delay'].includes(t.type)).length > 0 && (
                 <Card className="border-0 shadow-md">
                     <CardHeader>
                         <CardTitle className="text-lg">システム処理履歴</CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-4">
-                        {application.workflowTasks.filter(t => ['apiCall', 'llmCall'].includes(t.type)).map((task) => (
+                        {application.workflowTasks.filter(t => !['approval', 'input', 'userInput', 'start', 'end', 'branch', 'parallel', 'join', 'delay'].includes(t.type)).map((task) => (
                             <div key={task.id} className={`p-4 rounded-lg border ${task.status === 'FAILED' ? 'bg-red-50/50 border-red-100' : 'bg-green-50/50 border-green-100'}`}>
                                 <div className="flex items-center justify-between mb-2">
                                     <div className="font-semibold text-sm">
-                                        {task.type === 'apiCall' ? 'API実行' : task.type === 'llmCall' ? 'AI処理' : task.type}
+                                        {task.type === 'apiCall' ? 'API実行' : 
+                                         task.type === 'llmCall' ? 'AI処理' : 
+                                         task.type === 'sendEmail' ? 'メール送信' : 
+                                         task.type === 'slack' ? 'Slack通知' : 
+                                         task.type === 'updateRecord' ? 'レコード更新' : 
+                                         task.type === 'setVariable' ? '変数設定' : 
+                                         task.type}
                                     </div>
                                     <Badge variant={task.status === 'COMPLETED' ? 'default' : task.status === 'FAILED' ? 'destructive' : 'secondary'}>
                                         {task.status === 'COMPLETED' ? '成功' : task.status === 'FAILED' ? '失敗' : task.status}
@@ -450,6 +506,23 @@ export default function ApplicationDetailPage() {
                     )}
                 </CardContent>
             </Card>
+            {/* Retry Confirmation Dialog */}
+            <AlertDialog open={retryDialogOpen} onOpenChange={setRetryDialogOpen}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>システムタスクの再実行</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            このタスクを再実行してもよろしいですか？
+                            <br />
+                            <span className="text-xs text-muted-foreground">※ 以前の実行結果は履歴として保持されます。</span>
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>キャンセル</AlertDialogCancel>
+                        <AlertDialogAction onClick={confirmRetry}>再実行する</AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </div>
     );
 }
