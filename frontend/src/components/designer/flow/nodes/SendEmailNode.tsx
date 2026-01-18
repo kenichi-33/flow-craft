@@ -108,7 +108,7 @@ const SendEmailNode = ({ data }: any) => {
                                         <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => setConfig(prev => ({ ...prev, to: prev.to ? `${prev.to}, applicant` : 'applicant' }))}>
                                             + 申請者
                                         </Button>
-                                        <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => setConfig(prev => ({ ...prev, to: prev.to ? `${prev.to}, manager` : 'manager' }))}>
+                                    <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => setConfig(prev => ({ ...prev, to: prev.to ? `${prev.to}, applicant_manager` : 'applicant_manager' }))}>
                                             + 上長
                                         </Button>
                                         <div className="w-[180px]">
@@ -128,8 +128,15 @@ const SendEmailNode = ({ data }: any) => {
                                     </div>
                                 )}
                                 <p className="text-xs text-muted-foreground">
-                                    カンマ区切りで複数指定可能。直接Emailアドレスも使用できます。
+                                    カンマ区切りで複数指定可能。直接Emailアドレスも使用できます。<br/>
+                                    ※ `applicant` や `user:xxx` はそのまま入力してください。<br/>
+                                    ※ フォーム入力値を参照する場合は {'{{input.fieldId}}'} のように記述します。
                                 </p>
+                                {config.to.includes('manager') && !config.to.includes('applicant_manager') && (
+                                     <p className="text-xs text-amber-600 font-bold mt-1">
+                                         注意: "manager" は無効なキーワードです。"applicant_manager" (上長) を使用してください。
+                                     </p>
+                                )}
                             </div>
                             
                             <div className="space-y-2">

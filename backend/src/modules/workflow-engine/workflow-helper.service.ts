@@ -135,7 +135,11 @@ export class WorkflowHelperService {
             // 2. Applicant
             if (recipient === 'applicant') {
                 const user = await this.usersService.getUserSnapshot(applicantId);
-                if (user && user.email) results.add(user.email);
+                if (user && user.email) {
+                    results.add(user.email);
+                } else {
+                    this.logger.warn(`Applicant ${applicantId} not found or has no email.`);
+                }
                 continue;
             }
 
@@ -150,7 +154,11 @@ export class WorkflowHelperService {
             if (recipient.startsWith('user:')) {
                 const username = recipient.substring(5);
                 const user = await this.usersService.getUserSnapshotByUsername(username);
-                if (user && user.email) results.add(user.email);
+                if (user && user.email) {
+                    results.add(user.email);
+                } else {
+                    this.logger.warn(`User ${username} not found or has no email.`);
+                }
                 continue;
             }
 

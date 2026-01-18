@@ -330,11 +330,7 @@ function FlowDesignerContent({ appId, isStatsMode, statsOverlay }: { appId: stri
                             </AccordionItem>
                         ))}
                     </Accordion>
-                    {(selectedNodes.length > 0 || selectedEdges.length > 0) && (
-                        <Button variant="destructive" size="sm" className="w-full mt-2" onClick={deleteSelected}>
-                            <Trash2 className="h-4 w-4 mr-1" />削除 ({selectedNodes.length + selectedEdges.length})
-                        </Button>
-                    )}
+
                 </Card>
                 )}
 
@@ -372,6 +368,11 @@ function FlowDesignerContent({ appId, isStatsMode, statsOverlay }: { appId: stri
                                 />
                                 {!isReadOnly && (
                                 <>
+                                    {(selectedNodes.length > 0 || selectedEdges.length > 0) && (
+                                        <Button variant="destructive" size="sm" onClick={deleteSelected}>
+                                            <Trash2 className="h-4 w-4 mr-1" />削除 ({selectedNodes.length + selectedEdges.length})
+                                        </Button>
+                                    )}
                                     <Button variant="outline" size="sm" onClick={() => setPermissionMatrixOpen(true)}>
                                         <Lock className="h-4 w-4 mr-1" />
                                         権限

@@ -256,6 +256,12 @@ export class UsersService {
      * ユーザーIDからスナップショット情報を取得
      */
     async getUserSnapshot(userId: string): Promise<UserSnapshot> {
+        // If userId is not a UUID, treat it as a username
+        const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+        if (!uuidRegex.test(userId)) {
+            return this.getUserSnapshotByUsername(userId);
+        }
+
         try {
             const token = await this.getAdminToken();
             const userResponse = await axios.get<KeycloakUser>(
