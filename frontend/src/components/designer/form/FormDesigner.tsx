@@ -39,6 +39,7 @@ export default function FormDesigner({ appId }: { appId: string }) {
     // Form Settings
     const [formName, setFormName] = useState('');
     const [layoutType, setLayoutType] = useState('one-column');
+    const [theme, setTheme] = useState('standard');
 
     // Fetch Application Definition
     const { data: appDef, isLoading } = useQuery({
@@ -117,6 +118,9 @@ export default function FormDesigner({ appId }: { appId: string }) {
             
             if (targetSchema['x-layout-type']) {
                 setLayoutType(targetSchema['x-layout-type']);
+            }
+            if (targetSchema['x-theme']) {
+                setTheme(targetSchema['x-theme']);
             }
 
             const allFields: FormField[] = Object.entries(properties).map(([fieldId, config]: [string, any]) => ({
@@ -412,7 +416,7 @@ export default function FormDesigner({ appId }: { appId: string }) {
         processFields(fields);
 
         return {
-            schema: { type: 'object', properties, required, 'x-layout': layout, 'x-layout-type': layoutType },
+            schema: { type: 'object', properties, required, 'x-layout': layout, 'x-layout-type': layoutType, 'x-theme': theme },
             layout: layout
         };
     };
@@ -443,16 +447,18 @@ export default function FormDesigner({ appId }: { appId: string }) {
                                 <Input 
                                     value={formName} 
                                     onChange={(e) => setFormName(e.target.value)} 
-                                    className="h-8 w-64" 
+                                    className="h-8 w-48" 
                                     placeholder="フォーム名"
                                 />
-                                <Select value={layoutType} onValueChange={setLayoutType}>
-                                    <SelectTrigger className="h-8 w-32">
-                                        <SelectValue placeholder="レイアウト" />
+                                <Select value={theme} onValueChange={setTheme}>
+                                    <SelectTrigger className="h-8 w-28">
+                                        <SelectValue placeholder="テーマ" />
                                     </SelectTrigger>
                                     <SelectContent>
-                                        <SelectItem value="one-column">1カラム</SelectItem>
-                                        <SelectItem value="two-column">2カラム</SelectItem>
+                                        <SelectItem value="standard">標準</SelectItem>
+                                        <SelectItem value="modern">モダン</SelectItem>
+                                        <SelectItem value="elegant">エレガント</SelectItem>
+                                        <SelectItem value="warm">ウォーム</SelectItem>
                                     </SelectContent>
                                 </Select>
                             </div>

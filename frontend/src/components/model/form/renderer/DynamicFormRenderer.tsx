@@ -98,6 +98,44 @@ export default function DynamicFormRenderer({
     const { register, handleSubmit, formState: { errors }, control, getValues, setValue } = methods;
     const { ref: containerRef } = useWidth();
 
+    // Theme Styles Definition
+    const theme = schema?.['x-theme'] || 'standard';
+    const themeStyles = {
+        standard: {
+            container: '',
+            card: 'p-4 rounded-xl bg-muted/20 border',
+            input: 'h-11 bg-background',
+            textarea: 'min-h-[80px] bg-background resize-none',
+            label: 'text-sm font-medium',
+            button: ''
+        },
+        modern: {
+            container: 'bg-gradient-to-br from-slate-50 to-slate-100/50 p-6 rounded-3xl',
+            card: 'p-6 rounded-2xl bg-white/80 border-0 shadow-xl shadow-slate-200/50 backdrop-blur-sm',
+            input: 'h-12 bg-slate-50 border-slate-200 focus:ring-2 focus:ring-slate-400 rounded-lg shadow-sm transition-all',
+            textarea: 'min-h-[100px] bg-slate-50 border-slate-200 focus:ring-2 focus:ring-slate-400 rounded-lg shadow-sm transition-all resize-none',
+            label: 'text-sm font-semibold text-slate-600 mb-1.5',
+            button: 'rounded-lg shadow-md hover:shadow-lg transition-all'
+        },
+        elegant: {
+            container: 'bg-stone-50 p-8',
+            card: 'p-8 rounded-none border border-stone-200 bg-white shadow-sm',
+            input: 'h-10 bg-transparent border-b border-stone-300 rounded-none focus:border-stone-800 focus:ring-0 px-0 transition-colors',
+            textarea: 'min-h-[80px] bg-transparent border-b border-stone-300 rounded-none focus:border-stone-800 focus:ring-0 px-0 transition-colors resize-none',
+            label: 'text-xs font-bold tracking-widest text-stone-500 uppercase font-serif',
+            button: 'rounded-none border-stone-800'
+        },
+        warm: {
+            container: 'bg-orange-50/30 p-4 rounded-[2rem]',
+            card: 'p-5 rounded-3xl bg-white border-2 border-orange-100 shadow-sm',
+            input: 'h-11 bg-orange-50/50 border-orange-200 focus:border-orange-400 focus:ring-orange-200 rounded-2xl',
+            textarea: 'min-h-[80px] bg-orange-50/50 border-orange-200 focus:border-orange-400 focus:ring-orange-200 rounded-2xl resize-none',
+            label: 'text-sm font-medium text-orange-900',
+            button: 'rounded-2xl'
+        }
+    };
+    const styles = themeStyles[theme as keyof typeof themeStyles] || themeStyles.standard;
+
     // Handle missing or invalid schema gracefully
     if (!schema) {
         return (
@@ -157,8 +195,8 @@ export default function DynamicFormRenderer({
             // Group Handling (Recursive)
             if (field.type === 'group') {
                 return (
-                    <div key={field.id} className="p-4 rounded-xl bg-muted/20 border" style={{ gridColumn: `span ${colSpan}` }}>
-                        {field.label && <h3 className="text-base font-bold mb-4 text-foreground">{field.label}</h3>}
+                    <div key={field.id} className={styles.card} style={{ gridColumn: `span ${colSpan}` }}>
+                        {field.label && <h3 className={`text-base font-bold mb-4 ${theme === 'elegant' ? 'font-serif text-stone-800' : 'text-foreground'}`}>{field.label}</h3>}
                         <div className="grid grid-cols-12 gap-4">
                             {renderFields(field.id)}
                         </div>
@@ -182,7 +220,7 @@ export default function DynamicFormRenderer({
 
             return (
                 <div key={field.id} className="space-y-2" style={{ gridColumn: `span ${colSpan}` }}>
-                    <Label className={`text-sm font-medium block text-${field.align || 'left'}`}>
+                    <Label className={`${styles.label} block text-${field.align || 'left'}`}>
                         {field.label}
                         {field.required && !readOnly && <span className="text-destructive ml-1">*</span>}
                     </Label>
@@ -191,7 +229,7 @@ export default function DynamicFormRenderer({
                         isFieldReadOnly ? (
                             <div className="p-3 rounded-lg bg-muted min-h-[80px] text-sm whitespace-pre-wrap">{value || '-'}</div>
                         ) : (
-                            <Textarea {...register(field.id, { required: field.required })} placeholder={`${field.label}を入力...`} rows={4} className="resize-none" />
+                            <Textarea {...register(field.id, { required: field.required })} placeholder={`${field.label}を入力...`} rows={4} className={styles.textarea} />
                         )
                     ) : field.type === 'select' ? (
                         isFieldReadOnly ? (
@@ -201,7 +239,7 @@ export default function DynamicFormRenderer({
                         ) : (
                             <Controller name={field.id} control={control} rules={{ required: field.required }} render={({ field: f }) => (
                                 <Select value={f.value || ''} onValueChange={f.onChange}>
-                                    <SelectTrigger className="h-11 bg-background"><SelectValue placeholder="選択してください" /></SelectTrigger>
+                                    <SelectTrigger className={styles.input}><SelectValue placeholder="選択してください" /></SelectTrigger>
                                     <SelectContent>
                                         {field.options.map((opt: any) => {
                                             const val = typeof opt === 'string' ? opt : opt.value;
@@ -213,7 +251,7 @@ export default function DynamicFormRenderer({
                             )} />
                         )
                     ) : field.type === 'checkbox' ? (
-                        <div className="space-y-2 p-3 bg-muted/30 rounded-lg border">
+                        <div className={`space-y-2 ${theme !== 'elegant' ? 'p-3 bg-muted/30 rounded-lg border' : 'p-0'}`}>
                             {field.options.map((opt: any, i: number) => {
                                 const val = typeof opt === 'string' ? opt : opt.value;
                                 const label = typeof opt === 'string' ? opt : opt.label;
@@ -239,7 +277,7 @@ export default function DynamicFormRenderer({
                             })}
                         </div>
                     ) : field.type === 'radio' ? (
-                        <div className="space-y-2 p-3 bg-muted/30 rounded-lg border">
+                        <div className={`space-y-2 ${theme !== 'elegant' ? 'p-3 bg-muted/30 rounded-lg border' : 'p-0'}`}>
                             {field.options.map((opt: any, i: number) => {
                                 const val = typeof opt === 'string' ? opt : opt.value;
                                 const label = typeof opt === 'string' ? opt : opt.label;
@@ -263,13 +301,13 @@ export default function DynamicFormRenderer({
                         isFieldReadOnly ? (
                             <div className="p-3 rounded-lg bg-muted text-sm">{value ? new Date(value).toLocaleDateString('ja-JP') : '-'}</div>
                         ) : (
-                            <Input type={field.includeTime ? 'datetime-local' : 'date'} {...register(field.id, { required: field.required })} className="h-11 bg-background" />
+                            <Input type={field.includeTime ? 'datetime-local' : 'date'} {...register(field.id, { required: field.required })} className={styles.input} />
                         )
                     ) : field.type === 'number' ? (
                         isFieldReadOnly ? (
                             <div className="p-3 rounded-lg bg-muted text-sm text-right font-mono">{value ?? '-'}</div>
                         ) : (
-                            <Input type="number" {...register(field.id, { required: field.required })} placeholder={`${field.label}を入力...`} className="h-11 bg-background text-right font-mono" />
+                            <Input type="number" {...register(field.id, { required: field.required })} placeholder={`${field.label}を入力...`} className={`${styles.input} text-right font-mono`} />
                         )
                     ) : field.type === 'currency' ? (
                         isFieldReadOnly ? (
@@ -308,7 +346,7 @@ export default function DynamicFormRenderer({
                                             type="date" 
                                             value={f.value || ''} 
                                             onChange={f.onChange} 
-                                            className="h-11 bg-background" 
+                                            className={styles.input} 
                                             placeholder="開始日"
                                         />
                                     )}
@@ -323,7 +361,7 @@ export default function DynamicFormRenderer({
                                             type="date" 
                                             value={f.value || ''} 
                                             onChange={f.onChange} 
-                                            className="h-11 bg-background" 
+                                            className={styles.input} 
                                             placeholder="終了日"
                                         />
                                     )}
@@ -334,7 +372,7 @@ export default function DynamicFormRenderer({
                         isFieldReadOnly ? (
                             <div className="p-3 rounded-lg bg-muted text-sm">{value || '-'}</div>
                         ) : (
-                            <Input type="time" {...register(field.id, { required: field.required })} className="h-11 bg-background" />
+                            <Input type="time" {...register(field.id, { required: field.required })} className={styles.input} />
                         )
                     ) : field.type === 'file' ? (
                         <FileUploadField
@@ -423,7 +461,7 @@ export default function DynamicFormRenderer({
                                     )
                                 })} 
                                 placeholder={`${field.label}を入力...`} 
-                                className="h-11 bg-background" 
+                                className={styles.input} 
                             />
                         )
                     ) : (
@@ -431,7 +469,7 @@ export default function DynamicFormRenderer({
                         isFieldReadOnly ? (
                             <div className="p-3 rounded-lg bg-muted text-sm">{value || '-'}</div>
                         ) : (
-                            <Input type="text" {...register(field.id, { required: field.required })} placeholder={`${field.label}を入力...`} className="h-11 bg-background" />
+                            <Input type="text" {...register(field.id, { required: field.required })} placeholder={`${field.label}を入力...`} className={styles.input} />
                         )
                     )}
 
@@ -443,7 +481,7 @@ export default function DynamicFormRenderer({
     };
 
     return (
-        <form onSubmit={handleSubmit(handleFormSubmit)}>
+        <form onSubmit={handleSubmit(handleFormSubmit)} className={styles.container}>
             <div ref={containerRef} className="space-y-6">
                 <div className="grid grid-cols-12 gap-4">
                     {renderFields(undefined)}
