@@ -16,11 +16,13 @@ import { Textarea } from '@/components/ui/textarea';
 const SlackNode = ({ data }: any) => {
     const [open, setOpen] = React.useState(false);
     const [config, setConfig] = React.useState({
+        label: data.label || '',
         webhookUrl: data.webhookUrl || '',
         message: data.message || '',
     });
 
     const handleSave = () => {
+        data.label = config.label;
         data.webhookUrl = config.webhookUrl;
         data.message = config.message;
         setOpen(false);
@@ -38,7 +40,7 @@ const SlackNode = ({ data }: any) => {
                 <Handle type="target" position={Position.Left} className="!bg-indigo-800 !w-2.5 !h-2.5 !border-2 !border-white" />
                 <div className="flex items-center gap-1">
                     <MessageSquare className="h-4 w-4 text-white" />
-                    <span className="text-sm text-white font-bold drop-shadow-sm">Slack通知</span>
+                    <span className="text-sm text-white font-bold drop-shadow-sm">{config.label || 'Slack通知'}</span>
                     {!readOnly && (
                         <button className="p-0.5 text-white hover:bg-white/20 rounded ml-1" onClick={() => setOpen(true)} onMouseDown={(e) => e.stopPropagation()}>
                             <Pencil className="h-3.5 w-3.5" />
@@ -58,6 +60,17 @@ const SlackNode = ({ data }: any) => {
                     </DialogHeader>
                     
                     <div className="space-y-4 py-4">
+                        <div className="space-y-2">
+                            <Label htmlFor="label">ステップ名</Label>
+                            <Input 
+                                id="label" 
+                                value={config.label} 
+                                onChange={(e) => setConfig({...config, label: e.target.value})}
+                                placeholder="Slack通知"
+                                disabled={readOnly}
+                            />
+                        </div>
+
                         <div className="space-y-2">
                             <Label htmlFor="webhookUrl">Webhook URL</Label>
                             <Input 

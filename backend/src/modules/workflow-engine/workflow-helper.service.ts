@@ -86,7 +86,7 @@ export class WorkflowHelperService {
         if (!assignee) return null;
 
         if (assignee === 'applicant') {
-            return applicantId;
+            return `user:${applicantId}`;
         }
 
         if (assignee === 'applicant_manager') {

@@ -203,21 +203,23 @@ export default function ApplicationDetailPage() {
             </div>
 
             {/* Pending Tasks Section (Legacy Style) */}
-            {application.workflowTasks?.some(t => t.type === 'approval' && t.status === 'PENDING') && (
+            {application.workflowTasks?.some(t => ['approval', 'input', 'userInput'].includes(t.type) && t.status === 'PENDING') && (
                 <Card className="border-l-4 border-l-blue-500 shadow-md">
                     <CardHeader className="pb-3">
                         <CardTitle className="text-base font-semibold flex items-center gap-2">
                             <Clock className="h-4 w-4 text-blue-500" />
-                            現在承認待ちのタスク
+                            現在対応待ちのタスク
                         </CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-3">
-                        {application.workflowTasks.filter(t => t.type === 'approval' && t.status === 'PENDING').map(task => {
+                        {application.workflowTasks.filter(t => ['approval', 'input', 'userInput'].includes(t.type) && t.status === 'PENDING').map(task => {
                             // Backend now provides isExecutable flag based on reliable permission checks
                             const isAssigned = (task as any).isExecutable;
                             
                             const stepNode = application.flowDefinition?.nodes?.find((n: any) => n.id === task.stepId);
-                            const stepLabel = stepNode?.data?.label || task.stepId;
+                            // UserInputNode uses 'title' in data, not 'label'. Fallback to type-based name.
+                            const stepLabel = stepNode?.data?.label || stepNode?.data?.title || (['input', 'userInput'].includes(task.type) ? '入力タスク' : task.stepId);
+                            const isInput = ['input', 'userInput'].includes(task.type);
                             
                             return (
                                 <div key={task.id} className="flex items-center justify-between p-3 bg-background rounded-lg border shadow-sm">
@@ -244,7 +246,7 @@ export default function ApplicationDetailPage() {
                                             className="bg-blue-600 hover:bg-blue-700 text-white shadow-sm"
                                             size="sm"
                                         >
-                                            承認画面へ
+                                            {isInput ? '入力画面へ' : '承認画面へ'}
                                         </Button>
                                     )}
                                 </div>
@@ -311,11 +313,11 @@ export default function ApplicationDetailPage() {
                             nodes={application.flowNodes || application.flowDefinition?.nodes || []}
                             edges={application.flowEdges || application.flowDefinition?.edges || []}
                             currentNodeId={
-                                // For parallel execution: derive from pending tasks
-                                application.workflowTasks?.filter((t: any) => t.type === 'approval' && t.status === 'PENDING').map((t: any) => t.stepId) || 
+                                // For parallel execution: derive from pending interactive tasks
+                                application.workflowTasks?.filter((t: any) => ['approval', 'input', 'userInput'].includes(t.type) && t.status === 'PENDING').map((t: any) => t.stepId) || 
                                 (application.currentNodeId ? [application.currentNodeId] : [])
                             }
-                            completedStepIds={application.history?.filter((h: any) => h.action !== 'REMAND').map((h: any) => h.stepId) || []}
+                            completedStepIds={application.history?.filter((h: any) => h.action !== 'REMAND' && h.action !== 'ASSIGN_INPUT').map((h: any) => h.stepId) || []}
                             height={250}
                         />
                     </CardContent>

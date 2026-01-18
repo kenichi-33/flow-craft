@@ -21,6 +21,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 const SubProcessNode = ({ data }: any) => {
     const [open, setOpen] = useState(false);
     const [config, setConfig] = useState({
+        label: data.label || '',
         applicationDefinitionId: data.applicationDefinitionId || '',
         passAllInput: data.passAllInput ?? true,
         // Mapping UI is complex, skipping for V1 basic UI unless requested.
@@ -29,6 +30,7 @@ const SubProcessNode = ({ data }: any) => {
     });
 
     const handleSave = () => {
+        data.label = config.label;
         data.applicationDefinitionId = config.applicationDefinitionId;
         data.passAllInput = config.passAllInput;
         try {
@@ -52,7 +54,7 @@ const SubProcessNode = ({ data }: any) => {
                 <Handle type="target" position={Position.Left} className="!bg-teal-800 !w-2.5 !h-2.5 !border-2 !border-white" />
                 <div className="flex items-center gap-1">
                     <Workflow className="h-4 w-4 text-white" />
-                    <span className="text-sm text-white font-bold drop-shadow-sm">サブプロセス</span>
+                    <span className="text-sm text-white font-bold drop-shadow-sm">{config.label || 'サブプロセス'}</span>
                     {!readOnly && (
                         <button className="p-0.5 text-white hover:bg-white/20 rounded ml-1" onClick={() => setOpen(true)} onMouseDown={(e) => e.stopPropagation()}>
                             <Pencil className="h-3.5 w-3.5" />
@@ -72,6 +74,17 @@ const SubProcessNode = ({ data }: any) => {
                     </DialogHeader>
                     
                     <div className="grid gap-4 py-4">
+                        <div className="grid gap-2">
+                             <Label htmlFor="label">ステップ名</Label>
+                             <Input 
+                                 id="label" 
+                                 value={config.label} 
+                                 onChange={(e) => setConfig({...config, label: e.target.value})}
+                                 placeholder="サブプロセス"
+                                 disabled={readOnly}
+                             />
+                        </div>
+
                         <div className="grid gap-2">
                             <Label htmlFor="appDefId">実行するアプリ定義ID</Label>
                             <Input 

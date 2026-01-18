@@ -254,7 +254,7 @@ export class WorkflowEngineService {
         }
 
         // Allow approval and input tasks
-        if (task.type !== 'approval' && task.type !== 'input') {
+        if (task.type !== 'approval' && task.type !== 'input' && task.type !== 'userInput') {
             throw new BadRequestException('This task type cannot be completed via this API');
         }
 

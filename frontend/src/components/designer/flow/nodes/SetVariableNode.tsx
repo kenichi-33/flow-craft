@@ -20,9 +20,13 @@ interface VariableItem {
 
 const SetVariableNode = ({ data }: any) => {
     const [open, setOpen] = React.useState(false);
+    const [config, setConfig] = React.useState({
+        label: data.label || '',
+    });
     const [variables, setVariables] = React.useState<VariableItem[]>(data.variables || []);
 
     const handleSave = () => {
+        data.label = config.label;
         data.variables = variables;
         // Map to updates for compatible processor logic if we reuse UpdateRecordProcessor?
         // Or specific processor.
@@ -57,7 +61,7 @@ const SetVariableNode = ({ data }: any) => {
                 <Handle type="target" position={Position.Left} className="!bg-indigo-800 !w-2.5 !h-2.5 !border-2 !border-white" />
                 <div className="flex items-center gap-1">
                     <Variable className="h-4 w-4 text-white" />
-                    <span className="text-sm text-white font-bold drop-shadow-sm">変数設定</span>
+                    <span className="text-sm text-white font-bold drop-shadow-sm">{config.label || '変数設定'}</span>
                     {!readOnly && (
                         <button className="p-0.5 text-white hover:bg-white/20 rounded ml-1" onClick={() => setOpen(true)} onMouseDown={(e) => e.stopPropagation()}>
                             <Pencil className="h-3.5 w-3.5" />
@@ -76,46 +80,59 @@ const SetVariableNode = ({ data }: any) => {
                         <DialogTitle>変数設定 {readOnly && <span className="text-xs font-normal text-muted-foreground ml-2">(読み取り専用)</span>}</DialogTitle>
                     </DialogHeader>
                     
-                    <div className="py-2">
-                        <div className="flex justify-between items-center mb-2">
-                            <Label>設定する変数</Label>
-                            {!readOnly && (
-                            <Button size="sm" variant="outline" onClick={addVariable}>
-                                <Plus className="h-3 w-3 mr-1" /> 追加
-                            </Button>
-                            )}
+                    <div className="py-2 space-y-4">
+                        <div className="grid gap-2">
+                             <Label htmlFor="label">ステップ名</Label>
+                             <Input 
+                                 id="label" 
+                                 value={config.label} 
+                                 onChange={(e) => setConfig({...config, label: e.target.value})}
+                                 placeholder="変数設定"
+                                 disabled={readOnly}
+                             />
                         </div>
-                        
-                        <div className="space-y-2 max-h-[300px] overflow-y-auto">
-                            {variables.length === 0 && <div className="text-sm text-muted-foreground p-2 text-center">設定なし</div>}
-                            {variables.map((item, index) => (
-                                <div key={index} className="flex gap-2 items-center">
-                                    <div className="grid gap-1 flex-1">
-                                        <Input 
-                                            placeholder="変数名 (例: discount)" 
-                                            value={item.key} 
-                                            onChange={(e) => updateItem(index, 'key', e.target.value)} 
-                                            disabled={readOnly}
-                                        />
+
+                        <div>
+                            <div className="flex justify-between items-center mb-2">
+                                <Label>設定する変数</Label>
+                                {!readOnly && (
+                                <Button size="sm" variant="outline" onClick={addVariable}>
+                                    <Plus className="h-3 w-3 mr-1" /> 追加
+                                </Button>
+                                )}
+                            </div>
+                            
+                            <div className="space-y-2 max-h-[300px] overflow-y-auto">
+                                {variables.length === 0 && <div className="text-sm text-muted-foreground p-2 text-center">設定なし</div>}
+                                {variables.map((item, index) => (
+                                    <div key={index} className="flex gap-2 items-center">
+                                        <div className="grid gap-1 flex-1">
+                                            <Input 
+                                                placeholder="変数名 (例: discount)" 
+                                                value={item.key} 
+                                                onChange={(e) => updateItem(index, 'key', e.target.value)} 
+                                                disabled={readOnly}
+                                            />
+                                        </div>
+                                        <div className="grid gap-1 flex-1">
+                                            <Input 
+                                                placeholder="値 (例: 0.1 または {{input.rate}})" 
+                                                value={item.value} 
+                                                onChange={(e) => updateItem(index, 'value', e.target.value)} 
+                                                disabled={readOnly}
+                                            />
+                                        </div>
+                                        {!readOnly && (
+                                        <Button variant="ghost" size="icon" onClick={() => removeVariable(index)}>
+                                            <Trash2 className="h-4 w-4 text-red-500" />
+                                        </Button>
+                                        )}
                                     </div>
-                                    <div className="grid gap-1 flex-1">
-                                        <Input 
-                                            placeholder="値 (例: 0.1 または {{input.rate}})" 
-                                            value={item.value} 
-                                            onChange={(e) => updateItem(index, 'value', e.target.value)} 
-                                            disabled={readOnly}
-                                        />
-                                    </div>
-                                    {!readOnly && (
-                                    <Button variant="ghost" size="icon" onClick={() => removeVariable(index)}>
-                                        <Trash2 className="h-4 w-4 text-red-500" />
-                                    </Button>
-                                    )}
-                                </div>
-                            ))}
-                        </div>
-                            <div className="text-xs text-muted-foreground mt-2">
-                            * `{'{{key}}'}` 形式で他の変数を参照できます。
+                                ))}
+                            </div>
+                                <div className="text-xs text-muted-foreground mt-2">
+                                * `{'{{key}}'}` 形式で他の変数を参照できます。
+                            </div>
                         </div>
                     </div>
 

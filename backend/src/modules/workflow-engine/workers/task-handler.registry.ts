@@ -23,6 +23,19 @@ export class TaskHandlerRegistry {
   }
 
   /**
+   * エイリアス（別名）でハンドラーを登録
+   * @param alias エイリアス名
+   * @param handler ハンドラー
+   */
+  registerAlias(alias: string, handler: ITaskHandler): void {
+    if (this.handlers.has(alias)) {
+      this.logger.warn(`Handler for alias "${alias}" is being overwritten`);
+    }
+    this.handlers.set(alias, handler);
+    this.logger.log(`Registered handler alias "${alias}" for task type: ${handler.taskType}`);
+  }
+
+  /**
    * 複数のハンドラーを一括登録
    * @param handlers 登録するハンドラーの配列
    */

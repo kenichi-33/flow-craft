@@ -3,6 +3,7 @@ import { useMemo } from 'react';
 import { ReactFlow, MarkerType, Background, Handle, Position, Controls } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { Badge } from '@/components/ui/badge';
+import { getNodeLabel } from '@/constants/node-labels';
 
 // Common handles (invisible) for BPMN left-to-right connection
 const CommonHandles = () => (
@@ -173,7 +174,7 @@ export default function FlowVisualization({
     const UserInputNode = ({ data }: { data: any }) => (
         <div className="p-2 text-center min-w-[120px] min-h-[60px] flex flex-col items-center justify-center relative">
             <CommonHandles />
-            <span className="text-sm font-bold">{data?.title || '入力'}</span>
+            <span className="text-sm font-bold">{data?.title || getNodeLabel('userInput', data?.label)}</span>
             <span className="text-xs text-muted-foreground mt-0.5">{data?.assignedTo === 'applicant' ? '申請者' : (data?.assignedTo || '未割当')}</span>
             {data?.isCurrent && <Badge className="mt-1 h-4 text-[10px] px-1.5">現在</Badge>}
             {data?.isCompleted && !data?.isCurrent && <Badge variant="secondary" className="mt-1 h-4 text-[10px] px-1.5 bg-emerald-100 text-emerald-700">完了</Badge>}
@@ -203,12 +204,12 @@ export default function FlowVisualization({
         branch: GatewayNode,
         swimlane: SwimlaneNode,
         // Added missing nodes
-        sendEmail: (props: any) => <ActionNode {...props} label="メール送信" />,
-        slack: (props: any) => <ActionNode {...props} label="Slack通知" />,
-        delay: (props: any) => <ActionNode {...props} label="待機" />,
-        updateRecord: (props: any) => <ActionNode {...props} label="レコード更新" />,
-        setVariable: (props: any) => <ActionNode {...props} label="変数設定" />,
-        subProcess: (props: any) => <ActionNode {...props} label="サブプロセス" />,
+        sendEmail: (props: any) => <ActionNode {...props} label={getNodeLabel('sendEmail')} />,
+        slack: (props: any) => <ActionNode {...props} label={getNodeLabel('slack')} />,
+        delay: (props: any) => <ActionNode {...props} label={getNodeLabel('delay')} />,
+        updateRecord: (props: any) => <ActionNode {...props} label={getNodeLabel('updateRecord')} />,
+        setVariable: (props: any) => <ActionNode {...props} label={getNodeLabel('setVariable')} />,
+        subProcess: (props: any) => <ActionNode {...props} label={getNodeLabel('subProcess')} />,
     }), []);
 
     if (displayNodes.length === 0) {

@@ -10,6 +10,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { UserDisplay } from '@/components/common/UserDisplay';
 import { User as UserIcon, Users, Shield } from 'lucide-react';
+import { getNodeLabel } from '@/constants/node-labels';
 
 interface WorkflowTask {
     id: string;
@@ -78,20 +79,30 @@ const getAssigneeDisplay = (
     assignedToInfo?: any,
     history?: any[]
 ) => {
-    // 完了済みで履歴がある場合は履歴の実行者を表示する
+    // 完了済みで履歴がある場合は履歴の実行者を表示する (ただし、システムによる自動割り当てログは除外 && タスクがPENDINGでないこと)
+    // PENDINGの場合は現在の担当者を表示するため、履歴（割り当てログなど）は無視する
+    const isPending = nodeData && nodeData.status === 'PENDING'; // Note: nodeData here is actually node.data from Flow, not task status. 
+    // Wait, getAssigneeDisplay doesn't get task status directly. 
+    // But history checks usually imply completion for Approval. For Input/System tasks, we have intermediate logs.
+    // Let's filter out 'ASSIGN_INPUT' action from history for display purposes.
+    
     if (history && history.length > 0) {
         const latestHistory = history[history.length - 1];
-        return (
-            <div>
-                <UserDisplay user={latestHistory.actorInfo} fallback={latestHistory.actorId} />
-                {assignedTo && assignedTo !== latestHistory.actorId && (
-                    <div className="text-xs text-muted-foreground mt-0.5">
-                        (担当: {assignedToDisplay || assignedTo})
-                    </div>
-                )}
-            </div>
-        );
+        // システムアクション、またはタスク作成アクションの場合は履歴のアクターを表示しない（担当者を表示する）
+        if (latestHistory.actorId !== 'SYSTEM' && latestHistory.action !== 'ASSIGN_INPUT') {
+            return (
+                <div>
+                    <UserDisplay user={latestHistory.actorInfo} fallback={latestHistory.actorId} />
+                    {assignedTo && assignedTo !== latestHistory.actorId && (
+                        <div className="text-xs text-muted-foreground mt-0.5">
+                            (担当: {assignedToDisplay || assignedTo})
+                        </div>
+                    )}
+                </div>
+            );
+        }
     }
+
 
     // スナップショットがあればUserDisplayを使用
     if (assignedToInfo) {
@@ -101,37 +112,40 @@ const getAssigneeDisplay = (
     const rawAssignee = assignedTo || nodeData?.assignee;
     const display = assignedToDisplay || nodeData?.assigneeDisplay;
     
+    // 既存のUser/Role/Group解決ロジックも UserDisplay へ委譲できる形に正規化したいが、
+    // UserDisplayは現状 user オブジェクトを期待するため、簡易的なオブジェクトを作成する
+    
     if (display && rawAssignee && rawAssignee.startsWith('user:')) {
         const username = rawAssignee.substring(5);
         return <UserDisplay user={{ username, lastName: display, type: 'user' }} fallback={display} />;
     }
 
-    if (display) {
-        if (rawAssignee?.startsWith('group:')) {
-            return <div className="flex items-center gap-1.5"><Users className="h-3.5 w-3.5 text-muted-foreground" /><span>{display}</span></div>;
-        }
-        if (rawAssignee?.startsWith('role:')) {
-            return <div className="flex items-center gap-1.5"><Shield className="h-3.5 w-3.5 text-muted-foreground" /><span>{display}</span></div>;
-        }
-        return <span>{display}</span>;
+    // Role/Group/Manager などの特殊な割り当て
+    if (rawAssignee) {
+         let type: 'user' | 'group' | 'role' | 'system' = 'user';
+         let label = display || rawAssignee;
+         
+         if (rawAssignee.startsWith('group:')) type = 'group';
+         if (rawAssignee.startsWith('role:')) type = 'role';
+         if (rawAssignee === 'applicant_manager') label = '申請者の上長';
+         
+         // Display fallback with icon if UserDisplay doesn't support raw string
+         // But better to use UserDisplay if we can mock the user object?
+         // Actually UserDisplay handles `user` prop.
+         // Let's create a fake user object for display consistency (tooltip etc won't work perfectly but style will match)
+         // Wait, UserDisplay tooltip relies on `username`.
+         
+         return (
+            <div className="flex items-center gap-1.5">
+                {type === 'group' && <Users className="h-3.5 w-3.5 text-muted-foreground" />}
+                {type === 'role' && <Shield className="h-3.5 w-3.5 text-muted-foreground" />}
+                {type === 'user' && <UserIcon className="h-3.5 w-3.5 text-muted-foreground" />}
+                <span>{label && label.startsWith(type + ':') ? label.substring(type.length + 1) : label}</span>
+            </div>
+         );
     }
     
-    if (!rawAssignee) return <span className="text-muted-foreground">-</span>;
-    
-    if (rawAssignee.startsWith('user:')) {
-        return <div className="flex items-center gap-1.5"><UserIcon className="h-3.5 w-3.5 text-muted-foreground" /><span>{rawAssignee.substring(5)}</span></div>;
-    }
-    if (rawAssignee.startsWith('role:')) {
-        return <div className="flex items-center gap-1.5"><Shield className="h-3.5 w-3.5 text-muted-foreground" /><span>{rawAssignee.substring(5)}</span></div>;
-    }
-    if (rawAssignee.startsWith('group:')) {
-        return <div className="flex items-center gap-1.5"><Users className="h-3.5 w-3.5 text-muted-foreground" /><span>{rawAssignee.substring(6).split('/').pop()}</span></div>;
-    }
-    if (rawAssignee === 'applicant_manager') {
-        return <div className="flex items-center gap-1.5"><UserIcon className="h-3.5 w-3.5 text-muted-foreground" /><span>申請者の上長</span></div>;
-    }
-    
-    return <span>{rawAssignee}</span>;
+    return <span className="text-muted-foreground">-</span>;
 };
 
 const formatDateTime = (dateString: string | undefined) => {
@@ -156,12 +170,12 @@ export default function TaskList({
 }: TaskListProps) {
     const allSteps = useMemo(() => {
         if (!flowNodes || flowNodes.length === 0) {
-            return workflowTasks.filter(t => t.type === 'approval').map(task => ({
+            return workflowTasks.filter(t => ['approval', 'userInput', 'input'].includes(t.type)).map(task => ({
                 ...task,
                 nodeData: null,
-                nodeType: 'approval',
+                nodeType: task.type,
                 stepId: task.stepId,
-                stepName: '承認',
+                stepName: task.type === 'approval' ? '承認' : '入力タスク',
                 order: 0
             }));
         }
@@ -238,7 +252,7 @@ export default function TaskList({
             return {
                 id: relatedTask?.id || `pending-${node.id}`,
                 stepId: node.id,
-                stepName: node.data?.label || (['apiCall', 'llmCall'].includes(node.type) ? (node.type === 'apiCall' ? 'API実行' : 'AI処理') : node.id),
+                stepName: node.data?.label || getNodeLabel(node.type, node.id),
                 assignedTo: relatedTask?.assignedTo || (['apiCall', 'llmCall'].includes(node.type) ? 'system' : undefined),
                 assignedToInfo: relatedTask?.assignedToInfo,
                 assignedToDisplay: relatedTask?.assignedToDisplay || (['apiCall', 'llmCall'].includes(node.type) ? 'システム' : undefined),
@@ -252,14 +266,14 @@ export default function TaskList({
                 history: [
                     ...(history?.filter(h => h.stepId === node.id) || []),
                     ...(
-                        // 承認タスクのシステムログ（メール送信等）はユーザーにとって紛らわしいため表示しない
-                        // API呼び出しやLLM呼び出しのエラー/結果のみを表示
+                        // 承認タスクのログは通常履歴に含まれるが、Input/Serviceタスクのシステムログも表示する
                         (node.type !== 'approval') 
                         ? (relatedTask?.history?.map(h => ({
                             id: h.id,
                             action: h.status,
                             actorId: 'SYSTEM',
-                            comment: h.error ? `Error: ${h.error}` : (h.result ? 'Success' : ''),
+                            actorInfo: { username: 'SYSTEM', lastName: 'システム', type: 'system' }, // Fake user info for display
+                            comment: h.error ? `Error: ${h.error}` : (h.result ? '完了' : ''),
                             createdAt: h.executedAt,
                         })) || [])
                         : []
