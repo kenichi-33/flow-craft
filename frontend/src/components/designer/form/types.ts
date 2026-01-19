@@ -13,6 +13,7 @@ export interface FormField {
     readOnly?: boolean;
     includeTime?: boolean;
     description?: string;
+    descriptionTop?: string;
     align?: 'left' | 'center' | 'right';
     width?: number; // 1-12 col span
     defaultValue?: any;
@@ -26,4 +27,8 @@ export interface FormField {
     columns?: FormField[]; // Simplified nested fields for grid columns. Using FormField itself but will treat ID as Key.
     formula?: string; // For CalculationField
     pattern?: string; // For Regex validation
+    // Enhancements
+    height?: number;
+    rows?: number;
+    autoResize?: boolean;
 }

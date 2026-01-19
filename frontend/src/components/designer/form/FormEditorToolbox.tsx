@@ -3,7 +3,7 @@ import { useDraggable } from '@dnd-kit/core';
 import { 
     Type, AlignLeft, Hash, Calendar, List, CheckSquare, 
     FolderTree, Minus, Heading, GripVertical, Clock, Upload, User, Table, JapaneseYen, Calculator,
-    Building2, ToggleLeft, Mail, Phone, Link
+    Building2, ToggleLeft, Mail, Phone, Link, Pencil, ArrowUpDown
 } from 'lucide-react';
 
 export const TOOLBOX_GROUPS = [
@@ -47,6 +47,9 @@ export const TOOLBOX_GROUPS = [
             { type: 'group', label: 'グループ', Icon: FolderTree },
             { type: 'divider', label: '区切り線', Icon: Minus },
             { type: 'label', label: '見出し', Icon: Heading },
+            { type: 'section', label: 'セクション見出し', Icon: Heading },
+            { type: 'richText', label: '説明テキスト', Icon: Pencil },
+            { type: 'spacer', label: 'スペーサー', Icon: ArrowUpDown },
         ]
     }
 ];

@@ -8,6 +8,7 @@ import {
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import type { FormField } from './types';
+import DOMPurify from 'isomorphic-dompurify';
 
 // --- Sortable Field Component ---
 function SortableField({ 
@@ -137,6 +138,7 @@ export function FieldPreview({ field, isSelected, onDelete, dragHandleProps, chi
                         {field.width && field.width < 12 && <span className="text-[10px] text-muted-foreground px-1 border rounded bg-background/50">w:{field.width}</span>}
                     </div>
                 )}
+                {field.descriptionTop && <p className="text-xs text-muted-foreground mb-2">{field.descriptionTop}</p>}
 
                 {/* Body (Mockup) */}
                 <div className="text-sm text-muted-foreground h-full">
@@ -294,6 +296,31 @@ export function FieldPreview({ field, isSelected, onDelete, dragHandleProps, chi
                             {field.label}
                         </div>
                     )}
+
+                    {field.type === 'section' && (
+                        <div className="mt-4 mb-2">
+                            <h3 className="text-lg font-semibold tracking-tight">{field.label}</h3>
+                            <div className="border-b my-2" />
+                        </div>
+                    )}
+
+                    {field.type === 'richText' && (
+                         <div 
+                            className="prose prose-sm max-w-none dark:prose-invert tiptap-content"
+                            dangerouslySetInnerHTML={{ 
+                                __html: field.defaultValue ? DOMPurify.sanitize(field.defaultValue) : '<p class="text-muted-foreground italic">説明テキスト（編集するにはプロパティパネルを使用）</p>' 
+                            }} 
+                        />
+                    )}
+
+                    {field.type === 'spacer' && (
+                        <div 
+                            style={{ height: field.height ? `${field.height}px` : '20px' }} 
+                            className="w-full bg-muted/10 border border-dashed border-muted flex items-center justify-center text-xs text-muted-foreground/50"
+                        >
+                            スペーサー ({field.height || 20}px)
+                        </div>
+                    )}
                     
                     {field.type === 'group' && (
                         <div className="border border-dashed rounded p-3 bg-muted/20 min-h-[100px] pointer-events-auto">
@@ -308,6 +335,8 @@ export function FieldPreview({ field, isSelected, onDelete, dragHandleProps, chi
                            </div>
                         </div>
                     )}
+
+                    {field.description && <p className="text-xs text-muted-foreground mt-2">{field.description}</p>}
                 </div>
             </div>
         </div>

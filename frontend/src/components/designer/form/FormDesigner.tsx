@@ -130,6 +130,7 @@ export default function FormDesigner({ appId }: { appId: string }) {
                 required: (schema.required || []).includes(fieldId),
                 options: config.options || config.enum || [],
                 description: config.description,
+                descriptionTop: config.descriptionTop,
                 includeTime: config.includeTime,
                 align: config.align,
                 readOnly: config.readOnly,
@@ -138,7 +139,12 @@ export default function FormDesigner({ appId }: { appId: string }) {
                 maxSize: config.maxSize,
                 acceptedTypes: config.acceptedTypes,
                 formula: config.formula,
+
                 pattern: config.pattern,
+                defaultValue: config.default,
+                height: config.height,
+                autoResize: config.autoResize,
+                rows: config.rows,
                 columns: config.items ? Object.entries(config.items.properties || {}).map(([key, prop]: [string, any]) => ({
                     id: key, 
                     key: key,
@@ -383,6 +389,7 @@ export default function FormDesigner({ appId }: { appId: string }) {
                     type: field.type,
                     title: field.label,
                     description: field.description,
+                    descriptionTop: field.descriptionTop,
                     readOnly: field.readOnly,
                     options: field.options,
                     includeTime: field.includeTime,
@@ -403,6 +410,9 @@ export default function FormDesigner({ appId }: { appId: string }) {
                         }, {})
                     } : undefined,
                     formula: field.formula,
+                    height: field.height,
+                    autoResize: field.autoResize,
+                    rows: field.rows,
                 };
                 
                 if (field.required) required.push(field.id);

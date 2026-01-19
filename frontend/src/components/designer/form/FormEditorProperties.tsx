@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -5,6 +6,17 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { 
     AlignLeft, AlignCenter, AlignRight, Trash2
 } from 'lucide-react';
+import { RichTextEditor } from '@/components/ui/rich-text-editor';
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+    DialogTrigger,
+} from "@/components/ui/dialog"
+import { Maximize2 } from 'lucide-react';
 import type { FormField } from './types';
 
 export default function FormEditorProperties({ 
@@ -39,7 +51,11 @@ export default function FormEditorProperties({
                 />
             </div>
             <div className="space-y-1.5">
-                <Label className="text-xs">説明・ヘルプテキスト</Label>
+                <Label className="text-xs">説明・ヘルプテキスト (上)</Label>
+                <Input value={field.descriptionTop || ''} onChange={(e) => onUpdate(field.id, { descriptionTop: e.target.value })} disabled={readOnly} />
+            </div>
+            <div className="space-y-1.5">
+                <Label className="text-xs">説明・ヘルプテキスト (下)</Label>
                 <Input value={field.description || ''} onChange={(e) => onUpdate(field.id, { description: e.target.value })} disabled={readOnly} />
             </div>
 
@@ -164,6 +180,85 @@ export default function FormEditorProperties({
                         />
                         <Label htmlFor="multiple" className="text-sm cursor-pointer">複数選択を許可</Label>
                     </div>
+                </div>
+            )}
+
+            {/* Spacer specific properties */}
+            {field.type === 'spacer' && (
+                <div className="space-y-3 pt-2 border-t">
+                    <Label className="text-xs font-semibold">スペーサー設定</Label>
+                    <div className="space-y-1.5">
+                        <Label className="text-xs">高さ (px)</Label>
+                        <Input 
+                            type="number"
+                            value={field.height || 20} 
+                            onChange={(e) => onUpdate(field.id, { height: Number(e.target.value) })} 
+                            placeholder="20" 
+                            disabled={readOnly}
+                            className="text-xs w-24"
+                        />
+                    </div>
+                </div>
+            )}
+
+            {/* Textarea specific properties */}
+            {field.type === 'textarea' && (
+                <div className="space-y-3 pt-2 border-t">
+                    <Label className="text-xs font-semibold">テキストエリア設定</Label>
+                     <div className="flex items-center gap-2">
+                        <Checkbox 
+                            id="autoResize" 
+                            checked={field.autoResize || false} 
+                            onCheckedChange={(checked) => onUpdate(field.id, { autoResize: !!checked })} 
+                            disabled={readOnly} 
+                        />
+                        <Label htmlFor="autoResize" className="text-sm cursor-pointer">自動リサイズ (CSS/JS)</Label>
+                    </div>
+                    {!field.autoResize && (
+                        <div className="space-y-1.5">
+                            <Label className="text-xs">行数 (Rows)</Label>
+                            <Input 
+                                type="number"
+                                value={field.rows || 3} 
+                                onChange={(e) => onUpdate(field.id, { rows: Number(e.target.value) })} 
+                                placeholder="3" 
+                                disabled={readOnly}
+                                className="text-xs w-24"
+                            />
+                        </div>
+                    )}
+                </div>
+            )}
+
+            {/* RichText specific properties */}
+            {field.type === 'richText' && (
+                <div className="space-y-3 pt-2 border-t">
+                    <Label className="text-xs font-semibold">コンテンツ編集</Label>
+                    
+                    <RichTextDialog 
+                        readOnly={readOnly} 
+                        value={field.defaultValue} 
+                        onSave={(val) => onUpdate(field.id, { defaultValue: val })} 
+                    />
+                    
+
+                </div>
+            )}
+
+            {/* Section specific properties */}
+            {field.type === 'section' && (
+                <div className="space-y-3 pt-2 border-t">
+                    <Label className="text-xs font-semibold">セクション設定</Label>
+                    <div className="space-y-1.5">
+                         <Label className="text-xs">セクション名</Label>
+                         <Input 
+                            value={field.label || ''} 
+                            onChange={(e) => onUpdate(field.id, { label: e.target.value })} 
+                            placeholder="基本情報"
+                            disabled={readOnly}
+                        />
+                    </div>
+                   {/* Description/Help text is already handled by common properties */}
                 </div>
             )}
 
@@ -457,5 +552,59 @@ export default function FormEditorProperties({
                 </div>
             )}
         </div>
+    );
+}
+
+function RichTextDialog({ readOnly, value, onSave }: { readOnly?: boolean, value: any, onSave: (val: string) => void }) {
+    const [open, setOpen] = useState(false);
+    const [tempValue, setTempValue] = useState('');
+
+    const handleOpen = () => {
+        setTempValue(value || '');
+        // setOpen is handled by Dialog onOpenChange
+    };
+
+    const handleSave = () => {
+        onSave(tempValue);
+        setOpen(false);
+    };
+
+    return (
+        <Dialog open={open} onOpenChange={(v) => {
+            if (v) handleOpen();
+            setOpen(v);
+        }}>
+            <DialogTrigger asChild>
+                <Button variant="outline" className="w-full text-xs flex items-center justify-between" disabled={readOnly}>
+                    <span>エディタを開く</span>
+                    <Maximize2 className="h-3 w-3 ml-2" />
+                </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-4xl w-[90vw] h-[80vh] flex flex-col p-0 gap-0">
+                <DialogHeader className="px-6 py-4 border-b">
+                    <DialogTitle>コンテンツ編集</DialogTitle>
+                    <DialogDescription>
+                        編集内容は「保存」ボタンを押すまで反映されません。
+                    </DialogDescription>
+                </DialogHeader>
+                <div className="flex-1 overflow-hidden p-0 relative bg-background">
+                    <RichTextEditor 
+                        value={tempValue} 
+                        onChange={setTempValue}
+                        disabled={readOnly}
+                        className="h-full border-0 rounded-none flex flex-col"
+                        editorClassName="flex-1 overflow-y-auto p-4 [&_.ProseMirror]:min-h-full"
+                    />
+                </div>
+                <DialogFooter className="px-6 py-4 border-t flex justify-end gap-2">
+                    <Button type="button" variant="ghost" onClick={() => setOpen(false)}>
+                        キャンセル
+                    </Button>
+                    <Button type="button" onClick={handleSave}>
+                        保存
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
     );
 }

@@ -1,5 +1,6 @@
 // DynamicFormRenderer - Converted from MUI to shadcn/ui
 import { useState, useEffect, useRef } from 'react';
+import DOMPurify from 'isomorphic-dompurify';
 import { useForm, Controller } from 'react-hook-form';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -10,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import FileUploadField from '../fields/FileUploadField';
 import UserSelector from '../fields/UserSelector';
 import DepartmentSelector from '../fields/DepartmentSelector';
@@ -64,6 +66,7 @@ export default function DynamicFormRenderer({
         required: (schema?.required || []).includes(id) || config.required,
         readOnly: config.readOnly,
         description: config.description,
+        descriptionTop: config.descriptionTop,
         includeTime: config.includeTime,
         align: config.align || 'left',
         defaultValue: config.default,
@@ -84,6 +87,10 @@ export default function DynamicFormRenderer({
         // Calculation
         formula: config.formula,
         pattern: config.pattern,
+        // UI Enhancements
+        autoResize: config.autoResize,
+        rows: config.rows,
+        height: config.height,
     }));
 
     // 2. Compute default values
@@ -218,18 +225,59 @@ export default function DynamicFormRenderer({
                 );
             }
 
+
+            // Spacer
+            if (field.type === 'spacer') {
+                return <div key={field.id} style={{ height: (field.height || 20) + 'px', gridColumn: `span ${colSpan}` }} className="w-full" aria-hidden="true" />;
+            }
+
+            // Section Header
+            if (field.type === 'section') {
+                return (
+                    <div key={field.id} className="mt-6 mb-2 space-y-2 col-span-12" style={{ gridColumn: `span 12` }}>
+                        <h3 className={`text-lg font-bold flex items-center gap-2 ${theme === 'elegant' ? 'font-serif text-stone-800' : 'text-foreground'}`}>
+                            {field.label}
+                        </h3>
+                        <Separator className={theme === 'warm' ? 'bg-orange-200' : ''} />
+                    </div>
+                );
+            }
+
+             // Rich Text / Description
+             if (field.type === 'richText') {
+                const sanitizedHtml = DOMPurify.sanitize(field.defaultValue || '');
+                return (
+                    <div 
+                        key={field.id} 
+                        className={`tiptap-content prose prose-sm max-w-none dark:prose-invert col-span-12 ${theme === 'elegant' ? 'font-serif' : ''} ${styles.label}`}
+                        style={{ gridColumn: `span ${colSpan}` }}
+                        dangerouslySetInnerHTML={{ __html: sanitizedHtml }}
+                    />
+                );
+            }
+
             return (
                 <div key={field.id} className="space-y-2" style={{ gridColumn: `span ${colSpan}` }}>
-                    <Label className={`${styles.label} block text-${field.align || 'left'}`}>
-                        {field.label}
-                        {field.required && !readOnly && <span className="text-destructive ml-1">*</span>}
-                    </Label>
+                    {field.type !== 'richText' && field.type !== 'spacer' && field.type !== 'section' && field.type !== 'divider' && field.type !== 'label' && (
+                        <Label className={`${styles.label} block text-${field.align || 'left'}`}>
+                            {field.label}
+                            {field.required && !readOnly && <span className="text-destructive ml-1">*</span>}
+                        </Label>
+                    )}
+                    
+                    {field.descriptionTop && <p className="text-xs text-muted-foreground">{field.descriptionTop}</p>}
 
                     {field.type === 'textarea' ? (
                         isFieldReadOnly ? (
                             <div className="p-3 rounded-lg bg-muted min-h-[80px] text-sm whitespace-pre-wrap">{value || '-'}</div>
                         ) : (
-                            <Textarea {...register(field.id, { required: field.required })} placeholder={`${field.label}を入力...`} rows={4} className={styles.textarea} />
+                            <Textarea 
+                                {...register(field.id, { required: field.required })} 
+                                placeholder={`${field.label}を入力...`} 
+                                rows={field.rows || 3} 
+                                className={`${styles.textarea} ${field.autoResize ? 'field-sizing-content' : ''}`}
+                                style={field.autoResize ? { fieldSizing: 'content' } as any : undefined}
+                            />
                         )
                     ) : field.type === 'select' ? (
                         isFieldReadOnly ? (
@@ -278,24 +326,36 @@ export default function DynamicFormRenderer({
                         </div>
                     ) : field.type === 'radio' ? (
                         <div className={`space-y-2 ${theme !== 'elegant' ? 'p-3 bg-muted/30 rounded-lg border' : 'p-0'}`}>
-                            {field.options.map((opt: any, i: number) => {
-                                const val = typeof opt === 'string' ? opt : opt.value;
-                                const label = typeof opt === 'string' ? opt : opt.label;
-                                return (
-                                    <div key={i} className="flex items-center gap-2">
-                                        {isFieldReadOnly ? (
-                                            value === val && <Badge>{label}</Badge>
-                                        ) : (
-                                            <Controller name={field.id} control={control} rules={{ required: field.required }} render={({ field: f }) => (
-                                                <>
-                                                    <input type="radio" id={`${field.id}-${i}`} value={val} checked={f.value === val} onChange={() => f.onChange(val)} className="h-4 w-4 text-primary" />
-                                                    <Label htmlFor={`${field.id}-${i}`} className="cursor-pointer font-normal">{label}</Label>
-                                                </>
-                                            )} />
-                                        )}
-                                    </div>
-                                );
-                            })}
+                             {isFieldReadOnly ? (
+                                (() => {
+                                    const selectedOption = field.options.find((opt: any) => (typeof opt === 'string' ? opt : opt.value) === value);
+                                    return selectedOption ? (
+                                        <Badge variant="outline" className="text-sm font-normal">
+                                            {typeof selectedOption === 'string' ? selectedOption : selectedOption.label}
+                                        </Badge>
+                                    ) : <span className="text-muted-foreground text-sm">-</span>;
+                                })()
+                             ) : (
+                                <Controller
+                                    name={field.id}
+                                    control={control}
+                                    rules={{ required: field.required }}
+                                    render={({ field: f }) => (
+                                        <RadioGroup onValueChange={f.onChange} defaultValue={f.value} className="flex flex-col space-y-2">
+                                            {field.options.map((opt: any, i: number) => {
+                                                const val = typeof opt === 'string' ? opt : opt.value;
+                                                const label = typeof opt === 'string' ? opt : opt.label;
+                                                return (
+                                                    <div key={i} className="flex items-center space-x-2">
+                                                        <RadioGroupItem value={val} id={`${field.id}-${i}`} />
+                                                        <Label htmlFor={`${field.id}-${i}`} className="font-normal cursor-pointer">{label}</Label>
+                                                    </div>
+                                                );
+                                            })}
+                                        </RadioGroup>
+                                    )}
+                                />
+                             )}
                         </div>
                     ) : field.type === 'date' ? (
                         isFieldReadOnly ? (
