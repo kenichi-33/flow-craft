@@ -295,7 +295,7 @@ export class ApplicationDefinitionsService {
 
         if (newScheduleCron === undefined) {
              // Keep existing or whatever updateDto had (if undefined)
-        } else if (newScheduleCron === null) {
+        } else if (newScheduleCron === null || newScheduleCron.trim() === '') {
              updateData.scheduleCron = null;
         } else {
              updateData.scheduleCron = newScheduleCron;
@@ -466,7 +466,7 @@ export class ApplicationDefinitionsService {
                     version: newVersion,
                     status: AppDefStatus.ACTIVE,
                     publishedAt: new Date(),
-                    scheduleCron: newCron, // Sync Cron from Flow to AppDef on Publish
+                    scheduleCron: (newCron && newCron.trim() !== '') ? newCron : null, // Sync Cron from Flow to AppDef on Publish
                 },
                 include: {
                     formDefinition: true,

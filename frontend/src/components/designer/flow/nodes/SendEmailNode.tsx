@@ -171,22 +171,22 @@ const SendEmailNode = ({ data }: any) => {
                                         setConfig(prev => ({
                                             ...prev,
                                             templateId: val,
-                                            subject: '【承認依頼】{{application.title}}',
-                                            body: '{{applicant.name}} さんから申請「{{application.title}}」が提出されました。\n以下のリンクから内容を確認し、承認または却下を行ってください。\n\n{{applicationUrl}}'
+                                            subject: '【{{applicationDefinition.name}}】承認依頼: {{application.title}}',
+                                            body: '申請「{{application.title}}」の承認依頼が届いています。\n\nアプリ: {{applicationDefinition.name}}\n申請者: {{applicant.name}}\nリンク: {{applicationUrl}}'
                                         }));
                                     } else if (val === 'approval_remind') {
                                         setConfig(prev => ({
                                             ...prev,
                                             templateId: val,
-                                            subject: '【承認督促】{{application.title}}',
-                                            body: '申請「{{application.title}}」が未承認のままです。\n至急確認をお願いします。\n\n{{applicationUrl}}'
+                                            subject: '【{{applicationDefinition.name}}】リマインド: 承認期限が迫っています',
+                                            body: '以下の申請の承認をお願いします。\n\nアプリ: {{applicationDefinition.name}}\n件名: {{application.title}}\n期限: {{task.dueDate}}'
                                         }));
                                     } else if (val === 'notification_default') {
                                         setConfig(prev => ({
                                             ...prev,
                                             templateId: val,
-                                            subject: '【通知】{{application.title}}',
-                                            body: '申請「{{application.title}}」に関する通知です。\n\nステータス: {{application.status}}\n\n{{applicationUrl}}'
+                                            subject: '【{{applicationDefinition.name}}】通知: {{application.title}}',
+                                            body: 'システムからの通知です。\n\nアプリ: {{applicationDefinition.name}}\n\n{{input.message}}'
                                         }));
                                     }
                                 }} disabled={readOnly}>

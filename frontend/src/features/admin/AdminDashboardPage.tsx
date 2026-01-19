@@ -3,37 +3,31 @@ import { Link } from 'react-router-dom';
 import { api } from '@/lib/api';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Loader2, FileText, CheckCircle, Clock, AlertTriangle, Users, Settings, LayoutDashboard, ClipboardList } from 'lucide-react';
-
-interface DashboardStats {
-    applications: { total: number; pending: number; approved: number; rejected: number };
-    tasks: { total: number; pending: number };
-    appDefinitions: { total: number; active: number };
-}
+import { Loader2, FileText, Clock, Users, Settings, LayoutDashboard, ClipboardList } from 'lucide-react';
 
 export default function AdminDashboardPage() {
     // Fetch stats
     const { data: appStats, isLoading: loadingApps } = useQuery({
         queryKey: ['admin-apps-stats'],
-        queryFn: () => api.get<{ total: number }>('/applications?limit=1'),
+        queryFn: () => api.get<{ pagination: { total: number } }>('/applications?limit=1'),
     });
 
     const { data: taskStats, isLoading: loadingTasks } = useQuery({
         queryKey: ['admin-tasks-stats'],
-        queryFn: () => api.get<{ total: number }>('/tasks?status=PENDING&limit=1'),
+        queryFn: () => api.get<{ pagination: { total: number } }>('/tasks?status=PENDING&limit=1'),
     });
 
     const { data: appDefStats, isLoading: loadingDefs } = useQuery({
         queryKey: ['admin-appdefs-stats'],
-        queryFn: () => api.get<{ total: number }>('/application-definitions?limit=1'),
+        queryFn: () => api.get<{ pagination: { total: number } }>('/application-definitions?limit=1'),
     });
 
     const isLoading = loadingApps || loadingTasks || loadingDefs;
 
     const statCards = [
-        { title: '申請総数', value: appStats?.total || 0, icon: FileText, color: 'bg-blue-500', link: '/admin/workflows' },
-        { title: '未処理タスク', value: taskStats?.total || 0, icon: Clock, color: 'bg-amber-500', link: '/admin/tasks' },
-        { title: 'アプリ定義', value: appDefStats?.total || 0, icon: Settings, color: 'bg-purple-500', link: '/designer/apps' },
+        { title: '申請総数', value: appStats?.pagination?.total || 0, icon: FileText, color: 'bg-blue-500', link: '/admin/workflows' },
+        { title: '未処理タスク', value: taskStats?.pagination?.total || 0, icon: Clock, color: 'bg-amber-500', link: '/admin/tasks' },
+        { title: 'アプリ定義', value: appDefStats?.pagination?.total || 0, icon: Settings, color: 'bg-purple-500', link: '/designer/apps' },
     ];
 
     const quickLinks = [

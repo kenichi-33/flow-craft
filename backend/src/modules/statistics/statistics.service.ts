@@ -21,7 +21,10 @@ export class StatisticsService {
     const summary = await Promise.all(defs.map(async (def) => {
       // 総申請数
       const totalCount = await this.prisma.application.count({
-        where: { applicationDefinitionId: def.id },
+        where: { 
+          applicationDefinitionId: def.id,
+          status: { not: 'DRAFT' }
+        },
       });
 
       // 進行中

@@ -28,7 +28,7 @@ export class SchedulerService implements OnModuleInit {
         });
 
         for (const def of definitions) {
-            if (def.scheduleCron) {
+            if (def.scheduleCron && def.scheduleCron.trim() !== '') {
                 try {
                     await this.scheduleWorkflow(def.id, def.scheduleCron, {
                         applicationDefinitionId: def.id,
@@ -45,6 +45,11 @@ export class SchedulerService implements OnModuleInit {
     async scheduleWorkflow(name: string, cron: string, payload: any): Promise<void> {
         // Remove existing if any
         this.unscheduleWorkflow(name);
+
+        if (!cron || cron.trim() === '') {
+            this.logger.warn(`Skipping scheduling for ${name} due to empty cron`);
+            return;
+        }
 
         try {
             const job = new CronJob(cron, async () => {

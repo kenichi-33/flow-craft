@@ -218,10 +218,12 @@ export default function ApplicationDetailPage() {
                             <StatusIcon className="h-3 w-3 mr-1" />
                             {status.label}
                         </Badge>
-                        <span className="text-muted-foreground">#{application.applicationNumber}</span>
+                        <Badge variant="outline" className="text-sm bg-muted/50">
+                            アプリ: {application.applicationDefinition?.appName || application.applicationDefinition?.name}
+                        </Badge>
+                        <span className="text-muted-foreground text-sm">#{application.applicationNumber}</span>
                     </div>
                     <h1 className="text-2xl font-bold">{application.title}</h1>
-                    <p className="text-muted-foreground">{application.applicationDefinition?.appName}</p>
                 </div>
             </div>
 

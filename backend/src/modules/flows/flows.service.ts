@@ -43,8 +43,41 @@ export class FlowsService {
             },
         });
 
-        // Cron sync logic removed for isolation. 
-        // Cron should only be updated when ApplicationDefinition is published/updated.
+        // Sync Cron to ApplicationDefinitions if nodes are updated
+        if (updateData.nodes) {
+            const nodes = updateData.nodes as any[];
+            const startNode = nodes.find(n => n.type === 'start');
+            // Extract cron: undefined if not found, string if found (can be empty)
+            const rawCron = startNode?.data?.scheduleCron || startNode?.data?.cron;
+            const newCron = (rawCron && rawCron.trim() !== '') ? rawCron : null;
+
+            // Find all active AppDefs using this flow
+            const appDefs = await this.prisma.applicationDefinition.findMany({
+                where: { flowDefinitionId: id }
+            });
+
+            for (const appDef of appDefs) {
+                if (appDef.scheduleCron !== newCron) {
+                    // Update AppDef
+                    await this.prisma.applicationDefinition.update({
+                        where: { id: appDef.id },
+                        data: { scheduleCron: newCron }
+                    });
+
+                    // Update Scheduler
+                    // 1. Always unschedule old
+                    await this.scheduler.unscheduleWorkflow(appDef.id);
+                    
+                    // 2. Schedule new if active and has cron
+                    if (newCron && appDef.status === 'ACTIVE') {
+                        await this.scheduler.scheduleWorkflow(appDef.id, newCron, {
+                            applicationDefinitionId: appDef.id,
+                            triggeredBy: 'schedule'
+                        });
+                    }
+                }
+            }
+        }
 
         return updatedFlow;
     }

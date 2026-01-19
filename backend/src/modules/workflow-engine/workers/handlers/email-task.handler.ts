@@ -7,6 +7,7 @@ import { MailService } from '../../../notifications/mail.service';
  * 非同期でメール送信を実行する
  */
 import { WorkflowHelperService } from '../../workflow-helper.service';
+import { PrismaService } from '../../../../prisma/prisma.service';
 
 /**
  * 簡易テンプレートレジストリ
@@ -14,16 +15,16 @@ import { WorkflowHelperService } from '../../workflow-helper.service';
  */
 const EMAIL_TEMPLATES: Record<string, { subject: string; body: string }> = {
     'approval_request': {
-        subject: '【承認依頼】{{application.title}}',
-        body: '申請「{{application.title}}」の承認依頼が届いています。\n\n申請者: {{applicant.username}}\nリンク: {{env.APP_URL}}/applications/{{application.id}}'
+        subject: '【{{applicationDefinition.name}}】承認依頼: {{application.title}}',
+        body: '申請「{{application.title}}」の承認依頼が届いています。\n\nアプリ: {{applicationDefinition.name}}\n申請者: {{applicant.name}}\nリンク: {{applicationUrl}}'
     },
     'approval_remind': {
-        subject: '【リマインド】承認期限が迫っています',
-        body: '以下の申請の承認をお願いします。\n\n件名: {{application.title}}\n期限: {{task.dueDate}}'
+        subject: '【{{applicationDefinition.name}}】リマインド: 承認期限が迫っています',
+        body: '以下の申請の承認をお願いします。\n\nアプリ: {{applicationDefinition.name}}\n件名: {{application.title}}\n期限: {{task.dueDate}}'
     },
     'notification_default': {
-        subject: '通知: {{application.title}}',
-        body: 'システムからの通知です。\n\n{{input.message}}'
+        subject: '【{{applicationDefinition.name}}】通知: {{application.title}}',
+        body: 'システムからの通知です。\n\nアプリ: {{applicationDefinition.name}}\n\n{{input.message}}'
     }
 };
 
@@ -38,6 +39,7 @@ export class EmailTaskHandler implements ITaskHandler {
     constructor(
         private readonly mailService: MailService,
         private readonly helper: WorkflowHelperService,
+        private readonly prisma: PrismaService,
     ) {}
 
     get taskType(): string {
@@ -45,10 +47,18 @@ export class EmailTaskHandler implements ITaskHandler {
     }
 
     async execute(context: TaskContext): Promise<TaskResult> {
-        const { taskId, nodeId, nodeData, inputData, applicantId } = context;
+        const { taskId, nodeId, nodeData, inputData, applicantId, applicationId } = context;
         this.logger.log(`Executing Email Task ${taskId} (Node: ${nodeId})`);
 
         try {
+            // Fetch fresh Application data including Definition
+            const application = await this.prisma.application.findUnique({
+                where: { id: applicationId },
+                include: {
+                    applicationDefinition: true
+                }
+            });
+
             const config = nodeData || {};
             let templateSubject = '';
             let templateBody = '';
@@ -73,9 +83,25 @@ export class EmailTaskHandler implements ITaskHandler {
             // Simple substitution logic (using helper's logic if available, but helper needs whole context object)
             // Helper's substituteVariables takes (text, context).
             
+            // Fetch applicant info for better substitution
+            const applicantUser = await this.helper.resolveAssignedToSnapshot(`user:${applicantId}`);
+            const applicantName = applicantUser ? `${applicantUser.lastName} ${applicantUser.firstName}` : applicantId;
+
             const substitutionData = {
-                application: { ...inputData, title: inputData.title || '（件名なし）', id: context.applicationId }, 
-                applicant: { id: applicantId }, 
+                ...inputData,
+                application: { 
+                    ...inputData, 
+                    ...(application || {}), 
+                    title: (application?.title || inputData.title) || '（件名なし）', 
+                    id: context.applicationId 
+                },
+                applicationDefinition: application?.applicationDefinition || {}, 
+                applicant: { 
+                    id: applicantId,
+                    name: applicantName,
+                    ...applicantUser
+                },
+                applicationUrl: `${process.env.APP_URL || 'http://localhost:3000'}/applications/${context.applicationId}`,
                 input: inputData,
                 env: { APP_URL: process.env.APP_URL || 'http://localhost:3000' },
                 task: { id: taskId, nodeId }
