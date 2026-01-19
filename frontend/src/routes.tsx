@@ -1,35 +1,57 @@
 import { createBrowserRouter } from "react-router-dom";
+import { lazy, Suspense } from "react";
 import AppLayout from "@/components/common/AppLayout";
-import AppStudioLayout from "@/layouts/AppStudioLayout";
-import ReadOnlyDesignerLayout from "@/features/designer/layouts/ReadOnlyDesignerLayout";
+import { Loader2 } from "lucide-react";
 
-import HomePage from "@/features/dashboard/HomePage";
-import NewApplicationPage from "@/features/applications/pages/NewApplicationPage";
-import ApplicationFormPage from "@/features/applications/pages/ApplicationFormPage";
-import ApplicationListPage from "@/features/applications/pages/ApplicationListPage";
-import ApplicationDetailPage from "@/features/applications/pages/ApplicationDetailPage";
-import TaskListPage from "@/features/tasks/pages/TaskListPage";
-import TaskDetailPage from "@/features/tasks/pages/TaskDetailPage";
+// Loading component
+const PageLoader = () => (
+    <div className="flex items-center justify-center h-full min-h-[50vh] w-full">
+        <div className="flex flex-col items-center gap-2">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            <p className="text-sm text-muted-foreground">Loading...</p>
+        </div>
+    </div>
+);
+
+// HOC for Lazy Loading
+const Loadable = (Component: React.ComponentType<any>) => (props: any) => (
+    <Suspense fallback={<PageLoader />}>
+        <Component {...props} />
+    </Suspense>
+);
+
+// Lazy Imports
+const AppStudioLayout = Loadable(lazy(() => import("@/layouts/AppStudioLayout")));
+const ReadOnlyDesignerLayout = Loadable(lazy(() => import("@/features/designer/layouts/ReadOnlyDesignerLayout")));
+
+const HomePage = Loadable(lazy(() => import("@/features/dashboard/HomePage")));
+const NewApplicationPage = Loadable(lazy(() => import("@/features/applications/pages/NewApplicationPage")));
+const ApplicationFormPage = Loadable(lazy(() => import("@/features/applications/pages/ApplicationFormPage")));
+const ApplicationListPage = Loadable(lazy(() => import("@/features/applications/pages/ApplicationListPage")));
+const ApplicationDetailPage = Loadable(lazy(() => import("@/features/applications/pages/ApplicationDetailPage")));
+const TaskListPage = Loadable(lazy(() => import("@/features/tasks/pages/TaskListPage")));
+const TaskDetailPage = Loadable(lazy(() => import("@/features/tasks/pages/TaskDetailPage")));
 
 // Designer (App Studio) - Outside Layout (list, new)
-import DesignerAppsPage from "@/features/designer/pages/DesignerAppsPage";
-import DesignerNewAppPage from "@/features/designer/pages/DesignerNewAppPage";
+const DesignerAppsPage = Loadable(lazy(() => import("@/features/designer/pages/DesignerAppsPage")));
+const DesignerNewAppPage = Loadable(lazy(() => import("@/features/designer/pages/DesignerNewAppPage")));
+
 // Designer (App Studio) - Inside AppStudioLayout
-import DesignerOverviewPage from "@/features/designer/pages/DesignerOverviewPage";
-import DesignerVersionsPage from "@/features/designer/pages/DesignerVersionsPage";
-import DesignerSearchPage from "@/features/designer/pages/DesignerSearchPage";
-import FormEditorPage from "@/features/designer/pages/FormEditorPage";
-import FlowEditorPage from "@/features/designer/pages/FlowEditorPage";
-import VersionPreviewPage from "@/features/designer/pages/VersionPreviewPage";
+const DesignerOverviewPage = Loadable(lazy(() => import("@/features/designer/pages/DesignerOverviewPage")));
+const DesignerVersionsPage = Loadable(lazy(() => import("@/features/designer/pages/DesignerVersionsPage")));
+const DesignerSearchPage = Loadable(lazy(() => import("@/features/designer/pages/DesignerSearchPage")));
+const FormEditorPage = Loadable(lazy(() => import("@/features/designer/pages/FormEditorPage")));
+const FlowEditorPage = Loadable(lazy(() => import("@/features/designer/pages/FlowEditorPage")));
+const VersionPreviewPage = Loadable(lazy(() => import("@/features/designer/pages/VersionPreviewPage")));
 
 // Admin
-import AdminDashboardPage from "@/features/admin/AdminDashboardPage";
-import AdminWorkflowsPage from "@/features/admin/AdminWorkflowsPage";
-import AdminTasksPage from "@/features/admin/AdminTasksPage";
-import AdminUsersPage from "@/features/admin/AdminUsersPage";
-import AdminTeamsPage from "@/features/admin/AdminTeamsPage";
-import AdminStatsListPage from "@/features/admin/stats/AdminStatsListPage";
-import AdminStatsDetailPage from "@/features/admin/stats/AdminStatsDetailPage";
+const AdminDashboardPage = Loadable(lazy(() => import("@/features/admin/AdminDashboardPage")));
+const AdminWorkflowsPage = Loadable(lazy(() => import("@/features/admin/AdminWorkflowsPage")));
+const AdminTasksPage = Loadable(lazy(() => import("@/features/admin/AdminTasksPage")));
+const AdminUsersPage = Loadable(lazy(() => import("@/features/admin/AdminUsersPage")));
+const AdminTeamsPage = Loadable(lazy(() => import("@/features/admin/AdminTeamsPage")));
+const AdminStatsListPage = Loadable(lazy(() => import("@/features/admin/stats/AdminStatsListPage")));
+const AdminStatsDetailPage = Loadable(lazy(() => import("@/features/admin/stats/AdminStatsDetailPage")));
 
 export const router = createBrowserRouter([
     {
