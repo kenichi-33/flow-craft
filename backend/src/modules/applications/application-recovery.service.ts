@@ -6,6 +6,7 @@ import { QueueService } from '../queue/queue.service';
 @Injectable()
 export class ApplicationRecoveryService {
     private readonly logger = new Logger(ApplicationRecoveryService.name);
+    private readonly MAX_RECOVERY_RETRIES = 5;
 
     constructor(
         private readonly prisma: PrismaService,
@@ -72,7 +73,19 @@ export class ApplicationRecoveryService {
         });
 
         for (const task of stuckQueuedTasks) {
-            this.logger.warn(`Found stuck QUEUED task ${task.id}. Re-enqueuing.`);
+            if (task.retries >= this.MAX_RECOVERY_RETRIES) {
+                this.logger.error(`Task ${task.id} exceeded max recovery retries (${this.MAX_RECOVERY_RETRIES}). Marking as FAILED.`);
+                await this.prisma.workflowTask.update({
+                    where: { id: task.id },
+                    data: {
+                        status: 'FAILED',
+                        error: 'Recovery retry limit exceeded (Message lost repeatedly)',
+                    },
+                });
+                continue;
+            }
+
+            this.logger.warn(`Found stuck QUEUED task ${task.id} (Retry ${task.retries + 1}/${this.MAX_RECOVERY_RETRIES}). Re-enqueuing.`);
             // Re-enqueue
             const job = {
                 taskId: task.id,
@@ -80,13 +93,8 @@ export class ApplicationRecoveryService {
                 nodeId: task.stepId,
                 nodeType: task.type,
                 nodeData: task.config || {},
-                inputData: {}, // Need input data? Usually in app or passed.
-                // Re-fetching app input data might be needed if not stored in task.
-                // Simplified: Just re-queue TASK_EXECUTE with task info.
-                // But GenericWorker needs inputData.
-                // Ideally inputData is stored in Task or we fetch App.
-                // For now, let's fetch Application inputData.
-                applicantId: '', // Need applicantId
+                inputData: {}, 
+                applicantId: '', 
             } as any; 
 
             // Fetch missing info
@@ -101,10 +109,13 @@ export class ApplicationRecoveryService {
 
                 await this.queueService.enqueue('TASK_EXECUTE', job, { deduplicationId: task.id });
                 
-                // Update timestamp to reset timeout timer
+                // Update timestamp and retries count
                 await this.prisma.workflowTask.update({
                     where: { id: task.id },
-                    data: { updatedAt: new Date() },
+                    data: { 
+                        updatedAt: new Date(),
+                        retries: { increment: 1 }
+                    },
                 });
             }
         }

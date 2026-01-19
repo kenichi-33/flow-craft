@@ -272,11 +272,28 @@ export class ApplicationsService {
             return this.prisma.application.findMany({
                 where,
                 orderBy,
-                include: {
-                    formDefinition: true,
-                    flowDefinition: true,
-                    applicationDefinition: true,
-                },
+                select: {
+                    id: true,
+                    applicationNumber: true,
+                    title: true,
+                    status: true,
+                    applicantId: true,
+                    applicantInfo: true,
+                    currentNodeId: true, // Needed for list view
+                    flowNodes: true, // Needed for list view snapshot
+                    createdAt: true,
+                    updatedAt: true,
+                    applicationDefinition: {
+                        select: {
+                            id: true,
+                            name: true,
+                            description: true,
+                            status: true,
+                        }
+                    },
+                    formDefinition: { select: { id: true, name: true } },
+                    flowDefinition: { select: { id: true, name: true, nodes: true } }, // Fallback for list view
+                }
             });
         }
 
@@ -291,10 +308,27 @@ export class ApplicationsService {
                 orderBy,
                 skip,
                 take: limitNum,
-                include: {
-                    formDefinition: true,
-                    flowDefinition: true,
-                    applicationDefinition: true,
+                select: {
+                    id: true,
+                    applicationNumber: true,
+                    title: true,
+                    status: true,
+                    applicantId: true,
+                    applicantInfo: true,
+                    currentNodeId: true,
+                    flowNodes: true,
+                    createdAt: true,
+                    updatedAt: true,
+                    applicationDefinition: {
+                        select: {
+                            id: true,
+                            name: true,
+                            description: true,
+                            status: true,
+                        }
+                    },
+                    formDefinition: { select: { id: true, name: true } },
+                    flowDefinition: { select: { id: true, name: true, nodes: true } },
                 },
             }),
             this.prisma.application.count({ where }),
