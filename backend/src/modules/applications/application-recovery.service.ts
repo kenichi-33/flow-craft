@@ -32,9 +32,23 @@ export class ApplicationRecoveryService {
                         },
                     },
                 },
+                // Additional check: Ensure we don't pick up apps that have a FAILED task for the current node
+                // effectively meaning they reached max retries.
+                // We do this by checking if ANY task matches 'FAILED' for current node.
+                // Note: Prisma `none` combined with `some` might be complex or unsupported in same level if not careful.
+                // Actually, let's keep it simple: We fetch stuck apps, then Filter in memory or add conditional check inside loop.
+                // But Adding it to query is better for performance.
+                // "Find apps where NO task is active AND NO task is FAILED for current node?"
+                // Wait, if it has FAILED task, we want to STOP recovery.
+                // So "workflowTasks: none: { status: in: [...] }" ensures no ACTIVE tasks.
+                // We also want "workflowTasks: none: { status: 'FAILED', stepId: { equals: application.currentNodeId } }" 
+                // But we can't reference `application.currentNodeId` in the where clause easily without raw query or careful relation filtering.
+                // Relation filtering on `currentNodeId` is hard because it's a dynamic value on the record itself.
+                // Plan: Fetch potential stuck apps, then iterate and check for FAILED tasks on currentNodeId.
             },
             include: {
                 flowDefinition: true,
+                workflowTasks: true, // Fetch tasks to check for failures on current node
             },
         });
 
@@ -125,11 +139,22 @@ export class ApplicationRecoveryService {
         }
 
         for (const app of stuckApplications) {
+            // Check if there is a FAILED task for the current node
+            // If so, we only skip if it has exceeded max retries.
+            // Since we upgraded `enqueueTask` to reuse FAILED tasks and increment retries,
+            // we can trust that the retry count will eventually hit the limit and stop the loop.
+            const failedTask = (app as any).workflowTasks?.find((t: any) => 
+                t.stepId === app.currentNodeId && t.status === 'FAILED'
+            );
+
+            if (failedTask && failedTask.retries >= this.MAX_RECOVERY_RETRIES) {
+                this.logger.warn(`Skipping recovery for application ${app.id}: Task ${failedTask.id} exceeded max retries (${this.MAX_RECOVERY_RETRIES}).`);
+                continue;
+            }
+
             try {
                 this.logger.log(`Recovering application ${app.id} (Current Node: ${app.currentNodeId})`);
 
-                // Re-enqueue the processing job for the current node
-                // The worker is idempotent enough to handle re-processing or determining next step
                 // Re-enqueue the processing job for the current node
                 // The worker is idempotent enough to handle re-processing or determining next step
                 await this.queueService.enqueue('WORKFLOW_NODE_PROCESS', {

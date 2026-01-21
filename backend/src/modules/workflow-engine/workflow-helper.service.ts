@@ -26,6 +26,52 @@ export class WorkflowHelperService {
         tx?: Prisma.TransactionClient
     ): Promise<void> {
         const db = tx || this.prisma;
+
+        // Check for existing active or failed task to prevent duplicates/loops
+        const existingTask = await db.workflowTask.findFirst({
+            where: {
+                applicationId,
+                stepId: node.id,
+                status: {
+                    in: ['PENDING', 'QUEUED', 'RUNNING', 'FAILED']
+                }
+            },
+            orderBy: { createdAt: 'desc' }
+        });
+
+        if (existingTask) {
+            if (existingTask.status === 'FAILED') {
+                this.logger.log(`Reusing failed task ${existingTask.id} for node ${node.id} (Retry incremented)`);
+                // Reuse existing task -> set to QUEUED
+                await db.workflowTask.update({
+                    where: { id: existingTask.id },
+                    data: {
+                        status: 'QUEUED',
+                        error: null,
+                        retries: { increment: 1 },
+                        updatedAt: new Date(),
+                    }
+                });
+                
+                // Re-enqueue job
+                const job: TaskExecuteJob = {
+                    taskId: existingTask.id,
+                    applicationId,
+                    nodeId: node.id,
+                    nodeType: node.type,
+                    nodeData: node.data || {},
+                    inputData,
+                    applicantId,
+                };
+                
+                await this.queueService.enqueue('TASK_EXECUTE', job, { deduplicationId: existingTask.id });
+                return;
+            } else {
+                // Active task exists (PENDING, QUEUED, RUNNING)
+                this.logger.warn(`Task for node ${node.id} already exists in status ${existingTask.status}. Skipping duplicate creation.`);
+                return;
+            }
+        }
         
         const task = await db.workflowTask.create({
             data: {
