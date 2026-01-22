@@ -73,19 +73,6 @@ export class WorkflowEngineController {
     return this.workflowService.retryServiceTasks(taskIds);
   }
 
-  @Get('admin/failed-tasks')
-  getFailedServiceTasks(
-    @Query('page') page?: number,
-    @Query('limit') limit?: number,
-    @Query('search') search?: string,
-  ) {
-    return this.workflowService.getFailedServiceTasks(
-      page ? Number(page) : 1,
-      limit ? Number(limit) : 20,
-      search,
-    );
-  }
-
   @Post('submit-draft/:id')
   submitDraft(
     @Param('id') applicationId: string,

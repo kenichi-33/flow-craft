@@ -68,7 +68,7 @@ export default function AdminServiceTaskRecoveryPage() {
             params.append('page', (pagination.pageIndex + 1).toString());
             params.append('limit', pagination.pageSize.toString());
             if (debouncedSearch) params.append('search', debouncedSearch);
-            return api.get<TasksResponse>(`/workflow/admin/failed-tasks?${params.toString()}`);
+            return api.get<TasksResponse>(`/tasks/admin/failed?${params.toString()}`);
         },
     });
 

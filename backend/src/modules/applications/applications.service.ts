@@ -159,7 +159,9 @@ export class ApplicationsService {
 
           // Find file fields in schema
           if (schema.properties) {
-            for (const [key, prop] of Object.entries(schema.properties as Record<string, any>)) {
+            for (const [key, prop] of Object.entries(
+              schema.properties as Record<string, any>,
+            )) {
               if (prop.type === 'file' || prop['x-type'] === 'file') {
                 const value = inputData[key];
                 if (Array.isArray(value)) {

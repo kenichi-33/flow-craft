@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { Prisma, TaskStatus } from '@prisma/client';
-import { UsersService, UserSnapshot } from '../users/users.service';
+import { UsersService } from '../users/users.service';
 import { TeamsService } from '../teams/teams.service';
 
 export interface FindAllOptions {
@@ -433,5 +433,63 @@ export class TasksService {
         },
       },
     });
+  }
+
+  /**
+   * Get Failed Service Tasks (for Admin)
+   */
+  async getFailedServiceTasks(page = 1, limit = 20, search?: string) {
+    const where: Prisma.WorkflowTaskWhereInput = {
+      status: 'FAILED',
+      type: { notIn: ['approval', 'input', 'userInput'] },
+    };
+
+    if (search) {
+      where.OR = [
+        { id: { contains: search, mode: 'insensitive' } },
+        { stepId: { contains: search, mode: 'insensitive' } },
+        { error: { contains: search, mode: 'insensitive' } },
+        {
+          application: {
+            OR: [
+              { title: { contains: search, mode: 'insensitive' } },
+              {
+                applicationDefinition: {
+                  name: { contains: search, mode: 'insensitive' },
+                },
+              },
+            ],
+          },
+        },
+      ];
+    }
+
+    const [data, total] = await Promise.all([
+      this.prisma.workflowTask.findMany({
+        where,
+        include: {
+          application: {
+            include: {
+              applicationDefinition: true,
+              flowDefinition: true,
+            },
+          },
+        },
+        orderBy: { createdAt: 'desc' },
+        skip: (page - 1) * limit,
+        take: limit,
+      }),
+      this.prisma.workflowTask.count({ where }),
+    ]);
+
+    return {
+      data,
+      pagination: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
   }
 }

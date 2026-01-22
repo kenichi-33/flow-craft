@@ -45,4 +45,17 @@ export class TasksController {
   findOne(@Param('id') id: string) {
     return this.tasksService.findOne(id);
   }
+
+  @Get('admin/failed')
+  getFailedTasks(
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('search') search?: string,
+  ) {
+    return this.tasksService.getFailedServiceTasks(
+      page ? parseInt(page, 10) : 1,
+      limit ? parseInt(limit, 10) : 20,
+      search,
+    );
+  }
 }
