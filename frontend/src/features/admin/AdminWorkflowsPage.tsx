@@ -9,6 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { Loader2, Eye, ArrowUpDown } from 'lucide-react';
 import { UserDisplay, type UserSnapshot } from '@/components/common/UserDisplay';
+import { TruncatedCell } from '@/components/common/TruncatedCell';
 
 interface Application {
     id: string;
@@ -74,15 +75,15 @@ export default function AdminWorkflowsPage() {
 
     const columns: ColumnDef<Application>[] = useMemo(() => [
         { accessorKey: 'applicationNumber', header: '申請ID', cell: ({ row }) => <strong>#{row.original.applicationNumber}</strong> },
-        { id: 'appName', header: 'アプリ名', cell: ({ row }) => row.original.applicationDefinition?.name || row.original.applicationDefinition?.appName || '不明' },
-        { accessorKey: 'title', header: '件名', cell: ({ row }) => <span className="font-semibold">{row.original.title}</span> },
+        { id: 'appName', header: 'アプリ名', cell: ({ row }) => <TruncatedCell text={row.original.applicationDefinition?.name || row.original.applicationDefinition?.appName || '不明'} maxWidth="150px" /> },
+        { accessorKey: 'title', header: '件名', cell: ({ row }) => <TruncatedCell text={row.original.title} maxWidth="200px" className="font-semibold" /> },
         { id: 'applicantId', header: '申請者', cell: ({ row }) => <UserDisplay user={row.original.applicantInfo} fallback={row.original.applicantId} /> },
         { accessorKey: 'status', header: 'ステータス', cell: ({ row }) => {
             const s = row.getValue('status') as string;
             const c = statusConfig[s] || { label: s, variant: 'outline' as const };
             return <Badge variant={c.variant}>{c.label}</Badge>;
         }},
-        { id: 'currentStep', header: '現在ステップ', cell: ({ row }) => getStepLabel(row.original.currentNodeId, row.original.flowNodes || row.original.flowDefinition?.nodes) },
+        { id: 'currentStep', header: '現在ステップ', cell: ({ row }) => <TruncatedCell text={getStepLabel(row.original.currentNodeId, row.original.flowNodes || row.original.flowDefinition?.nodes)} maxWidth="150px" /> },
         { 
             accessorKey: 'createdAt', 
             header: ({ column }) => (

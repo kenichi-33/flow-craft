@@ -7,6 +7,6 @@ import { TeamsModule } from '../teams/teams.module';
 @Module({
   imports: [UsersModule, TeamsModule],
   controllers: [TasksController],
-  providers: [TasksService]
+  providers: [TasksService],
 })
 export class TasksModule {}

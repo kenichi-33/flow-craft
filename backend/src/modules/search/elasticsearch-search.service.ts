@@ -1,12 +1,17 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Client } from '@elastic/elasticsearch';
-import { ISearchService, SearchResult } from './interfaces/search-service.interface';
+import {
+  ISearchService,
+  SearchResult,
+} from './interfaces/search-service.interface';
 import { SearchQueryDto } from './dto/search-application.dto';
 import { Application } from '@prisma/client';
 
 @Injectable()
-export class ElasticsearchSearchService implements ISearchService, OnModuleInit {
+export class ElasticsearchSearchService
+  implements ISearchService, OnModuleInit
+{
   private readonly logger = new Logger('[Indexer] ElasticsearchSearch');
   private client: Client;
   private readonly indexName = 'applications';
@@ -21,7 +26,9 @@ export class ElasticsearchSearchService implements ISearchService, OnModuleInit 
 
     const node = this.configService.get<string>('ELASTICSEARCH_NODE');
     if (!node) {
-      this.logger.warn('ELASTICSEARCH_NODE not set. Elasticsearch service will not function.');
+      this.logger.warn(
+        'ELASTICSEARCH_NODE not set. Elasticsearch service will not function.',
+      );
       return;
     }
 
@@ -32,10 +39,10 @@ export class ElasticsearchSearchService implements ISearchService, OnModuleInit 
         password: 'changeme',
       },
       tls: {
-        rejectUnauthorized: false
-      }
+        rejectUnauthorized: false,
+      },
     });
-    
+
     this.logger.log(`Elasticsearch client initialized at ${node}`);
     this.checkConnection();
   }
@@ -52,7 +59,9 @@ export class ElasticsearchSearchService implements ISearchService, OnModuleInit 
 
   private async ensureIndex() {
     try {
-      const exists = await this.client.indices.exists({ index: this.indexName });
+      const exists = await this.client.indices.exists({
+        index: this.indexName,
+      });
       if (!exists) {
         this.logger.log(`Index ${this.indexName} does not exist. Creating...`);
         await this.client.indices.create({
@@ -66,12 +75,12 @@ export class ElasticsearchSearchService implements ISearchService, OnModuleInit 
               applicantId: { type: 'keyword' },
               createdAt: { type: 'date' },
               full_text: { type: 'text' }, // Added for hybrid search
-              inputData: { 
+              inputData: {
                 type: 'object',
-                dynamic: true 
-              }
-            }
-          }
+                dynamic: true,
+              },
+            },
+          },
         });
         this.logger.log(`Index ${this.indexName} created.`);
       }
@@ -81,99 +90,98 @@ export class ElasticsearchSearchService implements ISearchService, OnModuleInit 
   }
 
   async search(dto: SearchQueryDto): Promise<SearchResult<Application>> {
-    const { 
-        keyword,
-        filters,
-        page = 1, 
-        limit = 20, 
-        applicationDefinitionId,
-        criteria 
+    const {
+      keyword,
+      filters,
+      page = 1,
+      limit = 20,
+      applicationDefinitionId,
+      criteria,
     } = dto;
-    
+
     const from = (page - 1) * limit;
 
     const must: any[] = [];
-    
+
     if (applicationDefinitionId) {
-        must.push({ term: { applicationDefinitionId } });
+      must.push({ term: { applicationDefinitionId } });
     }
 
     // Keyword (Full Text) - Minimal implementation
     if (keyword) {
-        must.push({
-            multi_match: {
-                query: keyword,
-                fields: ['full_text', 'inputData.*', 'searchMeta.*'],
-                type: 'best_fields',
-                fuzziness: 'AUTO'
-            }
-        });
+      must.push({
+        multi_match: {
+          query: keyword,
+          fields: ['full_text', 'inputData.*', 'searchMeta.*'],
+          type: 'best_fields',
+          fuzziness: 'AUTO',
+        },
+      });
     }
 
     // TODO: Implement filters logic for Elastic if needed.
     // Current focus is Postgres mode.
 
     try {
-        const result = await this.client.search({
-            index: this.indexName,
-            from,
-            size: limit,
-            query: {
-                bool: {
-                    must
-                }
-            } as any // Cast to any to avoid strict type checks for now if types mismatch
-        });
+      const result = await this.client.search({
+        index: this.indexName,
+        from,
+        size: limit,
+        query: {
+          bool: {
+            must,
+          },
+        } as any, // Cast to any to avoid strict type checks for now if types mismatch
+      });
 
-        // Map result to Application type (partial) or ID list
-        // Real implementation would hydrate from DB or return stored fields.
-        // Returning empty for now as this is hybrid mock.
-        return {
-            items: [],
-            total: 0,
-            page,
-            limit
-        };
-
+      // Map result to Application type (partial) or ID list
+      // Real implementation would hydrate from DB or return stored fields.
+      // Returning empty for now as this is hybrid mock.
+      return {
+        items: [],
+        total: 0,
+        page,
+        limit,
+      };
     } catch (e) {
-        this.logger.error('Search failed', e);
-        return { items: [], total: 0, page, limit };
+      this.logger.error('Search failed', e);
+      return { items: [], total: 0, page, limit };
     }
   }
 
   async indexApplication(app: Application): Promise<void> {
     if (!this.client) return;
-    
+
     try {
-        await this.client.index({
-            index: this.indexName,
-            id: app.id,
-            document: {
-                id: app.id,
-                applicationDefinitionId: app.applicationDefinitionId,
-                status: app.status,
-                applicantId: app.applicantId,
-                createdAt: app.createdAt,
-                inputData: app.inputData,
-                // Cast to any to access dynamic properties if needed
-                full_text: (app as any).fullText,
-                searchMeta: (app as any).searchMeta,
-            }
-        });
+      await this.client.index({
+        index: this.indexName,
+        id: app.id,
+        document: {
+          id: app.id,
+          applicationDefinitionId: app.applicationDefinitionId,
+          status: app.status,
+          applicantId: app.applicantId,
+          createdAt: app.createdAt,
+          inputData: app.inputData,
+          // Cast to any to access dynamic properties if needed
+          full_text: (app as any).fullText,
+          searchMeta: (app as any).searchMeta,
+        },
+      });
     } catch (e) {
-        this.logger.warn(`Failed to index app ${app.id}`, e);
+      this.logger.warn(`Failed to index app ${app.id}`, e);
     }
   }
 
   async removeApplication(appId: string): Promise<void> {
     if (!this.client) return;
     try {
-        await this.client.delete({
-            index: this.indexName,
-            id: appId
-        });
+      await this.client.delete({
+        index: this.indexName,
+        id: appId,
+      });
     } catch (e) {
-        this.logger.warn(`Failed to remove app ${appId}`, e);
+      this.logger.warn(`Failed to remove app ${appId}`, e);
     }
   }
 }

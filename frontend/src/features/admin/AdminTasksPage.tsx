@@ -9,6 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { Loader2, Edit, ArrowUpDown } from 'lucide-react';
 import { UserDisplay, type UserSnapshot } from '@/components/common/UserDisplay';
+import { TruncatedCell } from '@/components/common/TruncatedCell';
 
 interface Task {
     id: string;
@@ -82,11 +83,11 @@ export default function AdminTasksPage() {
 
     const columns: ColumnDef<Task>[] = useMemo(() => [
         { id: 'applicationNumber', header: '申請ID', cell: ({ row }) => <strong>#{row.original.application?.applicationNumber || '-'}</strong> },
-        { id: 'appName', header: 'アプリ名', cell: ({ row }) => row.original.application?.applicationDefinition?.appName || row.original.application?.applicationDefinition?.name || '不明' },
-        { id: 'title', header: '件名', cell: ({ row }) => <span className="font-semibold">{row.original.application?.title || '無題'}</span> },
+        { id: 'appName', header: 'アプリ名', cell: ({ row }) => <TruncatedCell text={row.original.application?.applicationDefinition?.appName || row.original.application?.applicationDefinition?.name || '不明'} maxWidth="150px" /> },
+        { id: 'title', header: '件名', cell: ({ row }) => <TruncatedCell text={row.original.application?.title || '無題'} maxWidth="200px" className="font-semibold" /> },
         { id: 'applicantId', header: '申請者', cell: ({ row }) => <UserDisplay user={row.original.application?.applicantInfo} fallback={row.original.application?.applicantId} /> },
         { id: 'assignedTo', header: '担当者', cell: ({ row }) => <UserDisplay user={row.original.assignedToInfo} fallback={formatAssignedTo(row.original.assignedTo)} /> },
-        { id: 'stepId', header: 'ステップ', cell: ({ row }) => getStepLabel(row.original.stepId, row.original.application?.flowDefinition?.nodes) },
+        { id: 'stepId', header: 'ステップ', cell: ({ row }) => <TruncatedCell text={getStepLabel(row.original.stepId, row.original.application?.flowDefinition?.nodes)} maxWidth="150px" /> },
         { accessorKey: 'status', header: 'ステータス', cell: ({ row }) => {
             const s = row.getValue('status') as string;
             return <Badge variant={s === 'PENDING' ? 'secondary' : 'default'}>{s === 'PENDING' ? '保留中' : s === 'COMPLETED' ? '完了' : s}</Badge>;

@@ -6,14 +6,8 @@ import { PrismaModule } from '../../prisma/prisma.module';
 
 @Global()
 @Module({
-  imports: [
-    QueueModule,
-    PrismaModule,
-    ScheduleModule.forRoot(),
-  ],
-  providers: [
-    SchedulerService,
-  ],
+  imports: [QueueModule, PrismaModule, ScheduleModule.forRoot()],
+  providers: [SchedulerService],
   exports: [SchedulerService],
 })
 export class SchedulerModule {}

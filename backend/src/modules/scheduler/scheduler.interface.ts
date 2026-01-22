@@ -1,4 +1,3 @@
-
 export interface ISchedulerAdapter {
   /**
    * Schedule a recurring job (Cron)
@@ -7,7 +6,12 @@ export interface ISchedulerAdapter {
    * @param topic Topic to enqueue when triggered
    * @param payload Payload to send
    */
-  schedule(name: string, cron: string, topic: string, payload: any): Promise<void>;
+  schedule(
+    name: string,
+    cron: string,
+    topic: string,
+    payload: any,
+  ): Promise<void>;
 
   /**
    * Unschedule a recurring job

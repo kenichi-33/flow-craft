@@ -1,5 +1,9 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { ITaskHandler, TaskContext, TaskResult } from '../task-handler.interface';
+import {
+  ITaskHandler,
+  TaskContext,
+  TaskResult,
+} from '../task-handler.interface';
 
 /**
  * LLM呼び出しハンドラー
@@ -16,7 +20,9 @@ export class LlmCallHandler implements ITaskHandler {
 
     try {
       const prompt = this.replaceVariables(nodeData.prompt || '', inputData);
-      this.logger.log(`Executing LLM Call with prompt: ${prompt.substring(0, 100)}...`);
+      this.logger.log(
+        `Executing LLM Call with prompt: ${prompt.substring(0, 100)}...`,
+      );
 
       // TODO: 実際のLLM API統合
       // 現在はモックレスポンス
@@ -34,7 +40,9 @@ export class LlmCallHandler implements ITaskHandler {
           for (const [responsePath, formFieldId] of Object.entries(mapping)) {
             const value = this.getValueByPath(response, responsePath);
             if (value !== undefined) {
-              this.logger.debug(`Mapping response: ${responsePath} -> ${formFieldId}`);
+              this.logger.debug(
+                `Mapping response: ${responsePath} -> ${formFieldId}`,
+              );
               outputData[formFieldId as string] = value;
             }
           }
@@ -51,9 +59,9 @@ export class LlmCallHandler implements ITaskHandler {
         },
         shouldAdvance: true,
       };
-
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
       this.logger.error(`LLM call failed: ${errorMessage}`);
       return {
         success: false,

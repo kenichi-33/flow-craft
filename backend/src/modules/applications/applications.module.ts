@@ -9,6 +9,6 @@ import { WorkflowEngineModule } from '../workflow-engine/workflow-engine.module'
 @Module({
   imports: [UsersModule, WorkflowEngineModule],
   controllers: [ApplicationsController],
-  providers: [ApplicationsService, ApplicationRecoveryService]
+  providers: [ApplicationsService, ApplicationRecoveryService],
 })
 export class ApplicationsModule {}

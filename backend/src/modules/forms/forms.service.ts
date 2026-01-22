@@ -5,36 +5,38 @@ import { Prisma } from '@prisma/client';
 
 @Injectable()
 export class FormsService {
-    constructor(private prisma: PrismaService) { }
+  constructor(private prisma: PrismaService) {}
 
-    create(createFormDto: CreateFormDto) {
-        return this.prisma.formDefinition.create({
-            data: {
-                name: createFormDto.name,
-                schema: createFormDto.schema as Prisma.InputJsonValue,
-            },
-        });
-    }
+  create(createFormDto: CreateFormDto) {
+    return this.prisma.formDefinition.create({
+      data: {
+        name: createFormDto.name,
+        schema: createFormDto.schema as Prisma.InputJsonValue,
+      },
+    });
+  }
 
-    findAll() {
-        return this.prisma.formDefinition.findMany({
-            orderBy: { createdAt: 'desc' },
-        });
-    }
+  findAll() {
+    return this.prisma.formDefinition.findMany({
+      orderBy: { createdAt: 'desc' },
+    });
+  }
 
-    findOne(id: string) {
-        return this.prisma.formDefinition.findUnique({
-            where: { id },
-        });
-    }
+  findOne(id: string) {
+    return this.prisma.formDefinition.findUnique({
+      where: { id },
+    });
+  }
 
-    update(id: string, updateData: { name?: string; schema?: any }) {
-        return this.prisma.formDefinition.update({
-            where: { id },
-            data: {
-                ...(updateData.name && { name: updateData.name }),
-                ...(updateData.schema && { schema: updateData.schema as Prisma.InputJsonValue }),
-            },
-        });
-    }
+  update(id: string, updateData: { name?: string; schema?: any }) {
+    return this.prisma.formDefinition.update({
+      where: { id },
+      data: {
+        ...(updateData.name && { name: updateData.name }),
+        ...(updateData.schema && {
+          schema: updateData.schema as Prisma.InputJsonValue,
+        }),
+      },
+    });
+  }
 }

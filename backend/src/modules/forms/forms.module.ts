@@ -4,6 +4,6 @@ import { FormsService } from './forms.service';
 
 @Module({
   controllers: [FormsController],
-  providers: [FormsService]
+  providers: [FormsService],
 })
 export class FormsModule {}

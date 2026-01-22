@@ -4,19 +4,19 @@ import { ModuleRef } from '@nestjs/core';
 
 @Injectable()
 export class NodeProcessorRegistry {
-    private processors = new Map<string, INodeProcessor>();
+  private processors = new Map<string, INodeProcessor>();
 
-    constructor(private moduleRef: ModuleRef) {}
+  constructor(private moduleRef: ModuleRef) {}
 
-    register(processor: INodeProcessor) {
-        this.processors.set(processor.getType(), processor);
-    }
+  register(processor: INodeProcessor) {
+    this.processors.set(processor.getType(), processor);
+  }
 
-    registerAlias(type: string, processor: INodeProcessor) {
-        this.processors.set(type, processor);
-    }
+  registerAlias(type: string, processor: INodeProcessor) {
+    this.processors.set(type, processor);
+  }
 
-    getProcessor(type: string): INodeProcessor | undefined {
-        return this.processors.get(type);
-    }
+  getProcessor(type: string): INodeProcessor | undefined {
+    return this.processors.get(type);
+  }
 }

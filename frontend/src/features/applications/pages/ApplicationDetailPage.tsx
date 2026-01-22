@@ -11,6 +11,7 @@ import DynamicFormRenderer from '@/components/model/form/renderer/DynamicFormRen
 import ApprovalHistory from '@/components/model/application/ApprovalHistory';
 import TaskList from '@/components/model/application/TaskList';
 import FlowVisualization from '@/components/designer/flow/FlowVisualization';
+import { PerformanceTimeline } from '@/features/applications/components/PerformanceTimeline';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
@@ -374,6 +375,14 @@ export default function ApplicationDetailPage() {
                         />
                     </CardContent>
                 </Card>
+            )}
+
+            {/* Performance Timeline */}
+            {application.workflowTasks && application.workflowTasks.length > 0 && (
+                <PerformanceTimeline 
+                    tasks={application.workflowTasks} 
+                    flowNodes={application.flowNodes || application.flowDefinition?.nodes}
+                />
             )}
 
             {/* Task List */}

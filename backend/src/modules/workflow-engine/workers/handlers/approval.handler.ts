@@ -2,7 +2,11 @@ import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../../../../prisma/prisma.service';
 import { UsersService } from '../../../users/users.service';
 import { MailService } from '../../../notifications/mail.service';
-import { ITaskHandler, TaskContext, TaskResult } from '../task-handler.interface';
+import {
+  ITaskHandler,
+  TaskContext,
+  TaskResult,
+} from '../task-handler.interface';
 
 /**
  * 承認タスクハンドラー
@@ -25,7 +29,9 @@ export class ApprovalHandler implements ITaskHandler {
     try {
       // WorkflowTaskは既にExecutorで作成済み
       // ここではメール通知のみ実行
-      this.logger.log(`Processing approval task ${taskId} for application ${applicationId} at node ${nodeId}`);
+      this.logger.log(
+        `Processing approval task ${taskId} for application ${applicationId} at node ${nodeId}`,
+      );
 
       // メール通知送信
       if (nodeData?.notificationEnabled) {
@@ -50,9 +56,9 @@ export class ApprovalHandler implements ITaskHandler {
         success: true,
         shouldAdvance: false, // 承認完了まで待機
       };
-
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
       this.logger.error(`Failed to process approval task: ${errorMessage}`);
       return {
         success: false,
@@ -117,13 +123,15 @@ export class ApprovalHandler implements ITaskHandler {
 
       if (assignee.startsWith('user:')) {
         const username = assignee.substring(5);
-        const userSnapshot = await this.usersService.getUserSnapshotByUsername(username);
+        const userSnapshot =
+          await this.usersService.getUserSnapshotByUsername(username);
         email = userSnapshot?.email || null;
-        
+
         if (userSnapshot) {
-          assigneeName = userSnapshot.lastName && userSnapshot.firstName
-            ? `${userSnapshot.lastName} ${userSnapshot.firstName}`
-            : userSnapshot.username;
+          assigneeName =
+            userSnapshot.lastName && userSnapshot.firstName
+              ? `${userSnapshot.lastName} ${userSnapshot.firstName}`
+              : userSnapshot.username;
         }
       }
 
@@ -141,14 +149,16 @@ export class ApprovalHandler implements ITaskHandler {
       };
 
       // 変数置換
-      const subject = this.replaceVariables(subjectTemplate || '承認依頼', variables);
-      const body = this.replaceVariables(bodyTemplate || '承認をお願いします', variables);
-
-      await this.mailService.sendEmail(
-        email,
-        subject,
-        body,
+      const subject = this.replaceVariables(
+        subjectTemplate || '承認依頼',
+        variables,
       );
+      const body = this.replaceVariables(
+        bodyTemplate || '承認をお願いします',
+        variables,
+      );
+
+      await this.mailService.sendEmail(email, subject, body);
 
       this.logger.log(`Sent notification email to ${email}`);
     } catch (error) {

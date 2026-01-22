@@ -8,12 +8,12 @@ import { TeamsModule } from '../modules/teams/teams.module';
 
 @Global()
 @Module({
-    imports: [
-        PassportModule.register({ defaultStrategy: 'jwt' }),
-        ConfigModule,
-        TeamsModule,
-    ],
-    providers: [JwtStrategy, JwtAuthGuard, RolesGuard],
-    exports: [PassportModule, JwtAuthGuard, RolesGuard],
+  imports: [
+    PassportModule.register({ defaultStrategy: 'jwt' }),
+    ConfigModule,
+    TeamsModule,
+  ],
+  providers: [JwtStrategy, JwtAuthGuard, RolesGuard],
+  exports: [PassportModule, JwtAuthGuard, RolesGuard],
 })
-export class AuthModule { }
+export class AuthModule {}

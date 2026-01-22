@@ -16,6 +16,7 @@ import { Badge } from '@/components/ui/badge';
 import { Loader2, Edit, Search, ArrowUpDown } from 'lucide-react';
 import { UserDisplay, type UserSnapshot } from '@/components/common/UserDisplay';
 import { Label } from '@/components/ui/label';
+import { TruncatedCell } from '@/components/common/TruncatedCell';
 
 interface Task {
     id: string;
@@ -122,7 +123,7 @@ export default function TaskListPage() {
                     <ArrowUpDown className="ml-2 h-4 w-4" />
                 </Button>
             ),
-            cell: ({ row }) => row.original.application?.applicationDefinition?.appName || row.original.application?.applicationDefinition?.name || '不明'
+            cell: ({ row }) => <TruncatedCell text={row.original.application?.applicationDefinition?.appName || row.original.application?.applicationDefinition?.name || '不明'} maxWidth="150px" />
         },
         {
             id: 'title',
@@ -132,7 +133,7 @@ export default function TaskListPage() {
                     <ArrowUpDown className="ml-2 h-4 w-4" />
                 </Button>
             ),
-            cell: ({ row }) => <span className="font-semibold">{row.original.application?.title || '無題'}</span>
+            cell: ({ row }) => <TruncatedCell text={row.original.application?.title || '無題'} maxWidth="200px" className="font-semibold" />
         },
         {
             id: 'applicantId',
@@ -154,7 +155,7 @@ export default function TaskListPage() {
             ),
             cell: ({ row }) => <UserDisplay user={row.original.assignedToInfo} fallback={formatAssignedTo(row.original.assignedTo || row.original.assigneeId)} />
         },
-        { id: 'stepId', header: '現在のステップ', cell: ({ row }) => getStepLabel(row.original.stepId, row.original.application?.flowDefinition?.nodes) },
+        { id: 'stepId', header: '現在のステップ', cell: ({ row }) => <TruncatedCell text={getStepLabel(row.original.stepId, row.original.application?.flowDefinition?.nodes)} maxWidth="150px" /> },
         { 
             accessorKey: 'status', 
             header: ({ column }) => (

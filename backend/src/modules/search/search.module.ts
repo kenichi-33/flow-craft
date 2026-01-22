@@ -8,17 +8,9 @@ import { QueueModule } from '../queue/queue.module';
 import { PrismaModule } from '../../prisma/prisma.module';
 
 @Module({
-  imports: [
-    ConfigModule,
-    QueueModule,
-    PrismaModule,
-  ],
+  imports: [ConfigModule, QueueModule, PrismaModule],
   controllers: [SearchController],
-  providers: [
-    SearchService,
-    PostgresSearchService,
-    ElasticsearchSearchService,
-  ],
+  providers: [SearchService, PostgresSearchService, ElasticsearchSearchService],
   exports: [SearchService],
 })
 export class SearchModule {}

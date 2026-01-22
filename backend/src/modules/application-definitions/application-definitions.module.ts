@@ -5,9 +5,9 @@ import { UsersModule } from '../users/users.module';
 import { QueueModule } from '../queue/queue.module';
 
 @Module({
-    imports: [UsersModule, QueueModule],
-    controllers: [ApplicationDefinitionsController],
-    providers: [ApplicationDefinitionsService],
-    exports: [ApplicationDefinitionsService],
+  imports: [UsersModule, QueueModule],
+  controllers: [ApplicationDefinitionsController],
+  providers: [ApplicationDefinitionsService],
+  exports: [ApplicationDefinitionsService],
 })
-export class ApplicationDefinitionsModule { }
+export class ApplicationDefinitionsModule {}

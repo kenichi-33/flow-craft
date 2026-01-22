@@ -1,4 +1,13 @@
-import { IsString, IsNotEmpty, IsNumber, IsOptional, ValidateNested, IsEnum, IsObject, IsArray } from 'class-validator';
+import {
+  IsString,
+  IsNotEmpty,
+  IsNumber,
+  IsOptional,
+  ValidateNested,
+  IsEnum,
+  IsObject,
+  IsArray,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 
 export enum SearchOperator {
@@ -66,4 +75,3 @@ export class SearchQueryDto {
 
 // Alias for compatibility if needed during strict refactor
 export class SearchApplicationDto extends SearchQueryDto {}
-

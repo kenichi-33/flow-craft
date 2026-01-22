@@ -7,16 +7,17 @@ import { PrismaModule } from '../../prisma/prisma.module';
 
 @Global()
 @Module({
-  imports: [
-    ConfigModule,
-    PrismaModule,
-  ],
+  imports: [ConfigModule, PrismaModule],
   providers: [
     PgBossQueueAdapter,
     KafkaAdapter,
     {
       provide: 'QUEUE_ADAPTER',
-      useFactory: (config: ConfigService, pgBoss: PgBossQueueAdapter, kafka: KafkaAdapter) => {
+      useFactory: (
+        config: ConfigService,
+        pgBoss: PgBossQueueAdapter,
+        kafka: KafkaAdapter,
+      ) => {
         const type = config.get('QUEUE_TYPE');
         return type === 'kafka' ? kafka : pgBoss;
       },

@@ -2,7 +2,11 @@ import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../../../../prisma/prisma.service';
 import { UsersService } from '../../../users/users.service';
 import { MailService } from '../../../notifications/mail.service';
-import { ITaskHandler, TaskContext, TaskResult } from '../task-handler.interface';
+import {
+  ITaskHandler,
+  TaskContext,
+  TaskResult,
+} from '../task-handler.interface';
 
 /**
  * 入力タスクハンドラー
@@ -23,7 +27,9 @@ export class UserInputHandler implements ITaskHandler {
     const { taskId, applicationId, nodeId, nodeData, inputData } = context;
 
     try {
-      this.logger.log(`Processing input task ${taskId} for application ${applicationId} at node ${nodeId}`);
+      this.logger.log(
+        `Processing input task ${taskId} for application ${applicationId} at node ${nodeId}`,
+      );
 
       // メール通知送信
       if (nodeData?.notificationEnabled) {
@@ -48,9 +54,9 @@ export class UserInputHandler implements ITaskHandler {
         success: true,
         shouldAdvance: false, // 入力完了まで待機
       };
-
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
       this.logger.error(`Failed to process input task: ${errorMessage}`);
       return {
         success: false,
@@ -91,47 +97,52 @@ export class UserInputHandler implements ITaskHandler {
       // User lookup logic
       if (assignee.startsWith('user:')) {
         const username = assignee.substring(5);
-        const userSnapshot = await this.usersService.getUserSnapshotByUsername(username);
+        const userSnapshot =
+          await this.usersService.getUserSnapshotByUsername(username);
         email = userSnapshot?.email || null;
-        
+
         if (userSnapshot) {
-          assigneeName = userSnapshot.lastName && userSnapshot.firstName
-            ? `${userSnapshot.lastName} ${userSnapshot.firstName}`
-            : userSnapshot.username;
+          assigneeName =
+            userSnapshot.lastName && userSnapshot.firstName
+              ? `${userSnapshot.lastName} ${userSnapshot.firstName}`
+              : userSnapshot.username;
         }
-      } 
+      }
       // Applicant lookup logic (Explicit 'applicant' keyword)
       else if (assignee === 'applicant') {
         const applicantId = application.applicantId;
         // Try as username first, then ID
-        let userSnapshot = await this.usersService.getUserSnapshotByUsername(applicantId);
+        let userSnapshot =
+          await this.usersService.getUserSnapshotByUsername(applicantId);
         if (!userSnapshot) {
-             userSnapshot = await this.usersService.getUserSnapshot(applicantId);
+          userSnapshot = await this.usersService.getUserSnapshot(applicantId);
         }
         email = userSnapshot?.email || null;
-         if (userSnapshot) {
-          assigneeName = userSnapshot.lastName && userSnapshot.firstName
-            ? `${userSnapshot.lastName} ${userSnapshot.firstName}`
-            : userSnapshot.username;
+        if (userSnapshot) {
+          assigneeName =
+            userSnapshot.lastName && userSnapshot.firstName
+              ? `${userSnapshot.lastName} ${userSnapshot.firstName}`
+              : userSnapshot.username;
         }
       }
       // Fallback: Assume it's a username or ID if no prefix
       else if (!assignee.includes(':')) {
-         // Try as username first
-         let userSnapshot = await this.usersService.getUserSnapshotByUsername(assignee);
-         if (!userSnapshot) {
-             // Try as ID
-             userSnapshot = await this.usersService.getUserSnapshot(assignee);
-         }
-         
-         if (userSnapshot) {
-            email = userSnapshot.email || null;
-            assigneeName = userSnapshot.lastName && userSnapshot.firstName
-                ? `${userSnapshot.lastName} ${userSnapshot.firstName}`
-                : userSnapshot.username;
-         }
-      }
+        // Try as username first
+        let userSnapshot =
+          await this.usersService.getUserSnapshotByUsername(assignee);
+        if (!userSnapshot) {
+          // Try as ID
+          userSnapshot = await this.usersService.getUserSnapshot(assignee);
+        }
 
+        if (userSnapshot) {
+          email = userSnapshot.email || null;
+          assigneeName =
+            userSnapshot.lastName && userSnapshot.firstName
+              ? `${userSnapshot.lastName} ${userSnapshot.firstName}`
+              : userSnapshot.username;
+        }
+      }
 
       // TODO: Handle Group/Role email resolution if needed (e.g. send to all in group)
       // Currently minimal implementation for Specific User & Applicant
@@ -150,14 +161,16 @@ export class UserInputHandler implements ITaskHandler {
       };
 
       // 変数置換
-      const subject = this.replaceVariables(subjectTemplate || '入力依頼', variables);
-      const body = this.replaceVariables(bodyTemplate || '以下の情報の入力をお願いします', variables);
-
-      await this.mailService.sendEmail(
-        email,
-        subject,
-        body,
+      const subject = this.replaceVariables(
+        subjectTemplate || '入力依頼',
+        variables,
       );
+      const body = this.replaceVariables(
+        bodyTemplate || '以下の情報の入力をお願いします',
+        variables,
+      );
+
+      await this.mailService.sendEmail(email, subject, body);
 
       this.logger.log(`Sent notification email to ${email}`);
     } catch (error) {

@@ -1,41 +1,56 @@
-import { Injectable, OnModuleInit, OnModuleDestroy, Logger } from '@nestjs/common';
+import {
+  Injectable,
+  OnModuleInit,
+  OnModuleDestroy,
+  Logger,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { KafkaJS } from '@confluentinc/kafka-javascript';
 import { IQueueAdapter } from '../queue.interface';
 
 @Injectable()
-export class KafkaAdapter implements IQueueAdapter, OnModuleInit, OnModuleDestroy {
+export class KafkaAdapter
+  implements IQueueAdapter, OnModuleInit, OnModuleDestroy
+{
   private readonly logger = new Logger(KafkaAdapter.name);
   private kafka: KafkaJS.Kafka;
   private producer: KafkaJS.Producer;
   private consumer: KafkaJS.Consumer;
   private isConnected = false;
-  private readonly handlers = new Map<string, (payload: any) => Promise<void>>();
+  private readonly handlers = new Map<
+    string,
+    (payload: any) => Promise<void>
+  >();
 
   constructor(private configHelper: ConfigService) {
-    const brokers = this.configHelper.get<string>('KAFKA_BROKERS') || 'localhost:9092';
-    
+    const brokers =
+      this.configHelper.get<string>('KAFKA_BROKERS') || 'localhost:9092';
+
     this.kafka = new KafkaJS.Kafka({
-      'client.id': this.configHelper.get<string>('KAFKA_CLIENT_ID') || 'flow-craft-backend',
+      'client.id':
+        this.configHelper.get<string>('KAFKA_CLIENT_ID') ||
+        'flow-craft-backend',
       'bootstrap.servers': brokers,
-      'retry.backoff.ms': 300
+      'retry.backoff.ms': 300,
     });
 
     this.producer = this.kafka.producer({
-      'kafkaJS': {
+      kafkaJS: {
         idempotent: true,
-      }
+      },
     } as any);
-    this.consumer = this.kafka.consumer({ 
-      'group.id': this.configHelper.get<string>('KAFKA_GROUP_ID') || 'flow-craft-consumer-group',
-      'auto.offset.reset': 'earliest'
+    this.consumer = this.kafka.consumer({
+      'group.id':
+        this.configHelper.get<string>('KAFKA_GROUP_ID') ||
+        'flow-craft-consumer-group',
+      'auto.offset.reset': 'earliest',
     });
   }
 
   async onModuleInit() {
     // Only connect if this adapter is actually selected
     if (this.configHelper.get('QUEUE_TYPE') === 'kafka') {
-        await this.connect();
+      await this.connect();
     }
   }
 
@@ -77,15 +92,19 @@ export class KafkaAdapter implements IQueueAdapter, OnModuleInit, OnModuleDestro
     await this.disconnect();
   }
 
-  async enqueue(topic: string, payload: any, options?: { delay?: number; deduplicationId?: string }): Promise<void> {
+  async enqueue(
+    topic: string,
+    payload: any,
+    options?: { delay?: number; deduplicationId?: string },
+  ): Promise<void> {
     if (!this.isConnected) {
-        // Fallback or error? For now try to reconnect valid
-        await this.connect();
+      // Fallback or error? For now try to reconnect valid
+      await this.connect();
     }
-    
+
     const message: any = { value: JSON.stringify(payload) };
     if (options?.deduplicationId) {
-        message.key = options.deduplicationId;
+      message.key = options.deduplicationId;
     }
 
     await this.producer.send({
@@ -95,12 +114,15 @@ export class KafkaAdapter implements IQueueAdapter, OnModuleInit, OnModuleDestro
     this.logger.debug(`Enqueued message to topic: ${topic}`);
   }
 
-  async subscribe(topic: string, handler: (payload: any) => Promise<void>): Promise<void> {
+  async subscribe(
+    topic: string,
+    handler: (payload: any) => Promise<void>,
+  ): Promise<void> {
     this.handlers.set(topic, handler);
-    
+
     // Subscribe to topic
     await this.consumer.subscribe({ topic });
-    
+
     // If we haven't started running the consumer loop yet, start it now
     // Note: Kafka consumer.run should only be called once
     // We handle the "run only once" check inside startConsumer
@@ -108,29 +130,32 @@ export class KafkaAdapter implements IQueueAdapter, OnModuleInit, OnModuleDestro
   }
 
   private consumerRunning = false;
-  
+
   private async startConsumer() {
     if (this.consumerRunning || !this.isConnected) return;
     this.consumerRunning = true;
 
     try {
-        await this.consumer.run({
-            eachMessage: async ({ topic, partition, message }) => {
-                const handler = this.handlers.get(topic);
-                if (handler && message.value) {
-                    try {
-                        const payload = JSON.parse(message.value.toString());
-                        await handler(payload);
-                    } catch (err) {
-                        this.logger.error(`Error processing message from topic ${topic}`, err);
-                        // In a real app we might want dead letter queue or retry topics
-                    }
-                }
-            },
-        });
+      await this.consumer.run({
+        eachMessage: async ({ topic, partition, message }) => {
+          const handler = this.handlers.get(topic);
+          if (handler && message.value) {
+            try {
+              const payload = JSON.parse(message.value.toString());
+              await handler(payload);
+            } catch (err) {
+              this.logger.error(
+                `Error processing message from topic ${topic}`,
+                err,
+              );
+              // In a real app we might want dead letter queue or retry topics
+            }
+          }
+        },
+      });
     } catch (err) {
-        this.consumerRunning = false;
-        this.logger.error('Consumer run failed', err);
+      this.consumerRunning = false;
+      this.logger.error('Consumer run failed', err);
     }
   }
 }

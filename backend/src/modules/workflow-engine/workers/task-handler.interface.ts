@@ -44,7 +44,7 @@ export interface TaskResult {
 export interface ITaskHandler {
   /** 対応するタスクタイプ */
   readonly taskType: string;
-  
+
   /**
    * タスクを実行
    * @param context 実行コンテキスト

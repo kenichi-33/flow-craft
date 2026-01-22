@@ -1,6 +1,9 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { ISearchService, SearchResult } from './interfaces/search-service.interface';
+import {
+  ISearchService,
+  SearchResult,
+} from './interfaces/search-service.interface';
 import { SearchApplicationDto } from './dto/search-application.dto';
 import { Application } from '@prisma/client';
 import { PostgresSearchService } from './postgres-search.service';
@@ -20,21 +23,28 @@ export class SearchService implements ISearchService, OnModuleInit {
     private readonly queueService: QueueService,
     private readonly prisma: PrismaService,
   ) {
-    this.searchMode = this.configService.get('SEARCH_MODE', 'postgres') as 'postgres' | 'elasticsearch';
+    this.searchMode = this.configService.get('SEARCH_MODE', 'postgres');
     this.logger.log(`SearchService initialized with mode: ${this.searchMode}`);
   }
 
   async onModuleInit() {
     // Register queue handler for async indexing
-    await this.queueService.registerHandler('application-indexing', this.handleIndexingJob.bind(this));
+    await this.queueService.registerHandler(
+      'application-indexing',
+      this.handleIndexingJob.bind(this),
+    );
   }
 
   /**
    * Queue Job Handler
    */
-  private async handleIndexingJob(payload: { applicationId: string }): Promise<void> {
-    this.logger.debug(`Processing indexing job for app: ${payload.applicationId}`);
-    
+  private async handleIndexingJob(payload: {
+    applicationId: string;
+  }): Promise<void> {
+    this.logger.debug(
+      `Processing indexing job for app: ${payload.applicationId}`,
+    );
+
     // Proceed for both Elasticsearch (external index) and Postgres (fullText column update)
     // if (this.searchMode !== 'elasticsearch') { return; } // Removed restriction
 
@@ -47,10 +57,15 @@ export class SearchService implements ISearchService, OnModuleInit {
         await this.elasticsearchSearchService.indexApplication(app);
       } else {
         // If app not found (deleted?), maybe remove from index?
-        await this.elasticsearchSearchService.removeApplication(payload.applicationId);
+        await this.elasticsearchSearchService.removeApplication(
+          payload.applicationId,
+        );
       }
     } catch (error) {
-      this.logger.error(`Failed to index application ${payload.applicationId}`, error.stack);
+      this.logger.error(
+        `Failed to index application ${payload.applicationId}`,
+        error.stack,
+      );
       throw error; // Rethrow to let queue retry
     }
   }

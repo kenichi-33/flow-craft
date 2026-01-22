@@ -13,7 +13,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Badge } from '@/components/ui/badge';
-import { Menu, Home, FileText, ClipboardList, LayoutDashboard, Database, Settings, Users, FolderOpen, LogOut, ChevronRight, PieChart } from 'lucide-react';
+import { Menu, Home, FileText, ClipboardList, LayoutDashboard, Database, Settings, Users, FolderOpen, LogOut, ChevronRight, PieChart, RefreshCw } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export default function AppLayout() {
@@ -51,6 +51,7 @@ export default function AppLayout() {
                 { title: '統計情報', href: '/admin/stats', icon: PieChart },
                 { title: '進捗一覧', href: '/admin/workflows', icon: FolderOpen },
                 { title: 'タスク管理', href: '/admin/tasks', icon: Settings },
+                { title: 'サービスタスク回復', href: '/admin/tasks/recovery', icon: RefreshCw },
                 hasRole('wf_admin') && { title: 'チーム管理', href: '/admin/teams', icon: Users },
                 hasRole('wf_admin') && { title: 'ユーザー管理', href: '/admin/users', icon: Users },
             ].filter(Boolean) as any[]
@@ -113,7 +114,9 @@ export default function AppLayout() {
                                 const isPrefixMatch = item.href !== '/' && 
                                     item.href !== '/admin' && // Admin dashboard exact match only
                                     item.href !== '/applications' && // Application list exact match only
-                                    location.pathname.startsWith(item.href + '/');
+                                    location.pathname.startsWith(item.href + '/') &&
+                                    // Exception: Don't highlight 'Task Management' (/admin/tasks) when on 'Recovery' (/admin/tasks/recovery)
+                                    !(item.href === '/admin/tasks' && location.pathname.startsWith('/admin/tasks/recovery'));
                                 const isActive = isExactMatch || isPrefixMatch;
                                 return (
                                     <Link

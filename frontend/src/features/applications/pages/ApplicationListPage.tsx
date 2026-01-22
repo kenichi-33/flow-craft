@@ -25,6 +25,7 @@ import { Loader2, Plus, Eye, Edit, ArrowUpDown, Search, ArrowUp, ArrowDown } fro
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { UserDisplay, type UserSnapshot } from '@/components/common/UserDisplay';
+import { TruncatedCell } from '@/components/common/TruncatedCell';
 
 interface Application {
     id: string;
@@ -131,7 +132,7 @@ export default function ApplicationListPage() {
                     {column.getIsSorted() === "asc" ? <ArrowUp className="ml-2 h-4 w-4" /> : column.getIsSorted() === "desc" ? <ArrowDown className="ml-2 h-4 w-4" /> : <ArrowUpDown className="ml-2 h-4 w-4" />}
                 </Button>
             ),
-            cell: ({ row }) => row.original.applicationDefinition?.name || '不明',
+            cell: ({ row }) => <TruncatedCell text={row.original.applicationDefinition?.name || '不明'} maxWidth="150px" />,
         },
         {
             accessorKey: 'title',
@@ -141,7 +142,7 @@ export default function ApplicationListPage() {
                     {column.getIsSorted() === "asc" ? <ArrowUp className="ml-2 h-4 w-4" /> : column.getIsSorted() === "desc" ? <ArrowDown className="ml-2 h-4 w-4" /> : <ArrowUpDown className="ml-2 h-4 w-4" />}
                 </Button>
             ),
-            cell: ({ row }) => <span className="font-semibold">{row.original.title}</span>,
+            cell: ({ row }) => <TruncatedCell text={row.original.title} maxWidth="200px" className="font-semibold" />,
         },
         {
             id: 'applicantId',
@@ -173,7 +174,7 @@ export default function ApplicationListPage() {
             header: '現在のステップ',
             cell: ({ row }) => {
                 const nodes = row.original.flowNodes || row.original.flowDefinition?.nodes || [];
-                return getStepLabel(row.original.currentNodeId, nodes);
+                return <TruncatedCell text={getStepLabel(row.original.currentNodeId, nodes)} maxWidth="150px" />;
             },
         },
         {

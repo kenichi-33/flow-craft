@@ -1,4 +1,16 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, Query, UseGuards, Req, ForbiddenException } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Put,
+  Delete,
+  Body,
+  Param,
+  Query,
+  UseGuards,
+  Req,
+  ForbiddenException,
+} from '@nestjs/common';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { ApplicationDefinitionsService } from './application-definitions.service';
 import { CreateApplicationDefinitionDto } from './dto/create-application-definition.dto';
@@ -9,90 +21,128 @@ import { AppDefinitionGuard } from './guards/app-definition.guard';
 
 @Controller('application-definitions')
 export class ApplicationDefinitionsController {
-    constructor(private readonly appDefsService: ApplicationDefinitionsService) { }
+  constructor(private readonly appDefsService: ApplicationDefinitionsService) {}
 
-    @Post()
-    @UseGuards(JwtAuthGuard)
-    create(@Body() createDto: CreateApplicationDefinitionDto, @Req() req: any) {
-        const user = req.user;
-        if (!user.roles.includes('wf_admin') && !user.roles.includes('wf_app_admin')) {
-             throw new ForbiddenException('You do not have permission to create applications');
-        }
-        return this.appDefsService.create(createDto, user);
-    }
-
-    @Get()
-    @UseGuards(JwtAuthGuard)
-    findAll(
-        @Query('page') page?: string,
-        @Query('limit') limit?: string,
-        @Query('search') search?: string,
-        @Query('sortBy') sortBy?: string,
-        @Query('sortOrder') sortOrder?: 'asc' | 'desc',
-        @Query('tags') tags?: string | string[],
-        @Req() req?: any,
+  @Post()
+  @UseGuards(JwtAuthGuard)
+  create(@Body() createDto: CreateApplicationDefinitionDto, @Req() req: any) {
+    const user = req.user;
+    if (
+      !user.roles.includes('wf_admin') &&
+      !user.roles.includes('wf_app_admin')
     ) {
-        const tagsArray = tags 
-            ? (Array.isArray(tags) ? tags : tags.split(',')) 
-            : undefined;
-
-        // req.user might be undefined if guard is not applied, but we added UseGuards
-        return this.appDefsService.findAll({
-            page: page ? parseInt(page, 10) : undefined,
-            limit: limit ? parseInt(limit, 10) : undefined,
-            search,
-            sortBy,
-            sortOrder,
-            tags: tagsArray,
-        }, req?.user);
+      throw new ForbiddenException(
+        'You do not have permission to create applications',
+      );
     }
+    return this.appDefsService.create(createDto, user);
+  }
 
-    @Get('active')
-    findActive() {
-        return this.appDefsService.findActive();
-    }
+  @Get()
+  @UseGuards(JwtAuthGuard)
+  findAll(
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('search') search?: string,
+    @Query('sortBy') sortBy?: string,
+    @Query('sortOrder') sortOrder?: 'asc' | 'desc',
+    @Query('tags') tags?: string | string[],
+    @Req() req?: any,
+  ) {
+    const tagsArray = tags
+      ? Array.isArray(tags)
+        ? tags
+        : tags.split(',')
+      : undefined;
 
-    @Get(':id/published')
-    findPublished(@Param('id') id: string) {
-        return this.appDefsService.findPublished(id);
-    }
+    // req.user might be undefined if guard is not applied, but we added UseGuards
+    return this.appDefsService.findAll(
+      {
+        page: page ? parseInt(page, 10) : undefined,
+        limit: limit ? parseInt(limit, 10) : undefined,
+        search,
+        sortBy,
+        sortOrder,
+        tags: tagsArray,
+      },
+      req?.user,
+    );
+  }
 
-    @Get(':id')
-    findOne(@Param('id') id: string) {
-        return this.appDefsService.findOne(id);
-    }
+  @Get('active')
+  findActive() {
+    return this.appDefsService.findActive();
+  }
 
-    @Put(':id')
-    @UseGuards(JwtAuthGuard, AppDefinitionGuard)
-    update(@Param('id') id: string, @Body() updateDto: UpdateApplicationDefinitionDto, @Req() req: any) {
-        const username = req.user?.username || 'Unknown';
-        return this.appDefsService.update(id, updateDto, username);
-    }
+  @Get(':id/published')
+  findPublished(@Param('id') id: string) {
+    return this.appDefsService.findPublished(id);
+  }
 
-    @Post(':id/publish')
-    @UseGuards(JwtAuthGuard, AppDefinitionGuard)
-    publish(@Param('id') id: string, @Body() publishDto: PublishApplicationDto, @Req() req: any) {
-        console.log('Publish request:', { id, body: publishDto, user: req.user });
-        const username = req.user?.username || 'Unknown';
-        return this.appDefsService.publish(id, username, undefined, publishDto.comment);
-    }
+  @Get(':id')
+  findOne(@Param('id') id: string) {
+    return this.appDefsService.findOne(id);
+  }
 
-    @Get(':id/versions')
-    getVersions(@Param('id') id: string) {
-        return this.appDefsService.getVersions(id);
-    }
+  @Put(':id')
+  @UseGuards(JwtAuthGuard, AppDefinitionGuard)
+  update(
+    @Param('id') id: string,
+    @Body() updateDto: UpdateApplicationDefinitionDto,
+    @Req() req: any,
+  ) {
+    const username = req.user?.username || 'Unknown';
+    return this.appDefsService.update(id, updateDto, username);
+  }
 
-    @Post(':id/restore/:version')
-    @UseGuards(JwtAuthGuard, AppDefinitionGuard)
-    restore(@Param('id') id: string, @Param('version') version: string, @Body() restoreDto: RestoreApplicationDto, @Req() req: any) {
-        console.log('Restore request:', { id, version, body: restoreDto, user: req.user });
-        const username = req.user?.username || 'Unknown';
-        return this.appDefsService.restore(id, parseInt(version, 10), username, restoreDto.comment);
-    }
+  @Post(':id/publish')
+  @UseGuards(JwtAuthGuard, AppDefinitionGuard)
+  publish(
+    @Param('id') id: string,
+    @Body() publishDto: PublishApplicationDto,
+    @Req() req: any,
+  ) {
+    console.log('Publish request:', { id, body: publishDto, user: req.user });
+    const username = req.user?.username || 'Unknown';
+    return this.appDefsService.publish(
+      id,
+      username,
+      undefined,
+      publishDto.comment,
+    );
+  }
 
-    @Delete(':id')
-    @UseGuards(JwtAuthGuard, AppDefinitionGuard)
-    remove(@Param('id') id: string) {
-        return this.appDefsService.remove(id);
-    }
+  @Get(':id/versions')
+  getVersions(@Param('id') id: string) {
+    return this.appDefsService.getVersions(id);
+  }
+
+  @Post(':id/restore/:version')
+  @UseGuards(JwtAuthGuard, AppDefinitionGuard)
+  restore(
+    @Param('id') id: string,
+    @Param('version') version: string,
+    @Body() restoreDto: RestoreApplicationDto,
+    @Req() req: any,
+  ) {
+    console.log('Restore request:', {
+      id,
+      version,
+      body: restoreDto,
+      user: req.user,
+    });
+    const username = req.user?.username || 'Unknown';
+    return this.appDefsService.restore(
+      id,
+      parseInt(version, 10),
+      username,
+      restoreDto.comment,
+    );
+  }
+
+  @Delete(':id')
+  @UseGuards(JwtAuthGuard, AppDefinitionGuard)
+  remove(@Param('id') id: string) {
+    return this.appDefsService.remove(id);
+  }
 }

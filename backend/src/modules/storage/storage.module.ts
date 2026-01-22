@@ -6,12 +6,9 @@ import { PrismaModule } from '../../prisma/prisma.module';
 import { StorageCleanupService } from './storage-cleanup.service';
 
 @Module({
-    imports: [PrismaModule],
-    controllers: [StorageController],
-    providers: [
-        StorageService,
-        StorageCleanupService,
-    ],
-    exports: [StorageService],
+  imports: [PrismaModule],
+  controllers: [StorageController],
+  providers: [StorageService, StorageCleanupService],
+  exports: [StorageService],
 })
 export class StorageModule {}

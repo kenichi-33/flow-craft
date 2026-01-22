@@ -1,4 +1,11 @@
-import { Controller, Post, Body, Param, HttpCode, HttpStatus } from '@nestjs/common';
+import {
+  Controller,
+  Post,
+  Body,
+  Param,
+  HttpCode,
+  HttpStatus,
+} from '@nestjs/common';
 import { SearchService } from './search.service';
 import { SearchApplicationDto } from './dto/search-application.dto';
 import { PrismaService } from '../../prisma/prisma.service';

@@ -20,7 +20,7 @@ export interface ISearchService {
    * For Elasticsearch, this pushes the document.
    */
   indexApplication(app: Application): Promise<void>;
-  
+
   /**
    * Remove an application from the index.
    */

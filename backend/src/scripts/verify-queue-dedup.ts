@@ -1,4 +1,3 @@
-
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from '../app.module';
 import { QueueService } from '../modules/queue/queue.service';
@@ -18,15 +17,18 @@ async function bootstrap() {
 
   logger.log(`Enqueueing job 2 with ID ${dedupId}`);
   try {
-      await queueService.enqueue(topic, payload, { deduplicationId: dedupId });
-      logger.log('Job 2 enqueued (Adapter might handle dedup silently or throw)');
+    await queueService.enqueue(topic, payload, { deduplicationId: dedupId });
+    logger.log('Job 2 enqueued (Adapter might handle dedup silently or throw)');
   } catch (e) {
-      logger.log('Job 2 failed to enqueue (Expected if adapter throws on duplicate)', e);
+    logger.log(
+      'Job 2 failed to enqueue (Expected if adapter throws on duplicate)',
+      e,
+    );
   }
 
   // To truly verify, we would need to consume and count, but that requires async waiting.
   // For implementation check, just running this without error (and relying on adapter logic) is a smoke test.
-  
+
   await app.close();
 }
 

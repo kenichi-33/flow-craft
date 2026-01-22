@@ -1,24 +1,7 @@
 import { createBrowserRouter } from "react-router-dom";
-import { lazy, Suspense } from "react";
+import { lazy } from "react";
 import AppLayout from "@/components/common/AppLayout";
-import { Loader2 } from "lucide-react";
-
-// Loading component
-const PageLoader = () => (
-    <div className="flex items-center justify-center h-full min-h-[50vh] w-full">
-        <div className="flex flex-col items-center gap-2">
-            <Loader2 className="h-8 w-8 animate-spin text-primary" />
-            <p className="text-sm text-muted-foreground">Loading...</p>
-        </div>
-    </div>
-);
-
-// HOC for Lazy Loading
-const Loadable = (Component: React.ComponentType<any>) => (props: any) => (
-    <Suspense fallback={<PageLoader />}>
-        <Component {...props} />
-    </Suspense>
-);
+import { Loadable } from "@/utils/lazyLoad";
 
 // Lazy Imports
 const AppStudioLayout = Loadable(lazy(() => import("@/layouts/AppStudioLayout")));
@@ -48,6 +31,7 @@ const VersionPreviewPage = Loadable(lazy(() => import("@/features/designer/pages
 const AdminDashboardPage = Loadable(lazy(() => import("@/features/admin/AdminDashboardPage")));
 const AdminWorkflowsPage = Loadable(lazy(() => import("@/features/admin/AdminWorkflowsPage")));
 const AdminTasksPage = Loadable(lazy(() => import("@/features/admin/AdminTasksPage")));
+const AdminServiceTaskRecoveryPage = Loadable(lazy(() => import("@/features/admin/AdminServiceTaskRecoveryPage")));
 const AdminUsersPage = Loadable(lazy(() => import("@/features/admin/AdminUsersPage")));
 const AdminTeamsPage = Loadable(lazy(() => import("@/features/admin/AdminTeamsPage")));
 const AdminStatsListPage = Loadable(lazy(() => import("@/features/admin/stats/AdminStatsListPage")));
@@ -77,6 +61,7 @@ export const router = createBrowserRouter([
             { path: "/admin/workflows", element: <AdminWorkflowsPage /> },
             { path: "/admin/workflows/:id", element: <div className="text-center py-8">Workflow Detail - Coming Soon</div> },
             { path: "/admin/tasks", element: <AdminTasksPage /> },
+            { path: "/admin/tasks/recovery", element: <AdminServiceTaskRecoveryPage /> },
             { path: "/admin/users", element: <AdminUsersPage /> },
             { path: "/admin/teams", element: <AdminTeamsPage /> },
             { path: "/admin/stats", element: <AdminStatsListPage /> },

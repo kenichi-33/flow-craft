@@ -1,7 +1,7 @@
 import { IsString, IsOptional } from 'class-validator';
 
 export class PublishApplicationDto {
-    @IsOptional()
-    @IsString()
-    comment?: string;
+  @IsOptional()
+  @IsString()
+  comment?: string;
 }

@@ -3,7 +3,11 @@ import { GenericWorker } from './generic.worker';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { QueueService } from '../../queue/queue.service';
 import { TaskHandlerRegistry } from './task-handler.registry';
-import { TaskExecuteJob, ITaskHandler, TaskResult } from './task-handler.interface';
+import {
+  TaskExecuteJob,
+  ITaskHandler,
+  TaskResult,
+} from './task-handler.interface';
 import { Logger } from '@nestjs/common';
 import { TaskStatus } from '@prisma/client';
 
@@ -18,13 +22,13 @@ describe('GenericWorker', () => {
       update: jest.fn(),
     },
     workflowTaskHistory: {
-        create: jest.fn(),
+      create: jest.fn(),
     },
     application: {
       update: jest.fn(),
     },
     $transaction: jest.fn().mockImplementation(async (callback) => {
-        return callback(mockPrisma);
+      return callback(mockPrisma);
     }),
   };
 
@@ -71,7 +75,7 @@ describe('GenericWorker', () => {
       taskType: 'approval',
       execute: jest.fn().mockResolvedValue({
         success: true,
-        shouldAdvance: false, 
+        shouldAdvance: false,
       } as TaskResult),
     };
 
@@ -80,20 +84,23 @@ describe('GenericWorker', () => {
     await worker.processJob(job);
 
     expect(mockHandler.execute).toHaveBeenCalled();
-    
+
     // First call is setting RUNNING (updatedAt)
     // Second call is result update
     expect(mockPrisma.workflowTask.update).toHaveBeenCalledTimes(2);
-    const updateArg = (mockPrisma.workflowTask.update as jest.Mock).mock.calls[1][0];
-    
+    const updateArg = mockPrisma.workflowTask.update.mock.calls[1][0];
+
     expect(updateArg.where).toEqual({ id: 'task-1' });
     expect(updateArg.data.result).toBeDefined();
     // Verify status is NOT present in data
     expect(updateArg.data.status).toBeUndefined();
 
-    expect(mockQueueService.enqueue).toHaveBeenCalledWith('TASK_COMPLETE', expect.objectContaining({
+    expect(mockQueueService.enqueue).toHaveBeenCalledWith(
+      'TASK_COMPLETE',
+      expect.objectContaining({
         shouldAdvance: false,
-    }));
+      }),
+    );
   });
 
   it('should update status to COMPLETED if shouldAdvance is true', async () => {
@@ -120,8 +127,8 @@ describe('GenericWorker', () => {
     await worker.processJob(job);
 
     expect(mockPrisma.workflowTask.update).toHaveBeenCalledTimes(2);
-    const updateArg = (mockPrisma.workflowTask.update as jest.Mock).mock.calls[1][0];
-    
+    const updateArg = mockPrisma.workflowTask.update.mock.calls[1][0];
+
     expect(updateArg.data.status).toBe(TaskStatus.COMPLETED);
   });
 });

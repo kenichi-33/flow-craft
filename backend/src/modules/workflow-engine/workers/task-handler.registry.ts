@@ -16,7 +16,9 @@ export class TaskHandlerRegistry {
    */
   register(handler: ITaskHandler): void {
     if (this.handlers.has(handler.taskType)) {
-      this.logger.warn(`Handler for task type "${handler.taskType}" is being overwritten`);
+      this.logger.warn(
+        `Handler for task type "${handler.taskType}" is being overwritten`,
+      );
     }
     this.handlers.set(handler.taskType, handler);
     this.logger.log(`Registered handler for task type: ${handler.taskType}`);
@@ -32,7 +34,9 @@ export class TaskHandlerRegistry {
       this.logger.warn(`Handler for alias "${alias}" is being overwritten`);
     }
     this.handlers.set(alias, handler);
-    this.logger.log(`Registered handler alias "${alias}" for task type: ${handler.taskType}`);
+    this.logger.log(
+      `Registered handler alias "${alias}" for task type: ${handler.taskType}`,
+    );
   }
 
   /**

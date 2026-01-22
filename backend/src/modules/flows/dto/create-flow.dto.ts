@@ -1,13 +1,13 @@
 import { IsString, IsNotEmpty, IsArray } from 'class-validator';
 
 export class CreateFlowDto {
-    @IsString()
-    @IsNotEmpty()
-    name: string;
+  @IsString()
+  @IsNotEmpty()
+  name: string;
 
-    @IsArray()
-    nodes: any[];
+  @IsArray()
+  nodes: any[];
 
-    @IsArray()
-    edges: any[];
+  @IsArray()
+  edges: any[];
 }

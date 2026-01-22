@@ -57,5 +57,4 @@ import { StatisticsModule } from './modules/statistics/statistics.module';
     },
   ],
 })
-export class AppModule { }
-
+export class AppModule {}
