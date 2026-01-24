@@ -108,7 +108,7 @@ export class GenericWorker implements OnModuleInit {
             `Task ${taskId} result success. shouldAdvance=${result.shouldAdvance} (type=${typeof result.shouldAdvance})`,
           );
 
-          // shoudAdvanceがfalseでない場合のみ完了ステータスに更新
+          // shouldAdvanceがfalseでない場合のみ完了ステータスに更新
           // (承認タスクなどはfalseを返すためPENDINGのまま維持される)
           if (result.shouldAdvance !== false) {
             updateData.status = TaskStatus.COMPLETED;
@@ -125,6 +125,8 @@ export class GenericWorker implements OnModuleInit {
             data: updateData,
           });
 
+          let shouldIndex = false;
+
           if (result.outputData && Object.keys(result.outputData).length > 0) {
             await tx.application.update({
               where: { id: applicationId },
@@ -132,6 +134,7 @@ export class GenericWorker implements OnModuleInit {
                 inputData: { ...inputData, ...result.outputData },
               },
             });
+            shouldIndex = true;
           }
 
           // 実行履歴を記録 (システムタスクの再実行履歴など)
@@ -147,8 +150,12 @@ export class GenericWorker implements OnModuleInit {
             },
           });
 
-          return { updateData };
+          return { updateData, shouldIndex };
         });
+
+        if (txnResult.shouldIndex) {
+           await this.queueService.enqueue('application-indexing', { applicationId });
+        }
       } else {
         await this.prisma.$transaction(async (tx) => {
           await tx.workflowTask.update({

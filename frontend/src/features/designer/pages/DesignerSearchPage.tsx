@@ -15,6 +15,8 @@ import { Loader2, Search, Filter, ChevronDown, ChevronUp } from 'lucide-react';
 import { UserDisplay } from '@/components/common/UserDisplay';
 import { DynamicSearchForm, type SearchCriterion } from '@/components/model/form/search/DynamicSearchForm';
 
+import { useDebounce } from '@/hooks/useDebounce';
+
 // --- Types ---
 interface Application {
     id: string;
@@ -49,7 +51,7 @@ const getStatusLabel = (status: string) => {
     }
 };
 
-const NON_INPUT_TYPES = ['label', 'group', 'divider', 'spacer', 'paragraph', 'html', 'button'];
+const NON_INPUT_TYPES = ['label', 'group', 'divider', 'spacer', 'paragraph', 'html', 'button', 'section'];
 
 // --- Main Page ---
 export default function DesignerSearchPage() {
@@ -57,11 +59,23 @@ export default function DesignerSearchPage() {
     const [page, setPage] = useState(0);
     const [rowsPerPage, setRowsPerPage] = useState(10);
     const [keyword, setKeyword] = useState('');
+    const debouncedKeyword = useDebounce(keyword, 500); 
     const [filterCriteria, setFilterCriteria] = useState<Record<string, SearchCriterion>>({}); // Draft filters
-    const [searchParams, setSearchParams] = useState<{ keyword: string; criteria: Record<string, SearchCriterion> | undefined }>({ keyword: '', criteria: undefined }); // Committed params
     
+    // Automatically update searchParams when debouncedKeyword or filterCriteria changes
+    const [searchParams, setSearchParams] = useState<{ keyword: string; criteria: Record<string, SearchCriterion> | undefined }>({ keyword: '', criteria: undefined });
+
     const [expandedRow, setExpandedRow] = useState<string | null>(null);
     const [showAdvanced, setShowAdvanced] = useState(false);
+
+    // Sync search params with debounced input
+    React.useEffect(() => {
+        setSearchParams({ 
+            keyword: debouncedKeyword, 
+            criteria: Object.keys(filterCriteria).length > 0 ? filterCriteria : undefined 
+        });
+        setPage(0);
+    }, [debouncedKeyword, filterCriteria]);
 
     const { data: appDef, isLoading: isAppLoading, error: appError } = useQuery({
         queryKey: ['apps', id],
@@ -77,18 +91,30 @@ export default function DesignerSearchPage() {
 
     const { data: searchResults, isLoading: isSearchLoading } = useQuery<SearchResult>({
         queryKey: ['search-applications', id, page, rowsPerPage, searchParams],
-        queryFn: async () => api.post('/search/applications', { 
-            applicationDefinitionId: id, 
-            keyword: searchParams.keyword,
-            criteria: searchParams.criteria, 
-            page: page + 1, 
-            limit: rowsPerPage 
-        }),
+        queryFn: async () => {
+            const filters = searchParams.criteria 
+                ? Object.entries(searchParams.criteria).map(([key, crit]) => ({
+                    field: `inputData.${key}`,
+                    operator: crit.operator,
+                    value: crit.value
+                })) 
+                : [];
+            
+            return api.post('/search/applications', { 
+                applicationDefinitionId: id, 
+                keyword: searchParams.keyword,
+                filters,
+                page: page + 1, 
+                limit: rowsPerPage 
+            });
+        },
         enabled: !!id,
         placeholderData: (prev) => prev,
     });
 
     const handleSearch = () => { 
+        // Optional: Manual trigger if needed, but useEffect handles it. 
+        // We update the state to ensure consistency or immediate feedback.
         setSearchParams({ keyword, criteria: Object.keys(filterCriteria).length > 0 ? filterCriteria : undefined });
         setPage(0); 
     };

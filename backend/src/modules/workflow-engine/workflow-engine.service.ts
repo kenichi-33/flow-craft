@@ -124,6 +124,9 @@ export class WorkflowEngineService {
 
     await this.helper.advanceToNextNode(application.id);
 
+    // Trigger indexing
+    await this.queueService.enqueue('application-indexing', { applicationId: application.id });
+
     return this.prisma.application.findUnique({
       where: { id: application.id },
       include: {
@@ -246,6 +249,9 @@ export class WorkflowEngineService {
     });
 
     await this.helper.advanceToNextNode(applicationId);
+
+    // Trigger indexing
+    await this.queueService.enqueue('application-indexing', { applicationId });
 
     return this.prisma.application.findUnique({
       where: { id: applicationId },
@@ -408,6 +414,9 @@ export class WorkflowEngineService {
     if (shouldAdvance) {
       await this.helper.advanceToNextNode(task.applicationId, 0, task.stepId);
     }
+    
+    // Trigger indexing
+    await this.queueService.enqueue('application-indexing', { applicationId: task.applicationId });
 
     return this.prisma.application.findUnique({
       where: { id: task.applicationId },
@@ -521,6 +530,9 @@ export class WorkflowEngineService {
     });
 
     await this.helper.advanceToNextNode(applicationId, 0, startNode?.id);
+
+    // Trigger indexing
+    await this.queueService.enqueue('application-indexing', { applicationId });
 
     return this.prisma.application.findUnique({
       where: { id: applicationId },

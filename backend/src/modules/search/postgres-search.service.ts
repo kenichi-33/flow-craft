@@ -7,11 +7,20 @@ import {
 import { SearchQueryDto, SearchOperator } from './dto/search-application.dto';
 import { Application, Prisma } from '@prisma/client';
 
-@Injectable()
-export class PostgresSearchService implements ISearchService {
-  private readonly logger = new Logger(PostgresSearchService.name);
+import { SearchService } from './search.service';
+import { QueueService } from '../queue/queue.service';
 
-  constructor(private readonly prisma: PrismaService) {}
+import { SearchMetaService } from './search-meta.service';
+
+@Injectable()
+export class PostgresSearchService extends SearchService {
+  constructor(
+    prisma: PrismaService,
+    queueService: QueueService,
+    private readonly searchMetaService: SearchMetaService,
+  ) {
+    super(queueService, prisma);
+  }
 
   async search(dto: SearchQueryDto): Promise<SearchResult<Application>> {
     const {
@@ -156,47 +165,25 @@ export class PostgresSearchService implements ISearchService {
       return;
     }
 
-    const schema = fullApp.formDefinition.schema as any;
     const data = fullApp.inputData as any;
 
-    const searchMeta = this.resolveSearchMeta(schema, data);
-    const fullText = this.generateFullText(data, searchMeta);
+    const metaString = await this.searchMetaService.generateSearchMeta(fullApp);
+    const rawDataString = this.generateRawDataString(data);
+    const fullText = `${metaString} ${rawDataString}`;
 
     await this.prisma.application.update({
       where: { id: app.id },
       data: {
-        searchMeta,
+        searchMeta: Prisma.JsonNull, // Not used for now
         fullText,
       },
     });
     this.logger.debug(`Indexed app ${app.id} successfully`);
   }
 
-  private resolveSearchMeta(schema: any, data: any): Record<string, string> {
-    const meta: Record<string, string> = {};
-    if (!schema?.properties || !data) return meta;
 
-    for (const [key, value] of Object.entries(data)) {
-      const prop = schema.properties[key];
-      if (!prop) continue;
 
-      // Handle Select/Radio with 'oneOf' or 'enum'
-      if (prop.oneOf) {
-        const option = prop.oneOf.find((o: any) => o.const === value);
-        if (option && option.title) {
-          meta[`${key}_label`] = option.title;
-        }
-      } else if (prop.enum && prop.enumNames) {
-        const index = prop.enum.indexOf(value);
-        if (index !== -1 && prop.enumNames[index]) {
-          meta[`${key}_label`] = prop.enumNames[index];
-        }
-      }
-    }
-    return meta;
-  }
-
-  private generateFullText(data: any, meta: any): string {
+  private generateRawDataString(data: any): string {
     const parts: string[] = [];
 
     const addValues = (obj: any) => {
@@ -213,7 +200,6 @@ export class PostgresSearchService implements ISearchService {
     };
 
     addValues(data);
-    addValues(meta);
 
     return parts.join(' ');
   }

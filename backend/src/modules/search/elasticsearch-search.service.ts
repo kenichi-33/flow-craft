@@ -5,20 +5,31 @@ import {
   ISearchService,
   SearchResult,
 } from './interfaces/search-service.interface';
-import { SearchQueryDto } from './dto/search-application.dto';
+import { SearchQueryDto, SearchOperator } from './dto/search-application.dto';
 import { Application } from '@prisma/client';
 
+import { SearchService } from './search.service';
+import { QueueService } from '../queue/queue.service';
+import { PrismaService } from '../../prisma/prisma.service';
+
+import { SearchMetaService } from './search-meta.service';
+
 @Injectable()
-export class ElasticsearchSearchService
-  implements ISearchService, OnModuleInit
-{
-  private readonly logger = new Logger('[Indexer] ElasticsearchSearch');
+export class ElasticsearchSearchService extends SearchService {
   private client: Client;
   private readonly indexName = 'applications';
 
-  constructor(private readonly configService: ConfigService) {}
+  constructor(
+    private readonly configService: ConfigService,
+    queueService: QueueService,
+    prisma: PrismaService,
+    private readonly searchMetaService: SearchMetaService,
+  ) {
+    super(queueService, prisma);
+  }
 
-  onModuleInit() {
+  async onModuleInit() {
+    await super.onModuleInit();
     const searchMode = this.configService.get('SEARCH_MODE');
     if (searchMode !== 'elasticsearch') {
       return;
@@ -45,6 +56,7 @@ export class ElasticsearchSearchService
 
     this.logger.log(`Elasticsearch client initialized at ${node}`);
     this.checkConnection();
+    this.ensureIndex();
   }
 
   private async checkConnection() {
@@ -66,15 +78,55 @@ export class ElasticsearchSearchService
         this.logger.log(`Index ${this.indexName} does not exist. Creating...`);
         await this.client.indices.create({
           index: this.indexName,
+          settings: {
+            analysis: {
+              analyzer: {
+                ngram_analyzer: {
+                  type: 'custom',
+                  tokenizer: 'ngram_tokenizer',
+                  filter: ['lowercase'],
+                },
+              },
+              tokenizer: {
+                ngram_tokenizer: {
+                  type: 'ngram',
+                  min_gram: 1,
+                  max_gram: 2,
+                  token_chars: ['letter', 'digit', 'symbol'],
+                },
+              },
+            },
+          },
           mappings: {
             dynamic: true,
+            dynamic_templates: [
+              {
+                strings_as_ngram: {
+                  match_mapping_type: 'string',
+                  mapping: {
+                    type: 'text',
+                    analyzer: 'ngram_analyzer',
+                    search_analyzer: 'ngram_analyzer',
+                  },
+                },
+              },
+            ],
             properties: {
               id: { type: 'keyword' },
               applicationDefinitionId: { type: 'keyword' },
+              title: { 
+                type: 'text', 
+                analyzer: 'ngram_analyzer', 
+                search_analyzer: 'ngram_analyzer' 
+              },
               status: { type: 'keyword' },
               applicantId: { type: 'keyword' },
               createdAt: { type: 'date' },
-              full_text: { type: 'text' }, // Added for hybrid search
+              full_text: { 
+                type: 'text', 
+                analyzer: 'ngram_analyzer', 
+                search_analyzer: 'ngram_analyzer' 
+              },
               inputData: {
                 type: 'object',
                 dynamic: true,
@@ -112,18 +164,61 @@ export class ElasticsearchSearchService
       must.push({
         multi_match: {
           query: keyword,
-          fields: ['full_text', 'inputData.*', 'searchMeta.*'],
+          fields: ['title^3', 'full_text', 'inputData.*', 'searchMeta.*'],
           type: 'best_fields',
-          fuzziness: 'AUTO',
+          lenient: true,
+          operator: 'and',
         },
       });
     }
 
-    // TODO: Implement filters logic for Elastic if needed.
-    // Current focus is Postgres mode.
+    if (filters && filters.length > 0) {
+      filters.forEach((filter) => {
+        const { field, operator, value } = filter;
+        
+        switch (operator) {
+          case SearchOperator.EQUALS:
+            // Use match_phrase for exact matching on analyzed text fields
+            // term query only works on keyword fields, not ngram-analyzed text
+            must.push({
+              match_phrase: {
+                [field]: value,
+              },
+            });
+            break;
+          case SearchOperator.CONTAINS:
+            must.push({
+              match: {
+                [field]: {
+                  query: value,
+                  operator: 'and',
+                },
+              },
+            });
+            break;
+          case SearchOperator.GT:
+            must.push({ range: { [field]: { gt: value } } });
+            break;
+          case SearchOperator.LT:
+            must.push({ range: { [field]: { lt: value } } });
+            break;
+          case SearchOperator.GTE:
+            must.push({ range: { [field]: { gte: value } } });
+            break;
+          case SearchOperator.LTE:
+            must.push({ range: { [field]: { lte: value } } });
+            break;
+          case SearchOperator.IN:
+            must.push({
+              terms: { [field]: Array.isArray(value) ? value : [value] },
+            });
+            break;
+        }
+      });
+    }
 
     try {
-      const result = await this.client.search({
+      const body = {
         index: this.indexName,
         from,
         size: limit,
@@ -131,15 +226,32 @@ export class ElasticsearchSearchService
           bool: {
             must,
           },
-        } as any, // Cast to any to avoid strict type checks for now if types mismatch
+        },
+      };
+      
+  
+      const result = await this.client.search(body as any);
+
+      const hits = result.hits.hits;
+      const total = (result.hits.total as any).value || 0;
+
+      if (hits.length === 0) {
+        return { items: [], total: 0, page, limit };
+      }
+
+      const ids = hits.map((hit) => hit._id).filter((id): id is string => !!id);
+      const applications = await this.prisma.application.findMany({
+        where: { id: { in: ids } },
       });
 
-      // Map result to Application type (partial) or ID list
-      // Real implementation would hydrate from DB or return stored fields.
-      // Returning empty for now as this is hybrid mock.
+      // Restore order matching Elastic results
+      const items = ids
+        .map((id) => applications.find((app) => app.id === id))
+        .filter((item): item is Application => !!item);
+
       return {
-        items: [],
-        total: 0,
+        items,
+        total,
         page,
         limit,
       };
@@ -153,19 +265,23 @@ export class ElasticsearchSearchService
     if (!this.client) return;
 
     try {
+      const searchMetaString = await this.searchMetaService.generateSearchMeta(app);
+
+      // Sanitize inputData to remove empty strings which cause date parsing errors in ES
+      const cleanInputData = this.cleanInputData(app.inputData);
+
       await this.client.index({
         index: this.indexName,
         id: app.id,
         document: {
           id: app.id,
           applicationDefinitionId: app.applicationDefinitionId,
+          title: app.title,
           status: app.status,
           applicantId: app.applicantId,
           createdAt: app.createdAt,
-          inputData: app.inputData,
-          // Cast to any to access dynamic properties if needed
-          full_text: (app as any).fullText,
-          searchMeta: (app as any).searchMeta,
+          inputData: cleanInputData,
+          full_text: searchMetaString,
         },
       });
     } catch (e) {
@@ -183,5 +299,23 @@ export class ElasticsearchSearchService
     } catch (e) {
       this.logger.warn(`Failed to remove app ${appId}`, e);
     }
+  }
+
+  private cleanInputData(data: any): any {
+    if (data === null || data === undefined) return null;
+    if (typeof data === 'string') {
+      return data === '' ? null : data;
+    }
+    if (Array.isArray(data)) {
+      return data.map((item) => this.cleanInputData(item));
+    }
+    if (typeof data === 'object') {
+      const cleaned: any = {};
+      for (const key of Object.keys(data)) {
+        cleaned[key] = this.cleanInputData(data[key]);
+      }
+      return cleaned;
+    }
+    return data;
   }
 }

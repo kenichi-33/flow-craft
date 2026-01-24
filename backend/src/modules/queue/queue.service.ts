@@ -1,11 +1,21 @@
-import { Injectable, Inject } from '@nestjs/common';
+import { Injectable, Inject, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
 import type { IQueueAdapter } from './queue.interface';
 
 @Injectable()
-export class QueueService {
+export class QueueService implements OnModuleInit, OnModuleDestroy {
   constructor(
     @Inject('QUEUE_ADAPTER') private readonly adapter: IQueueAdapter,
   ) {}
+
+  async onModuleInit() {
+    // Start the adapter (connect to Kafka or start PgBoss)
+    await this.adapter.start();
+  }
+
+  async onModuleDestroy() {
+    // Stop the adapter gracefully
+    await this.adapter.stop();
+  }
 
   async enqueue(
     topic: string,

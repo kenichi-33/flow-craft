@@ -1,6 +1,5 @@
 import {
   Injectable,
-  OnModuleInit,
   OnModuleDestroy,
   Logger,
 } from '@nestjs/common';
@@ -10,7 +9,7 @@ import { IQueueAdapter } from '../queue.interface';
 
 @Injectable()
 export class KafkaAdapter
-  implements IQueueAdapter, OnModuleInit, OnModuleDestroy
+  implements IQueueAdapter, OnModuleDestroy
 {
   private readonly logger = new Logger(KafkaAdapter.name);
   private kafka: KafkaJS.Kafka;
@@ -45,13 +44,6 @@ export class KafkaAdapter
         'flow-craft-consumer-group',
       'auto.offset.reset': 'earliest',
     });
-  }
-
-  async onModuleInit() {
-    // Only connect if this adapter is actually selected
-    if (this.configHelper.get('QUEUE_TYPE') === 'kafka') {
-      await this.connect();
-    }
   }
 
   async onModuleDestroy() {
@@ -120,8 +112,18 @@ export class KafkaAdapter
   ): Promise<void> {
     this.handlers.set(topic, handler);
 
-    // Subscribe to topic
-    await this.consumer.subscribe({ topic });
+    // Ensure we are connected before subscribing
+    if (!this.isConnected) {
+      await this.connect();
+    }
+
+    // Debug logging
+    this.logger.debug(`Subscribing to topic: "${topic}", isConnected: ${this.isConnected}`);
+
+    // Subscribe to topic (using topics array as per Confluent Kafka JS API)
+    await this.consumer.subscribe({ topics: [topic] });
+
+    this.logger.debug(`Successfully subscribed to topic: "${topic}"`);
 
     // If we haven't started running the consumer loop yet, start it now
     // Note: Kafka consumer.run should only be called once

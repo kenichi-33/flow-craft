@@ -1,6 +1,5 @@
 import {
   Injectable,
-  OnModuleInit,
   OnModuleDestroy,
   Logger,
 } from '@nestjs/common';
@@ -11,7 +10,7 @@ import { ISchedulerAdapter } from '../../scheduler/scheduler.interface';
 
 @Injectable()
 export class PgBossQueueAdapter
-  implements IQueueAdapter, ISchedulerAdapter, OnModuleInit, OnModuleDestroy
+  implements IQueueAdapter, ISchedulerAdapter, OnModuleDestroy
 {
   private boss: PgBoss;
   private readonly logger = new Logger(PgBossQueueAdapter.name);
@@ -22,10 +21,6 @@ export class PgBossQueueAdapter
     this.boss = new PgBoss(databaseUrl);
 
     this.boss.on('error', (error) => this.logger.error(error));
-  }
-
-  async onModuleInit() {
-    await this.start();
   }
 
   async onModuleDestroy() {

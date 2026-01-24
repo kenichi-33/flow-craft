@@ -12,20 +12,13 @@ import { QueueService } from '../queue/queue.service';
 import { PrismaService } from '../../prisma/prisma.service';
 
 @Injectable()
-export class SearchService implements ISearchService, OnModuleInit {
-  private readonly logger = new Logger('[Indexer] SearchService');
-  private searchMode: 'postgres' | 'elasticsearch';
+export abstract class SearchService implements ISearchService, OnModuleInit {
+  protected readonly logger = new Logger(SearchService.name);
 
   constructor(
-    private readonly configService: ConfigService,
-    private readonly postgresSearchService: PostgresSearchService,
-    private readonly elasticsearchSearchService: ElasticsearchSearchService,
-    private readonly queueService: QueueService,
-    private readonly prisma: PrismaService,
-  ) {
-    this.searchMode = this.configService.get('SEARCH_MODE', 'postgres');
-    this.logger.log(`SearchService initialized with mode: ${this.searchMode}`);
-  }
+    protected readonly queueService: QueueService,
+    protected readonly prisma: PrismaService,
+  ) {}
 
   async onModuleInit() {
     // Register queue handler for async indexing
@@ -45,52 +38,31 @@ export class SearchService implements ISearchService, OnModuleInit {
       `Processing indexing job for app: ${payload.applicationId}`,
     );
 
-    // Proceed for both Elasticsearch (external index) and Postgres (fullText column update)
-    // if (this.searchMode !== 'elasticsearch') { return; } // Removed restriction
-
     try {
       const app = await this.prisma.application.findUnique({
         where: { id: payload.applicationId },
       });
 
       if (app) {
-        await this.elasticsearchSearchService.indexApplication(app);
+        await this.indexApplication(app);
       } else {
-        // If app not found (deleted?), maybe remove from index?
-        await this.elasticsearchSearchService.removeApplication(
-          payload.applicationId,
-        );
+        await this.removeApplication(payload.applicationId);
       }
     } catch (error) {
       this.logger.error(
         `Failed to index application ${payload.applicationId}`,
-        error.stack,
+        error instanceof Error ? error.stack : String(error),
       );
-      throw error; // Rethrow to let queue retry
+      throw error;
     }
   }
 
   /**
-   * Facade methods
+   * Abstract methods to be implemented by specific strategies
    */
-  async search(dto: SearchApplicationDto): Promise<SearchResult<Application>> {
-    if (this.searchMode === 'elasticsearch') {
-      return this.elasticsearchSearchService.search(dto);
-    }
-    return this.postgresSearchService.search(dto);
-  }
+  abstract search(dto: SearchApplicationDto): Promise<SearchResult<Application>>;
 
-  async indexApplication(app: Application): Promise<void> {
-    if (this.searchMode === 'elasticsearch') {
-      return this.elasticsearchSearchService.indexApplication(app);
-    }
-    return this.postgresSearchService.indexApplication(app);
-  }
+  abstract indexApplication(app: Application): Promise<void>;
 
-  async removeApplication(appId: string): Promise<void> {
-    if (this.searchMode === 'elasticsearch') {
-      return this.elasticsearchSearchService.removeApplication(appId);
-    }
-    return this.postgresSearchService.removeApplication(appId);
-  }
+  abstract removeApplication(appId: string): Promise<void>;
 }

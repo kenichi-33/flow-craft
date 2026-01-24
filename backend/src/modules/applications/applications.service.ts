@@ -196,6 +196,7 @@ export class ApplicationsService {
     await this.queueService.enqueue('application-indexing', {
       applicationId: application.id,
     });
+    console.log('Application indexed:', application.id);
 
     return application;
   }

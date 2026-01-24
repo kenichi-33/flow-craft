@@ -9,6 +9,7 @@ import {
 import { SearchService } from './search.service';
 import { SearchApplicationDto } from './dto/search-application.dto';
 import { PrismaService } from '../../prisma/prisma.service';
+
 @Controller('search')
 export class SearchController {
   constructor(

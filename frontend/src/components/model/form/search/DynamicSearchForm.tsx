@@ -1,10 +1,8 @@
 
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Card, CardContent } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { X, Plus, Trash2 } from 'lucide-react';
 
@@ -19,7 +17,7 @@ const OPERATORS = [
     { value: 'lte', label: '以下 (<=)' },
 ];
 
-const NON_INPUT_TYPES = ['label', 'group', 'divider', 'spacer', 'paragraph', 'html', 'button'];
+const NON_INPUT_TYPES = ['label', 'group', 'divider', 'spacer', 'paragraph', 'html', 'button', 'section'];
 
 interface DynamicSearchFormProps {
     schema: any;
@@ -28,7 +26,7 @@ interface DynamicSearchFormProps {
     className?: string;
 }
 
-export function DynamicSearchForm({ schema, criteria, onChange, className }: DynamicSearchFormProps) {
+export function DynamicSearchForm({ schema, onChange, className }: DynamicSearchFormProps) {
     const { register, unregister, setValue, watch, reset, getValues } = useForm();
     const [activeFilters, setActiveFilters] = useState<string[]>([]);
     const [selectedFieldToAdd, setSelectedFieldToAdd] = useState<string>('');

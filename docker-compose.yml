@@ -79,7 +79,7 @@ services:
 
 
   elasticsearch:
-    image: elasticsearch:8.11.0
+    image: elasticsearch:9.2.4
     environment:
       - discovery.type=single-node
       - xpack.security.enabled=false
@@ -104,6 +104,7 @@ services:
       KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: true
       KAFKA_JMX_PORT: 9101
       KAFKA_JMX_HOSTNAME: localhost
       KAFKA_PROCESS_ROLES: 'broker,controller'
@@ -114,6 +115,32 @@ services:
       KAFKA_LOG_DIRS: '/tmp/kraft-combined-logs'
       # Replace CLUSTER_ID with a unique base64 UUID using "kafka-storage random-uuid" format
       CLUSTER_ID: 'MkU3OEVBNTcwNTJENDM2Qk'
+    healthcheck:
+      test: ["CMD-SHELL", "kafka-topics --bootstrap-server localhost:9092 --list || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  kafka-init:
+    profiles: ["kafka"]
+    image: confluentinc/cp-kafka:7.5.0
+    depends_on:
+      kafka:
+        condition: service_healthy
+    command: >
+      bash -c "
+        echo 'Creating Kafka topics...'
+        kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic WORKFLOW_NODE_PROCESS --partitions 1 --replication-factor 1
+        kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic TASK_EXECUTE --partitions 1 --replication-factor 1
+        kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic WORKFLOW_START --partitions 1 --replication-factor 1
+        kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic TASK_COMPLETE --partitions 1 --replication-factor 1
+        kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic TASK_SLA_BREACH --partitions 1 --replication-factor 1
+        kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic TASK_REMINDER --partitions 1 --replication-factor 1
+        kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic application-indexing --partitions 1 --replication-factor 1
+        echo 'Topics created successfully:'
+        kafka-topics --bootstrap-server kafka:29092 --list
+      "
 
   backend:
     profiles: ["app"]
@@ -147,7 +174,7 @@ services:
       ELASTICSEARCH_NODE: ${ELASTICSEARCH_NODE:-http://elasticsearch:9200}
       # Queue Configuration
       QUEUE_TYPE: ${QUEUE_TYPE:-pg-boss}
-      KAFKA_BROKERS: ${KAFKA_BROKERS:-kafka:9092}
+      KAFKA_BROKERS: ${KAFKA_BROKERS:-kafka:29092}
     ports:
       - "8080:8080"
     depends_on:
