@@ -10,6 +10,17 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Loader2, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
 import { TruncatedCell } from '@/components/common/TruncatedCell';
+import { useNavigate } from 'react-router-dom';
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 interface FlowNode {
     id: string;
@@ -55,6 +66,8 @@ export default function AdminServiceTaskRecoveryPage() {
     const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 20 });
     // Debounce search
     const [debouncedSearch, setDebouncedSearch] = useState('');
+    const [isRetryDialogOpen, setRetryDialogOpen] = useState(false);
+    const navigate = useNavigate();
 
     useEffect(() => {
         const timer = setTimeout(() => setDebouncedSearch(globalFilter), 500);
@@ -91,8 +104,14 @@ export default function AdminServiceTaskRecoveryPage() {
     const handleRetrySelected = () => {
         const selectedIds = Object.keys(rowSelection).filter(id => rowSelection[id]);
         if (selectedIds.length === 0) return;
-        if (!confirm(`${selectedIds.length} 件のタスクを再実行しますか？`)) return;
+        setRetryDialogOpen(true);
+    };
+
+    const executeRetry = () => {
+        const selectedIds = Object.keys(rowSelection).filter(id => rowSelection[id]);
+        if (selectedIds.length === 0) return;
         retryMutation.mutate(selectedIds);
+        setRetryDialogOpen(false);
     };
 
     const columns: ColumnDef<Task>[] = useMemo(() => [
@@ -106,11 +125,13 @@ export default function AdminServiceTaskRecoveryPage() {
                 />
             ),
             cell: ({ row }) => (
-                <Checkbox
-                    checked={row.getIsSelected()}
-                    onCheckedChange={(value) => row.toggleSelected(!!value)}
-                    aria-label="Select row"
-                />
+                <div onClick={(e) => e.stopPropagation()}>
+                    <Checkbox
+                        checked={row.getIsSelected()}
+                        onCheckedChange={(value) => row.toggleSelected(!!value)}
+                        aria-label="Select row"
+                    />
+                </div>
             ),
             enableSorting: false,
             enableHiding: false,
@@ -189,7 +210,12 @@ export default function AdminServiceTaskRecoveryPage() {
                         </TableHeader>
                         <TableBody>
                             {table.getRowModel().rows?.length ? table.getRowModel().rows.map((row) => (
-                                <TableRow key={row.id} data-state={row.getIsSelected() && "selected"}>
+                                <TableRow 
+                                    key={row.id} 
+                                    data-state={row.getIsSelected() && "selected"}
+                                    onClick={() => row.original.application?.id && navigate(`/applications/${row.original.application.id}`)}
+                                    className="cursor-pointer hover:bg-muted/50 transition-colors"
+                                >
                                     {row.getVisibleCells().map((cell) => (
                                         <TableCell key={cell.id}>
                                             {flexRender(cell.column.columnDef.cell, cell.getContext())}
@@ -207,6 +233,20 @@ export default function AdminServiceTaskRecoveryPage() {
                     </Table>
                 )}
             </div>
+            <AlertDialog open={isRetryDialogOpen} onOpenChange={setRetryDialogOpen}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>再実行の確認</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            選択した {Object.keys(rowSelection).filter(id => rowSelection[id]).length} 件のタスクを再実行しますか？
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>キャンセル</AlertDialogCancel>
+                        <AlertDialogAction onClick={executeRetry}>再実行</AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </div>
     );
 }

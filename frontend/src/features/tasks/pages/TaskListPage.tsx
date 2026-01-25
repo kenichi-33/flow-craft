@@ -251,11 +251,11 @@ export default function TaskListPage() {
             <div className="rounded-lg border bg-card shadow-sm overflow-x-auto">
                 {isLoading ? <div className="flex items-center justify-center h-64"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div> : (
                     <Table>
-                        <TableHeader>{table.getHeaderGroups().map((hg) => (<TableRow key={hg.id}>{hg.headers.map((h) => (<TableHead key={h.id} className="whitespace-nowrap">{h.isPlaceholder ? null : flexRender(h.column.columnDef.header, h.getContext())}</TableHead>))}</TableRow>))}</TableHeader>
+                        <TableHeader>{table.getHeaderGroups().map((hg) => (<TableRow key={hg.id}>{hg.headers.map((h) => (<TableHead key={h.id} className={`whitespace-nowrap ${h.column.id === 'actions' ? 'sticky right-0 bg-background shadow-[-1px_0_0_0_hsl(var(--border))] z-10' : ''}`}>{h.isPlaceholder ? null : flexRender(h.column.columnDef.header, h.getContext())}</TableHead>))}</TableRow>))}</TableHeader>
                         <TableBody>
                             {table.getRowModel().rows?.length ? table.getRowModel().rows.map((row) => (
                                 <TableRow key={row.id} className="cursor-pointer hover:bg-muted/50" onClick={() => navigate(`/tasks/${row.original.id}`)}>
-                                    {row.getVisibleCells().map((cell) => (<TableCell key={cell.id} className="whitespace-nowrap">{flexRender(cell.column.columnDef.cell, cell.getContext())}</TableCell>))}
+                                    {row.getVisibleCells().map((cell) => (<TableCell key={cell.id} className={`whitespace-nowrap ${cell.column.id === 'actions' ? 'sticky right-0 bg-background shadow-[-1px_0_0_0_hsl(var(--border))]' : ''}`}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</TableCell>))}
                                 </TableRow>
                             )) : <TableRow><TableCell colSpan={columns.length} className="h-24 text-center">タスクがありません</TableCell></TableRow>}
                         </TableBody>

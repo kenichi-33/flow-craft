@@ -328,7 +328,7 @@ export default function TaskDetailPage() {
                                         )}
                                         却下
                                     </Button>
-                                    {currentNode?.data?.allowRemand === true && (
+                                    {(task as any).config?.allowRemand === true && (
                                         <Button
                                             variant="outline"
                                             onClick={() => handleAction('REMAND')}
