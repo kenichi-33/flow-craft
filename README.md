@@ -133,8 +133,9 @@ graph TD
         Backend -->|Query/Command| DB[("PostgreSQL")]
         Backend -->|Queue| Queue[("Job Queue (pg-boss / Kafka)")]
         Backend -->|Storage| S3[("Object Storage (MinIO)")]
+        Backend -->|Search| ES[("Elasticsearch (Optional)")]
     end
-    
+
     subgraph External
         Backend -->|Auth| Keycloak["Keycloak (Auth)"]
         Backend -->|SMTP| Mailpit["Mailpit (Email)"]

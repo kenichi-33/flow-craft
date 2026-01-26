@@ -1,73 +1,56 @@
-# React + TypeScript + Vite
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+# Flow Craft Frontend
 
-Currently, two official plugins are available:
+**Flow Craft** のフロントエンドアプリケーションです。
+React, Vite, Shadcn UI を使用して構築されており、直感的なフォームデザイナーとフローデザイナーを提供します。
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+## 🛠 技術スタック
 
-## React Compiler
+- **Build Tool**: [Vite](https://vitejs.dev/)
+- **Framework**: [React](https://react.dev/) (TypeScript)
+- **UI Components**: [shadcn/ui](https://ui.shadcn.com/) (Radix UI + Tailwind CSS)
+- **State Management**: 
+  - [Zustand](https://github.com/pmndrs/zustand) (クライアント状態)
+  - [TanStack Query](https://tanstack.com/query/latest) (サーバー状態)
+- **Visual Editors**: 
+  - [React Flow](https://reactflow.dev/) (ワークフロー図の編集)
+  - [dnd-kit](https://dndkit.com/) (フォームのドラッグ&ドロップ配置)
+- **Rich Text Editor**: [Tiptap](https://tiptap.dev/)
+- **Forms**: [React Hook Form](https://react-hook-form.com/) + [Zod](https://zod.dev/)
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## 🚀 ディレクトリ構成
 
-## Expanding the ESLint configuration
+- `src/components`: 再利用可能なUIコンポーネント
+  - `ui/`: shadcn/ui コンポーネント
+  - `common/`: アプリケーション固有の共通コンポーネント
+  - `designer/`: フロー/フォームデザイナー関連の複雑なコンポーネント
+- `src/features`: 機能ごとのページ・ロジック (Admin, Application, Tasks, etc.)
+- `src/lib`: ユーティリティ、APIクライアント
+- `src/hooks`: カスタムフック
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+## 🏁 開発の始め方
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+### インストール
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+npm install
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+### 開発サーバー起動
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+```bash
+npm run dev
+```
+http://localhost:3000 で起動します。
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+### ビルド
+
+```bash
+npm run build
+```
+
+## 🧪 Lint & Format
+
+```bash
+npm run lint
 ```

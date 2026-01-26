@@ -228,7 +228,7 @@ export class WorkflowEngineService {
 
     await this.prisma.$transaction(async (tx) => {
       await tx.application.update({
-        where: { id: applicationId },
+        where: { id: applicationId, status: 'DRAFT' },
         data: {
           status: 'IN_PROGRESS',
           inputData: inputData,
@@ -313,7 +313,7 @@ export class WorkflowEngineService {
     await this.prisma.$transaction(async (tx) => {
       // Update Task Status
       await tx.workflowTask.update({
-        where: { id: input.taskId },
+        where: { id: input.taskId, status: 'PENDING' },
         data: {
           status: 'COMPLETED',
           result: {
@@ -460,7 +460,7 @@ export class WorkflowEngineService {
 
     // Reuse existing task: Reset to QUEUED and increment retries
     await this.prisma.workflowTask.update({
-      where: { id: taskId },
+      where: { id: taskId, status: 'FAILED' },
       data: {
         status: 'QUEUED',
         retries: { increment: 1 },
@@ -509,7 +509,7 @@ export class WorkflowEngineService {
 
     await this.prisma.$transaction(async (tx) => {
       await tx.application.update({
-        where: { id: applicationId },
+        where: { id: applicationId, status: 'REMANDED' },
         data: {
           status: 'IN_PROGRESS',
           inputData: inputData,
