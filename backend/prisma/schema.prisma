@@ -140,6 +140,15 @@ model WorkflowTask {
   error         String?
   retries       Int      @default(0)
   
+  // SLA/Reminder
+  slaDueAt         DateTime? @map("sla_due_at")
+  reminderDueAt    DateTime? @map("reminder_due_at")
+  slaNotified      Boolean   @default(false) @map("sla_notified")
+  reminderNotified Boolean   @default(false) @map("reminder_notified")
+  
+  // Delay/Schedule
+  scheduledAt      DateTime? @map("scheduled_at")
+
   createdAt     DateTime @default(now()) @map("created_at")
   updatedAt     DateTime @updatedAt @map("updated_at")
 
@@ -164,6 +173,18 @@ model WorkflowTaskHistory {
   application   Application  @relation(fields: [applicationId], references: [id])
 
   @@map("workflow_task_histories")
+}
+
+// スケジューラ用ロックテーブル（排他制御）
+model CronScheduleLock {
+  id        String   @id @default(uuid())
+  key       String   // スケジュール識別子（例: definitionId）
+  lockedAt  DateTime @map("locked_at") // 分単位のタイムスタンプ
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@unique([key, lockedAt]) // 同じ分に同じキーで2重登録できない
+  @@map("cron_schedule_locks")
 }
 
 

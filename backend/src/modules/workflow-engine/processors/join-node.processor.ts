@@ -38,7 +38,7 @@ export class JoinGatewayProcessor implements INodeProcessor {
       // In ANY mode, we don't wait. We just proceed.
       // Note: This effectively works as a Merge. Every token arriving here continues.
       // We do NOT reset state because state isn't really used for blocking in ANY mode.
-      await this.helper.advanceToNextNode(applicationId, 0, nodeId);
+      await this.helper.advanceToNextNode(applicationId, nodeId);
       return;
     }
 
@@ -50,7 +50,7 @@ export class JoinGatewayProcessor implements INodeProcessor {
 
     if (incomingEdges.length <= 1) {
       // Trivial join or pass-through
-      await this.helper.advanceToNextNode(applicationId, 0, nodeId);
+      await this.helper.advanceToNextNode(applicationId, nodeId);
       return;
     }
 
@@ -120,6 +120,6 @@ export class JoinGatewayProcessor implements INodeProcessor {
       },
     });
 
-    await this.helper.advanceToNextNode(applicationId, 0, nodeId);
+    await this.helper.advanceToNextNode(applicationId, nodeId);
   }
 }

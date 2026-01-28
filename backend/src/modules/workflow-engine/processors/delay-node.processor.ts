@@ -36,38 +36,45 @@ export class DelayNodeProcessor implements INodeProcessor {
     }
 
     let delayMs = 0;
+    let scheduledAt = new Date();
 
     if (delayType === 'duration') {
       const minutes = parseInt(value, 10) || 0;
       delayMs = minutes * 60 * 1000;
+      scheduledAt = new Date(Date.now() + delayMs);
     } else if (delayType === 'fixed') {
-      const targetTime = new Date(value).getTime();
+      scheduledAt = new Date(value);
       const now = Date.now();
-      delayMs = Math.max(0, targetTime - now);
+      delayMs = Math.max(0, scheduledAt.getTime() - now);
     }
 
     this.logger.log(
-      `Delay node ${nodeId} scheduling wake up in ${delayMs / 1000}s`,
+      `Delay node ${nodeId} scheduling wake up at ${scheduledAt.toISOString()}`,
     );
 
-    // Update current node to Next Node immediately
-    // The process for Next Node will be triggered after delay
-    await tx.application.update({
-      where: { id: applicationId },
-      data: { currentNodeId: nextNodeId },
+    // Create a delayed task (Puts workflow in waiting state)
+    await tx.workflowTask.create({
+      data: {
+        applicationId,
+        stepId: nodeId,
+        type: 'delay',
+        status: 'PENDING',
+        scheduledAt: scheduledAt,
+        config: config,
+      },
     });
 
     await tx.approvalHistory.create({
       data: {
         applicationId,
         actorId: 'SYSTEM',
-        action: 'DELAY',
+        action: 'DELAY_START',
         stepId: nodeId,
-        comment: `待機開始: ${delayMs / 1000}秒`,
+        comment: `待機開始: ${scheduledAt.toLocaleString()}`,
       },
     });
 
-    // Enqueue delayed job
-    await this.helper.advanceToNextNode(applicationId, delayMs);
+    // We do NOT advance to next node here.
+    // The DelayPollService will pick this up when scheduledAt is reached.
   }
 }

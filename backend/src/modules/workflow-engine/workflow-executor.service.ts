@@ -178,7 +178,7 @@ export class WorkflowExecutorService implements OnModuleInit {
    * 次のノードへ進む (非同期ジョブ登録)
    */
   async advanceToNextNode(applicationId: string, fromNodeId?: string) {
-    await this.workflowHelper.advanceToNextNode(applicationId, 0, fromNodeId);
+    await this.workflowHelper.advanceToNextNode(applicationId, fromNodeId);
   }
 
   /**

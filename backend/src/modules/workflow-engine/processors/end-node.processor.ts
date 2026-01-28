@@ -110,7 +110,6 @@ export class EndNodeProcessor implements INodeProcessor {
           // Ideally we enqueue the job.
           await this.helper.advanceToNextNode(
             parentId,
-            0,
             parentNodeId || undefined,
           );
         }

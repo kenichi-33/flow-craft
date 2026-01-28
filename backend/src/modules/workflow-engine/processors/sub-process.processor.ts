@@ -176,7 +176,7 @@ export class SubProcessProcessor implements INodeProcessor {
     // Job queue is outside transaction (usually).
 
     // So we can enlist the child app for processing.
-    await this.helper.advanceToNextNode(childApp.id, 0, startNode.id); // Child starts from StartNode
+    await this.helper.advanceToNextNode(childApp.id, startNode.id); // Child starts from StartNode
 
     // Log in parent
     await tx.approvalHistory.create({

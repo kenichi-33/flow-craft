@@ -79,6 +79,22 @@ export class WorkflowHelperService {
       }
     }
 
+    // Calculate SLA and Reminders
+    let slaDueAt: Date | null = null;
+    let reminderDueAt: Date | null = null;
+
+    if (node.data?.advancedSettings) {
+      const settings = node.data.advancedSettings;
+      if (settings.slaHours && settings.slaHours > 0) {
+        slaDueAt = new Date(Date.now() + settings.slaHours * 60 * 60 * 1000);
+      }
+      if (settings.reminderHours && settings.reminderHours > 0) {
+        reminderDueAt = new Date(
+          Date.now() + settings.reminderHours * 60 * 60 * 1000,
+        );
+      }
+    }
+
     const task = await db.workflowTask.create({
       data: {
         applicationId,
@@ -89,6 +105,8 @@ export class WorkflowHelperService {
         assignedToDisplay: assignedToDisplay || null,
         assignedToInfo: assignedToInfo || null,
         config: node.data || {},
+        slaDueAt,
+        reminderDueAt,
       },
     });
 
@@ -109,35 +127,6 @@ export class WorkflowHelperService {
     this.logger.log(
       `Enqueued task ${task.id} (type: ${node.type}) for application ${applicationId}`,
     );
-
-    // Schedule SLA and Reminders
-    if (node.data?.advancedSettings) {
-      const settings = node.data.advancedSettings;
-      if (settings.slaHours && settings.slaHours > 0) {
-        const delay = settings.slaHours * 60 * 60 * 1000; // hours to ms
-        // We could calculateDueDate here and update task?
-        // But for now, just schedule the breach job
-        await this.queueService.enqueue(
-          'TASK_SLA_BREACH',
-          { taskId: task.id },
-          { delay, deduplicationId: `sla-${task.id}` },
-        );
-        this.logger.log(
-          `Scheduled SLA Breach for task ${task.id} in ${settings.slaHours} hours`,
-        );
-      }
-      if (settings.reminderHours && settings.reminderHours > 0) {
-        const delay = settings.reminderHours * 60 * 60 * 1000;
-        await this.queueService.enqueue(
-          'TASK_REMINDER',
-          { taskId: task.id },
-          { delay, deduplicationId: `reminder-${task.id}` },
-        );
-        this.logger.log(
-          `Scheduled Reminder for task ${task.id} in ${settings.reminderHours} hours`,
-        );
-      }
-    }
   }
 
   async enqueueServiceTask(
@@ -290,17 +279,15 @@ export class WorkflowHelperService {
 
   async advanceToNextNode(
     applicationId: string,
-    delay?: number,
     fromNodeId?: string,
     targetNodeId?: string,
   ) {
     await this.queueService.enqueue(
       'WORKFLOW_NODE_PROCESS',
       { applicationId, fromNodeId, targetNodeId },
-      { delay },
     );
     this.logger.log(
-      `Enqueued processing for application ${applicationId} (delay: ${delay || 0}ms, from: ${fromNodeId || 'current'}, target: ${targetNodeId || 'auto'})`,
+      `Enqueued processing for application ${applicationId} (from: ${fromNodeId || 'current'}, target: ${targetNodeId || 'auto'})`,
     );
   }
 
@@ -308,7 +295,6 @@ export class WorkflowHelperService {
   async triggerNodeExecution(
     applicationId: string,
     nodeId: string,
-    delay?: number,
   ) {
     // Enqueue job with targetNodeId?
     // Current worker logic looks up 'currentNodeId' or 'nextNode'.

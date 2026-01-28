@@ -194,7 +194,7 @@ export class BranchNodeProcessor implements INodeProcessor {
       // Unless `process` is supposed to return the "next node" to the worker?
       // `INodeProcessor` returns `void`.
       // So we MUST call `advanceToNextNode`.
-      await this.helper.advanceToNextNode(applicationId, 0, nodeId, nextNodeId);
+      await this.helper.advanceToNextNode(applicationId, nodeId, nextNodeId);
     } else {
       this.logger.warn(`Branch node ${nodeId} has no valid path`);
       // Do not advance. Stuck.

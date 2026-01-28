@@ -412,7 +412,7 @@ export class WorkflowEngineService {
     });
 
     if (shouldAdvance) {
-      await this.helper.advanceToNextNode(task.applicationId, 0, task.stepId);
+      await this.helper.advanceToNextNode(task.applicationId, task.stepId);
     }
     
     // Trigger indexing
@@ -529,7 +529,7 @@ export class WorkflowEngineService {
       });
     });
 
-    await this.helper.advanceToNextNode(applicationId, 0, startNode?.id);
+    await this.helper.advanceToNextNode(applicationId, startNode?.id);
 
     // Trigger indexing
     await this.queueService.enqueue('application-indexing', { applicationId });

@@ -36,12 +36,22 @@ import { JoinGatewayProcessor } from './processors/join-node.processor';
 import { DelayNodeProcessor } from './processors/delay-node.processor';
 import { UserInputNodeProcessor } from './processors/user-input-node.processor';
 
+import { ScheduleModule } from '@nestjs/schedule';
+import { DelayPollService } from './delay-poll.service';
+
 @Module({
-  imports: [NotificationsModule, UsersModule, QueueModule, TeamsModule],
+  imports: [
+    NotificationsModule,
+    UsersModule,
+    QueueModule,
+    TeamsModule,
+    ScheduleModule, // Enable @Cron for DelayPollService
+  ],
   controllers: [WorkflowEngineController, WebhookController],
   providers: [
     WorkflowEngineService,
     WorkflowExecutorService,
+    DelayPollService, // Register Delay Poller
     // Worker Infrastructure
     TaskHandlerRegistry,
     GenericWorker,
