@@ -19,12 +19,15 @@ import {
 import { Maximize2 } from 'lucide-react';
 import type { FormField } from './types';
 
+
 export default function FormEditorProperties({ 
     field, 
+    fields,
     onUpdate, 
     readOnly 
 }: { 
     field: FormField | null; 
+    fields: FormField[];
     onUpdate: (id: string, updates: Partial<FormField>) => void; 
     readOnly?: boolean 
 }) {
@@ -551,6 +554,7 @@ export default function FormEditorProperties({
                     </div>
                 </div>
             )}
+            {/* Advanced Validation Rules - Moved to Global Dialog */}
         </div>
     );
 }

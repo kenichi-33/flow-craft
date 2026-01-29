@@ -3,6 +3,24 @@ export interface Option {
     value: string;
 }
 
+export interface RuleCondition {
+    fieldId: string;
+    operator: 'eq' | 'neq' | 'contains' | 'not_contains' | 'empty' | 'not_empty' | 'gt' | 'lt' | 'gte' | 'lte';
+    value?: any;
+    valueType?: 'const' | 'field';
+}
+
+export interface ValidationRule {
+    id: string;
+    targetFieldId: string; // Target field to apply validation to
+    type: 'required' | 'constraint';
+    conditions: RuleCondition[];
+    logic: 'AND' | 'OR';
+    message: string;
+    severity: 'error' | 'warning';
+    applyToTasks?: string[]; // List of Task/Step IDs. Empty = All
+}
+
 export interface FormField {
     id: string;
     key?: string; // For Data Grid columns

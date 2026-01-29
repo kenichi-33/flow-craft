@@ -323,6 +323,82 @@ export class WorkflowHelperService {
     }
   }
 
+  validateTaskInput(task: any, inputData: any, formSchema: any, stepId?: string): void {
+    if (!inputData || !formSchema) return;
+
+    // Global Validation Rules
+    const globalRules = formSchema.validationRules || [];
+    const properties = formSchema.properties || {};
+    const errors: string[] = [];
+
+    // Combine inputData with existing application data for cross-field validation
+    const allData = { ...(task.application?.inputData || {}), ...inputData };
+
+    if (!globalRules || globalRules.length === 0) return;
+
+    for (const rule of globalRules) {
+        // 1. Check Scope
+        if (rule.applyToTasks && rule.applyToTasks.length > 0) {
+            // If stepId is provided, check if it's in the list
+            if (stepId && !rule.applyToTasks.includes(stepId)) {
+                continue;
+            }
+            // If stepId is NOT provided (e.g. unknown context), maybe skip scoped rules?
+            // Safer to skip if scope is strict.
+            if (!stepId) continue;
+        }
+
+        // 2. Check Severity
+        if (rule.severity !== 'error') continue;
+
+        // 3. Evaluate Conditions
+        const results = rule.conditions.map((c: any) => this.evaluateStructuredCondition(c, allData));
+        const isMatch = rule.logic === 'OR' ? results.some((r: boolean) => r) : results.every((r: boolean) => r);
+
+        if (isMatch) {
+            const fieldLabel = properties[rule.targetFieldId]?.title || properties[rule.targetFieldId]?.label || rule.targetFieldId;
+
+            if (rule.type === 'required') {
+                // For required type, "Match" means "Constraint Active".
+                // We must check if value is empty.
+                const val = allData[rule.targetFieldId];
+                if (val === undefined || val === null || val === '') {
+                   errors.push(rule.message || `${fieldLabel} is required`);
+                }
+            } else if (rule.type === 'constraint') {
+                // For constraint type, "Match" means "Violation".
+                errors.push(rule.message || `Validation error on ${fieldLabel}`);
+            }
+        }
+    }
+
+    if (errors.length > 0) {
+        throw new Error(errors.join('\n'));
+    }
+  }
+
+  evaluateStructuredCondition(condition: any, allData: any): boolean {
+    const targetValue = allData[condition.fieldId];
+    const compareValue = condition.valueType === 'field' ? allData[condition.value] : condition.value;
+    const operator = condition.operator;
+
+    switch (operator) {
+        case 'empty': return targetValue === undefined || targetValue === null || targetValue === '';
+        case 'not_empty': return targetValue !== undefined && targetValue !== null && targetValue !== '';
+        // Loose equality for backend too to match frontend JS behavior?
+        // JS '==' matches 1 and '1'.
+        case 'eq': return targetValue == compareValue; 
+        case 'neq': return targetValue != compareValue;
+        case 'contains': return String(targetValue || '').includes(String(compareValue || ''));
+        case 'not_contains': return !String(targetValue || '').includes(String(compareValue || ''));
+        case 'gt': return Number(targetValue) > Number(compareValue);
+        case 'lt': return Number(targetValue) < Number(compareValue);
+        case 'gte': return Number(targetValue) >= Number(compareValue);
+        case 'lte': return Number(targetValue) <= Number(compareValue);
+        default: return false;
+    }
+  }
+
   /**
    * 指定されたノードが含まれるスイムレーンを特定する
    * React Flowの座標情報(position)とSwimLaneのサイズ(data.width/height)を使用する

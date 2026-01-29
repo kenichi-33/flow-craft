@@ -14,17 +14,19 @@ import {
 } from '@dnd-kit/core';
 import { arrayMove } from '@dnd-kit/sortable';
 import { toast } from 'sonner';
-import { Eye, Edit3, Save, Loader2 } from 'lucide-react';
+import { Eye, Edit3, Save, Loader2, AlertCircle } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { api } from '@/lib/api';
 
 import FormEditorToolbox from './FormEditorToolbox';
 import FormEditorCanvas, { FieldPreview } from './FormEditorCanvas';
 import FormEditorProperties from './FormEditorProperties';
 import DynamicFormRenderer from '@/components/model/form/renderer/DynamicFormRenderer';
-import type { FormField } from './types';
+import GlobalValidationRulesDialog from './GlobalValidationRulesDialog';
+import type { FormField, ValidationRule } from './types';
 import { generateId, findFieldRecursive, updateFieldRecursive, deleteFieldRecursive, getAllFieldsFlattened, findParentId } from './utils';
 
 export default function FormDesigner({ appId }: { appId: string }) {
@@ -32,6 +34,8 @@ export default function FormDesigner({ appId }: { appId: string }) {
     const isReadOnly = !!versionId;
     const queryClient = useQueryClient();
     const [fields, setFields] = useState<FormField[]>([]);
+    const [validationRules, setValidationRules] = useState<ValidationRule[]>([]);
+    const [isValidationRulesOpen, setIsValidationRulesOpen] = useState(false);
     const [selectedFieldId, setSelectedFieldId] = useState<string | null>(null);
     const [activeDragItem, setActiveDragItem] = useState<any | null>(null);
     const [isPreviewMode, setIsPreviewMode] = useState(false);
@@ -114,6 +118,9 @@ export default function FormDesigner({ appId }: { appId: string }) {
         if (targetSchema) {
             const schema = targetSchema;
             const properties = schema.properties || {};
+            if (targetSchema.validationRules) {
+                setValidationRules(targetSchema.validationRules);
+            }
             const layout = schema['x-layout'] || [];
             
             if (targetSchema['x-layout-type']) {
@@ -426,7 +433,7 @@ export default function FormDesigner({ appId }: { appId: string }) {
         processFields(fields);
 
         return {
-            schema: { type: 'object', properties, required, 'x-layout': layout, 'x-layout-type': layoutType, 'x-theme': theme },
+            schema: { type: 'object', properties, required, 'x-layout': layout, 'x-layout-type': layoutType, 'x-theme': theme, validationRules: validationRules },
             layout: layout
         };
     };
@@ -476,6 +483,11 @@ export default function FormDesigner({ appId }: { appId: string }) {
                         {isReadOnly && appDef && <span className="text-sm text-muted-foreground">- {appDef.appName} (読取専用)</span>}
                     </div>
                     <div className="flex items-center gap-2">
+                        <Button variant="outline" size="sm" onClick={() => setIsValidationRulesOpen(true)} className="gap-2">
+                            <AlertCircle className="h-4 w-4" />
+                            バリデーションルール
+                            {validationRules.length > 0 && <Badge variant="secondary" className="px-1 h-5 text-[10px]">{validationRules.length}</Badge>}
+                        </Button>
                         <Button variant={isPreviewMode ? "outline" : "default"} size="sm" onClick={() => setIsPreviewMode(!isPreviewMode)} className="gap-2">
                             {isPreviewMode ? <Edit3 className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                             {isPreviewMode ? '編集に戻る' : 'プレビュー'}
@@ -527,10 +539,20 @@ export default function FormDesigner({ appId }: { appId: string }) {
                             isReadOnly={isReadOnly}
                         />
                         <div className="w-80 border-l bg-background flex flex-col overflow-y-auto">
-                            <FormEditorProperties field={selectedField} onUpdate={handleFieldUpdate} readOnly={isReadOnly} />
+                            <FormEditorProperties field={selectedField} fields={fields} onUpdate={handleFieldUpdate} readOnly={isReadOnly} />
                         </div>
                     </div>
                 )}
+
+                <GlobalValidationRulesDialog 
+                    open={isValidationRulesOpen} 
+                    onOpenChange={setIsValidationRulesOpen}
+                    rules={validationRules}
+                    onRulesChange={setValidationRules}
+                    fields={fields}
+                    nodes={appDef?.flowDefinition?.nodes}
+                />
+
 
                 {!isPreviewMode && (
                     <DragOverlay>

@@ -84,6 +84,18 @@ export class WorkflowEngineService {
       input.applicantId,
     );
 
+    // Validate Input
+    try {
+        this.helper.validateTaskInput(
+            { application: { inputData: {} } }, 
+            input.inputData, 
+            formSchema,
+            startNode.id
+        );
+    } catch (e) {
+        throw new BadRequestException(e.message);
+    }
+
     const application = await this.prisma.$transaction(async (tx) => {
       const app = await tx.application.create({
         data: {
@@ -226,6 +238,18 @@ export class WorkflowEngineService {
       throw new BadRequestException('Flow has no start node');
     }
 
+    // Validate Input
+    try {
+        this.helper.validateTaskInput(
+            { application: application }, 
+            inputData, 
+            application.formSchema,
+            startNode.id
+        );
+    } catch (e) {
+        throw new BadRequestException(e.message);
+    }
+
     await this.prisma.$transaction(async (tx) => {
       await tx.application.update({
         where: { id: applicationId, status: 'DRAFT' },
@@ -303,6 +327,18 @@ export class WorkflowEngineService {
       throw new BadRequestException(
         `User ${input.actorId} is not authorized to execute this task`,
       );
+    }
+
+    // Validate Input
+    try {
+        this.helper.validateTaskInput(
+            task, 
+            input.inputData, 
+            task.application.formSchema,
+            task.stepId
+        );
+    } catch (e) {
+        throw new BadRequestException(e.message);
     }
 
     const actorInfo = await this.usersService.getUserSnapshotByUsername(

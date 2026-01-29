@@ -88,6 +88,7 @@ export default function TaskDetailPage() {
     const [errorDialogOpen, setErrorDialogOpen] = useState(false);
     const [errorMessage, setErrorMessage] = useState('');
     const [errorDetail, setErrorDetail] = useState('');
+    const [pendingAction, setPendingAction] = useState<{ action: string; inputData: any } | null>(null);
     
     // Ref to capture form data
     const formMethodsRef = useRef<any>(null);
@@ -121,7 +122,7 @@ export default function TaskDetailPage() {
         },
     });
 
-    const handleAction = (action: string) => {
+    const handleAction = async (action: string) => {
         if (action === 'REJECT' && !comment.trim()) {
             setErrorMessage('入力エラー');
             setErrorDetail('却下の場合はコメントを入力してください');
@@ -132,7 +133,35 @@ export default function TaskDetailPage() {
         // Capture current form data if available
         let inputData = undefined;
         if (formMethodsRef.current) {
+            // Trigger react-hook-form validation first
+            const isValid = await formMethodsRef.current.trigger();
+            if (!isValid) {
+                setErrorMessage('入力エラー');
+                setErrorDetail('入力内容に問題があります。赤字の項目を確認してください。');
+                setErrorDialogOpen(true);
+                return;
+            }
+            
             inputData = formMethodsRef.current.getValues();
+            
+            // Run custom global validation rules
+            if (formMethodsRef.current.validateGlobalRules) {
+                const result = formMethodsRef.current.validateGlobalRules(inputData);
+                if (result.hasErrors) {
+                    setErrorMessage('入力エラー');
+                    setErrorDetail('入力内容に問題があります。赤字の項目を確認してください。');
+                    setErrorDialogOpen(true);
+                    return;
+                }
+                if (result.warnings.length > 0) {
+                    // Show warning dialog and wait for confirmation
+                    formMethodsRef.current.showWarningDialog(result.warnings, inputData);
+                    // Store action for after confirmation
+                    setPendingAction({ action, inputData });
+                    return;
+                }
+            }
+            
             console.log('Submitting with data:', inputData);
         }
 
@@ -277,6 +306,19 @@ export default function TaskDetailPage() {
                             defaultValues={application.inputData}
                             readOnly={!isPending}
                             fieldPermissions={fieldPermissions}
+                            currentStepId={task.stepId}
+                            onConfirmWarnings={(inputData) => {
+                                // Process pending action after user confirms warnings
+                                if (pendingAction) {
+                                    setActionInProgress(pendingAction.action);
+                                    actionMutation.mutate({ 
+                                        action: pendingAction.action, 
+                                        comment: comment.trim() || undefined, 
+                                        inputData 
+                                    });
+                                    setPendingAction(null);
+                                }
+                            }}
                             renderActions={(methods) => {
                                 formMethodsRef.current = methods;
                                 return null;
@@ -369,7 +411,7 @@ export default function TaskDetailPage() {
                             <XCircle className="h-5 w-5" />
                             {errorMessage}
                         </AlertDialogTitle>
-                        <AlertDialogDescription className="text-left">
+                        <AlertDialogDescription className="text-left whitespace-pre-wrap">
                             {errorDetail}
                         </AlertDialogDescription>
                     </AlertDialogHeader>

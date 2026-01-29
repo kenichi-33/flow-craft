@@ -18,16 +18,29 @@ import DepartmentSelector from '../fields/DepartmentSelector';
 import DataGridField, { type GridColumn } from '../fields/DataGridField';
 import CurrencyInputField from '../fields/CurrencyInputField';
 import CalculationField from '../fields/CalculationField';
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { AlertTriangle } from 'lucide-react';
 
 export interface DynamicFormRendererProps {
     schema: any;
     layouts?: any;
     onSubmit?: (data: any) => void;
+    onConfirmWarnings?: (data: any) => void; // Called when user confirms warnings
     renderActions?: (methods: any) => React.ReactNode;
     readOnly?: boolean;
     initialData?: any;
     defaultValues?: any;
     fieldPermissions?: Record<string, 'editable' | 'readonly' | 'hidden'>;
+    currentStepId?: string; // Task Step ID for validation scoping
 }
 
 // Width hook for responsive layout
@@ -49,15 +62,18 @@ const useWidth = () => {
 export default function DynamicFormRenderer({ 
     schema, 
     layouts, 
-    onSubmit, 
+    onSubmit,
+    onConfirmWarnings,
     renderActions, 
     readOnly = false, 
     initialData = {},
     defaultValues = {},
-    fieldPermissions = {}
+    fieldPermissions = {},
+    currentStepId
 }: DynamicFormRendererProps) {
     // 1. Parse fields first (safe even if schema is null)
     const properties = schema?.properties || {};
+    const globalRules = schema?.validationRules || []; // Global Rules
     const fields = Object.entries(properties).map(([id, config]: [string, any]) => ({
         id,
         type: config.type || config['x-type'] || 'text',
@@ -101,9 +117,78 @@ export default function DynamicFormRenderer({
         }
     });
 
-    const methods = useForm({ defaultValues: computedDefaults });
-    const { register, handleSubmit, formState: { errors }, control, getValues, setValue } = methods;
+    const methods = useForm({ defaultValues: computedDefaults, mode: 'onChange' });
+    const { register, handleSubmit, formState: { errors }, control, getValues, setValue, watch, setError, clearErrors } = methods;
     const { ref: containerRef } = useWidth();
+    
+    // Warning dialog state
+    const [warningDialogOpen, setWarningDialogOpen] = useState(false);
+    const [pendingWarnings, setPendingWarnings] = useState<string[]>([]);
+    const [pendingFormData, setPendingFormData] = useState<any>(null);
+    
+    // Watch all values for cross-field validation
+    const allValues = watch();
+
+    // Condition Evaluator
+    const evaluateCondition = (condition: any, allData: any): boolean => {
+        const targetValue = allData[condition.fieldId];
+        const compareValue = condition.valueType === 'field' ? allData[condition.value] : condition.value;
+        const operator = condition.operator;
+
+        switch (operator) {
+            case 'empty': return targetValue === undefined || targetValue === null || targetValue === '';
+            case 'not_empty': return targetValue !== undefined && targetValue !== null && targetValue !== '';
+            case 'eq': return targetValue == compareValue; // Loose equality for string/number mix
+            case 'neq': return targetValue != compareValue;
+            case 'contains': return String(targetValue || '').includes(String(compareValue || ''));
+            case 'not_contains': return !String(targetValue || '').includes(String(compareValue || ''));
+            case 'gt': return Number(targetValue) > Number(compareValue);
+            case 'lt': return Number(targetValue) < Number(compareValue);
+            case 'gte': return Number(targetValue) >= Number(compareValue);
+            case 'lte': return Number(targetValue) <= Number(compareValue);
+            default: return false;
+        }
+    };
+
+    const checkValidationRules = (field: any) => {
+        let isRequired = field.required;
+        let activeError = null;
+        let activeWarning = null;
+
+        if (!globalRules || globalRules.length === 0) return { required: isRequired, error: null, warning: activeWarning };
+
+        // Filter rules for this field and current task scope
+        const applicableRules = globalRules.filter((rule: any) => {
+            // Must target this field
+            if (rule.targetFieldId !== field.id) return false;
+            
+            // Must match scope (if defined)
+            if (rule.applyToTasks && rule.applyToTasks.length > 0) {
+                if (!currentStepId) return false; // If scoped but no current step, assume not applicable or safe default? Plan said: strict check
+                if (!rule.applyToTasks.includes(currentStepId)) return false;
+            }
+            return true;
+        });
+
+        for (const rule of applicableRules) {
+            // Evaluate conditions
+            const results = rule.conditions.map((c: any) => evaluateCondition(c, allValues));
+            const isMatch = rule.logic === 'OR' ? results.some((r: boolean) => r) : results.every((r: boolean) => r);
+
+            if (isMatch) {
+                if (rule.type === 'required') {
+                    isRequired = true;
+                } else if (rule.type === 'constraint') {
+                    if (rule.severity === 'error') {
+                        activeError = rule.message || '入力内容が制約を満たしていません';
+                    } else if (rule.severity === 'warning') {
+                        activeWarning = rule.message || '確認してください';
+                    }
+                }
+            }
+        }
+        return { required: isRequired, error: activeError, warning: activeWarning };
+    };
 
     // Theme Styles Definition
     const theme = schema?.['x-theme'] || 'standard';
@@ -176,7 +261,95 @@ export default function DynamicFormRenderer({
         return la.y === lb.y ? la.x - lb.x : la.y - lb.y;
     });
 
-    const handleFormSubmit = (data: any) => onSubmit?.(data);
+    // Validate global rules at submit time
+    // Returns: { hasErrors: boolean, warnings: string[] }
+    const validateGlobalRules = (data: any): { hasErrors: boolean; warnings: string[] } => {
+        // Clear previous custom errors
+        clearErrors();
+        
+        if (!globalRules || globalRules.length === 0) {
+            return { hasErrors: false, warnings: [] };
+        }
+        
+        let hasErrors = false;
+        const warnings: string[] = [];
+        
+        for (const rule of globalRules) {
+            // Check task scope
+            if (rule.applyToTasks && rule.applyToTasks.length > 0) {
+                if (!currentStepId || !rule.applyToTasks.includes(currentStepId)) {
+                    continue; // Skip rule if not applicable to current step
+                }
+            }
+            
+            // Evaluate conditions
+            const results = rule.conditions.map((c: any) => evaluateCondition(c, data));
+            const isMatch = rule.logic === 'OR' ? results.some((r: boolean) => r) : results.every((r: boolean) => r);
+            
+            if (isMatch) {
+                if (rule.type === 'required') {
+                    // Check if target field is empty
+                    const targetValue = data[rule.targetFieldId];
+                    const isEmpty = targetValue === undefined || targetValue === null || targetValue === '' || 
+                                   (Array.isArray(targetValue) && targetValue.length === 0);
+                    if (isEmpty) {
+                        setError(rule.targetFieldId, { 
+                            type: 'custom', 
+                            message: rule.message || 'この項目は必須です' 
+                        });
+                        hasErrors = true;
+                    }
+                } else if (rule.type === 'constraint') {
+                    if (rule.severity === 'error') {
+                        // Error: Block submission
+                        setError(rule.targetFieldId, { 
+                            type: 'custom', 
+                            message: rule.message || '入力内容が制約を満たしていません' 
+                        });
+                        hasErrors = true;
+                    } else if (rule.severity === 'warning') {
+                        // Warning: Collect and show confirmation
+                        warnings.push(rule.message || '確認が必要な入力があります');
+                    }
+                }
+            }
+        }
+        
+        return { hasErrors, warnings };
+    };
+
+    // Handle confirmation of warnings
+    const handleConfirmWarnings = () => {
+        setWarningDialogOpen(false);
+        if (pendingFormData) {
+            // If onConfirmWarnings is provided, use it (for external action handling like TaskDetailPage)
+            // Otherwise fall back to onSubmit
+            if (onConfirmWarnings) {
+                onConfirmWarnings(pendingFormData);
+            } else {
+                onSubmit?.(pendingFormData);
+            }
+            setPendingFormData(null);
+        }
+    };
+
+    const handleFormSubmit = (data: any) => {
+        const result = validateGlobalRules(data);
+        
+        if (result.hasErrors) {
+            return; // Stop submission if validation errors exist
+        }
+        
+        if (result.warnings.length > 0) {
+            // Show warning confirmation dialog
+            setPendingWarnings(result.warnings);
+            setPendingFormData(data);
+            setWarningDialogOpen(true);
+            return;
+        }
+        
+        onSubmit?.(data);
+    };
 
     // Recursive renderer
     const renderFields = (parentId?: string) => {
@@ -198,6 +371,7 @@ export default function DynamicFormRenderer({
             const layoutItem = layout.find((l: any) => l.i === field.id);
             const colSpan = Math.min(layoutItem?.w || 12, 12);
             const value = getValues(field.id);
+            const validationState = checkValidationRules(field);
 
             // Group Handling (Recursive)
             if (field.type === 'group') {
@@ -256,12 +430,17 @@ export default function DynamicFormRenderer({
                 );
             }
 
+            const commonRules = { 
+                required: validationState.required,
+                validate: () => validationState.error || true 
+            };
+
             return (
                 <div key={field.id} className="space-y-2" style={{ gridColumn: `span ${colSpan}` }}>
                     {field.type !== 'richText' && field.type !== 'spacer' && field.type !== 'section' && field.type !== 'divider' && field.type !== 'label' && (
                         <Label className={`${styles.label} block text-${field.align || 'left'}`}>
                             {field.label}
-                            {field.required && !readOnly && <span className="text-destructive ml-1">*</span>}
+                            {validationState.required && !readOnly && <span className="text-destructive ml-1">*</span>}
                         </Label>
                     )}
                     
@@ -272,7 +451,7 @@ export default function DynamicFormRenderer({
                             <div className="p-3 rounded-lg bg-muted min-h-[80px] text-sm whitespace-pre-wrap">{value || '-'}</div>
                         ) : (
                             <Textarea 
-                                {...register(field.id, { required: field.required })} 
+                                {...register(field.id, { ...commonRules })} 
                                 placeholder={`${field.label}を入力...`} 
                                 rows={field.rows || 3} 
                                 className={`${styles.textarea} ${field.autoResize ? 'field-sizing-content' : ''}`}
@@ -285,7 +464,7 @@ export default function DynamicFormRenderer({
                                 {field.options.find((o: any) => (typeof o === 'string' ? o : o.value) === value)?.label || value || '-'}
                             </div>
                         ) : (
-                            <Controller name={field.id} control={control} rules={{ required: field.required }} render={({ field: f }) => (
+                            <Controller name={field.id} control={control} rules={commonRules} render={({ field: f }) => (
                                 <Select value={f.value || ''} onValueChange={f.onChange}>
                                     <SelectTrigger className={styles.input}><SelectValue placeholder="選択してください" /></SelectTrigger>
                                     <SelectContent>
@@ -309,7 +488,7 @@ export default function DynamicFormRenderer({
                                         {isFieldReadOnly ? (
                                             <Badge variant={checked ? 'default' : 'outline'}>{label}</Badge>
                                         ) : (
-                                            <Controller name={field.id} control={control} render={({ field: f }) => (
+                                            <Controller name={field.id} control={control} rules={commonRules} render={({ field: f }) => (
                                                 <>
                                                     <Checkbox id={`${field.id}-${i}`} checked={Array.isArray(f.value) && f.value.includes(val)} onCheckedChange={(c) => {
                                                         const arr = Array.isArray(f.value) ? [...f.value] : [];
@@ -339,7 +518,7 @@ export default function DynamicFormRenderer({
                                 <Controller
                                     name={field.id}
                                     control={control}
-                                    rules={{ required: field.required }}
+                                    rules={commonRules}
                                     render={({ field: f }) => (
                                         <RadioGroup onValueChange={f.onChange} defaultValue={f.value} className="flex flex-col space-y-2">
                                             {field.options.map((opt: any, i: number) => {
@@ -361,13 +540,13 @@ export default function DynamicFormRenderer({
                         isFieldReadOnly ? (
                             <div className="p-3 rounded-lg bg-muted text-sm">{value ? new Date(value).toLocaleDateString('ja-JP') : '-'}</div>
                         ) : (
-                            <Input type={field.includeTime ? 'datetime-local' : 'date'} {...register(field.id, { required: field.required })} className={styles.input} />
+                            <Input type={field.includeTime ? 'datetime-local' : 'date'} {...register(field.id, { ...commonRules })} className={styles.input} />
                         )
                     ) : field.type === 'number' ? (
                         isFieldReadOnly ? (
                             <div className="p-3 rounded-lg bg-muted text-sm text-right font-mono">{value ?? '-'}</div>
                         ) : (
-                            <Input type="number" {...register(field.id, { required: field.required })} placeholder={`${field.label}を入力...`} className={`${styles.input} text-right font-mono`} />
+                            <Input type="number" {...register(field.id, { ...commonRules })} placeholder={`${field.label}を入力...`} className={`${styles.input} text-right font-mono`} />
                         )
                     ) : field.type === 'currency' ? (
                         isFieldReadOnly ? (
@@ -400,7 +579,7 @@ export default function DynamicFormRenderer({
                                 <Controller
                                     name={`${field.id}.start`}
                                     control={control}
-                                    rules={{ required: field.required }}
+                                    rules={commonRules}
                                     render={({ field: f }) => (
                                         <Input 
                                             type="date" 
@@ -415,7 +594,7 @@ export default function DynamicFormRenderer({
                                 <Controller
                                     name={`${field.id}.end`}
                                     control={control}
-                                    rules={{ required: field.required }}
+                                    rules={commonRules}
                                     render={({ field: f }) => (
                                         <Input 
                                             type="date" 
@@ -432,14 +611,14 @@ export default function DynamicFormRenderer({
                         isFieldReadOnly ? (
                             <div className="p-3 rounded-lg bg-muted text-sm">{value || '-'}</div>
                         ) : (
-                            <Input type="time" {...register(field.id, { required: field.required })} className={styles.input} />
+                            <Input type="time" {...register(field.id, { ...commonRules })} className={styles.input} />
                         )
                     ) : field.type === 'file' ? (
                         <FileUploadField
                             fieldId={field.id}
                             control={control}
                             readOnly={isFieldReadOnly}
-                            required={field.required}
+                            required={validationState.required}
                             acceptedTypes={field.acceptedTypes}
                             maxSize={field.maxSize}
                             multiple={field.multiple}
@@ -450,7 +629,7 @@ export default function DynamicFormRenderer({
                         <Controller
                             name={field.id}
                             control={control}
-                            rules={{ required: field.required }}
+                            rules={commonRules}
                             render={({ field: f }) => (
                                 <UserSelector
                                     fieldId={field.id}
@@ -466,7 +645,7 @@ export default function DynamicFormRenderer({
                         <Controller
                             name={field.id}
                             control={control}
-                            rules={{ required: field.required }}
+                            rules={commonRules}
                             defaultValue={[]}
                             render={({ field: f }) => (
                                 <DataGridField
@@ -496,7 +675,7 @@ export default function DynamicFormRenderer({
                         <Controller
                             name={field.id}
                             control={control}
-                            rules={{ required: field.required }}
+                            rules={commonRules}
                             render={({ field: f }) => (
                                 <DepartmentSelector
                                     value={f.value}
@@ -514,7 +693,7 @@ export default function DynamicFormRenderer({
                              <Input 
                                 type={field.type === 'text' ? 'text' : field.type} 
                                 {...register(field.id, { 
-                                    required: field.required,
+                                    ...commonRules,
                                     pattern: field.pattern ? new RegExp(field.pattern) : (
                                         field.type === 'email' ? /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i : 
                                         field.type === 'url' ? /^(http|https):\/\/[^ "]+$/ : undefined
@@ -529,25 +708,68 @@ export default function DynamicFormRenderer({
                         isFieldReadOnly ? (
                             <div className="p-3 rounded-lg bg-muted text-sm">{value || '-'}</div>
                         ) : (
-                            <Input type="text" {...register(field.id, { required: field.required })} placeholder={`${field.label}を入力...`} className={styles.input} />
+                            <Input type="text" {...register(field.id, { ...commonRules })} placeholder={`${field.label}を入力...`} className={styles.input} />
                         )
                     )}
 
                     {field.description && <p className="text-xs text-muted-foreground">{field.description}</p>}
-                    {errors[field.id] && <p className="text-xs text-destructive">この項目は必須です</p>}
+                    {/* Custom validation errors from global rules */}
+                    {validationState.error && <p className="text-xs text-destructive">{validationState.error}</p>}
+                    {/* React-hook-form validation errors (required, pattern, etc.) */}
+                    {!validationState.error && errors[field.id] && <p className="text-xs text-destructive">{errors[field.id]?.message as string || 'この項目は必須です'}</p>}
+                    {/* Warnings */}
+                    {validationState.warning && !validationState.error && !errors[field.id] && <p className="text-xs text-yellow-600 flex items-center gap-1"><span className="text-[10px]">⚠️</span> {validationState.warning}</p>}
                 </div>
             );
         });
     };
 
     return (
-        <form onSubmit={handleSubmit(handleFormSubmit)} className={styles.container}>
-            <div ref={containerRef} className="space-y-6">
-                <div className="grid grid-cols-12 gap-4">
-                    {renderFields(undefined)}
+        <>
+            <form onSubmit={handleSubmit(handleFormSubmit)} className={styles.container}>
+                <div ref={containerRef} className="space-y-6">
+                    <div className="grid grid-cols-12 gap-4">
+                        {renderFields(undefined)}
+                    </div>
                 </div>
-            </div>
-            {renderActions && <div className="mt-6">{renderActions(methods)}</div>}
-        </form>
+                {renderActions && <div className="mt-6">{renderActions({
+                    ...methods,
+                    validateGlobalRules,
+                    showWarningDialog: (warnings: string[], data: any) => {
+                        setPendingWarnings(warnings);
+                        setPendingFormData(data);
+                        setWarningDialogOpen(true);
+                    }
+                })}</div>}
+            </form>
+            
+            {/* Warning Confirmation Dialog */}
+            <AlertDialog open={warningDialogOpen} onOpenChange={setWarningDialogOpen}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle className="flex items-center gap-2 text-yellow-600">
+                            <AlertTriangle className="h-5 w-5" />
+                            確認が必要です
+                        </AlertDialogTitle>
+                        <AlertDialogDescription className="text-left space-y-2">
+                            <p>以下の警告があります。このまま送信してもよろしいですか？</p>
+                            <ul className="list-disc pl-5 space-y-1">
+                                {pendingWarnings.map((w, i) => (
+                                    <li key={i} className="text-yellow-700">{w}</li>
+                                ))}
+                            </ul>
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel onClick={() => { setWarningDialogOpen(false); setPendingFormData(null); }}>
+                            キャンセル
+                        </AlertDialogCancel>
+                        <AlertDialogAction onClick={handleConfirmWarnings} className="bg-yellow-600 hover:bg-yellow-700">
+                            確認して送信
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+        </>
     );
 }

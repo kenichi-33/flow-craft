@@ -319,6 +319,7 @@ export default function ApplicationFormPage() {
                         defaultValues={initialData}
                         onSubmit={handleSubmit}
                         fieldPermissions={definition.flowDefinition?.nodes?.find((n: any) => n.type === 'start')?.data?.fieldPermissions}
+                        currentStepId="start"
                         renderActions={(methods) => (
                             <div className="flex gap-4 justify-center pt-6">
                                 <Button 
@@ -368,7 +369,7 @@ export default function ApplicationFormPage() {
                             <XCircle className="h-5 w-5" />
                             {errorMessage}
                         </AlertDialogTitle>
-                        <AlertDialogDescription className="text-left">
+                        <AlertDialogDescription className="text-left whitespace-pre-wrap">
                             {errorDetail}
                         </AlertDialogDescription>
                     </AlertDialogHeader>
