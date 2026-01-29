@@ -3983,10 +3983,10 @@
             "rootUrl": "http://localhost:3000",
             "baseUrl": "/",
             "redirectUris": [
-                "http://localhost:3000/*"
+                "*"
             ],
             "webOrigins": [
-                "http://localhost:3000"
+                "*"
             ],
             "protocol": "openid-connect",
             "protocolMappers": [
