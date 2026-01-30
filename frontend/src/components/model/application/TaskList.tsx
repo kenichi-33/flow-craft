@@ -54,6 +54,8 @@ const getStatusBadge = (status: string, isStartNode: boolean, applicationStatus?
             return <Badge variant="default" className="bg-green-600 hover:bg-green-700">承認済</Badge>;
         case 'COMPLETED':
             return <Badge variant="default" className="bg-green-600 hover:bg-green-700">完了</Badge>;
+        case 'INVALIDATED':
+            return <Badge variant="outline" className="text-muted-foreground bg-gray-100">無効(差戻)</Badge>;
         case 'REJECTED':
             if (applicationStatus === 'REJECTED') {
                 return <Badge variant="destructive">却下</Badge>;
@@ -211,8 +213,9 @@ export default function TaskList({
         };
 
         const steps = displayNodes.map(node => {
-            // Find related workflow task
-            const relatedTask = workflowTasks?.find(t => t.stepId === node.id && t.status !== 'CANCELED');
+            // Find latest related workflow task (sorted by createdAt desc to get the most recent)
+            const relatedTasks = workflowTasks?.filter(t => t.stepId === node.id && t.status !== 'CANCELED') || [];
+            const relatedTask = relatedTasks.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
             
             // Start Node
             if (node.type === 'start') {

@@ -46,8 +46,10 @@ body {
   min-height: 100vh;
 }
 
-
-
+/* Force swimlane nodes to stay in background regardless of selection/drag state */
+.react-flow__node-swimlane {
+  z-index: -100 !important;
+}
 /* Rich Text Content Styles (Shared between Editor and View) */
 .tiptap-content table,
 .ProseMirror table {

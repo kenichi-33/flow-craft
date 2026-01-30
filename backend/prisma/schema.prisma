@@ -97,6 +97,7 @@ enum TaskStatus {
   COMPLETED
   FAILED
   CANCELED
+  INVALIDATED  // 差し戻しにより無効化されたタスク（履歴保持用）
 }
 
 model ApprovalHistory {

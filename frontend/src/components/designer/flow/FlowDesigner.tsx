@@ -111,10 +111,65 @@ const VALIDATION_RULES: ValidationRule[] = [
                     if (!node.data.url) return `API呼び出し "${node.data.label}" のURLが設定されていません`;
                     if (!node.data.method) return `API呼び出し "${node.data.label}" のメソッドが設定されていません`;
                 }
-                // Branch nodes might require at least one condition eventually, but for now simple check
             }
             return null;
         } 
+    },
+    { 
+        id: 'parallel-join-match', 
+        name: '並列-合流ペア', 
+        description: '各並列ゲートウェイには対応する合流ゲートウェイが必要です', 
+        category: 'structure', 
+        check: (nodes, edges) => {
+            const parallels = nodes.filter(n => n.type === 'parallel');
+            const joins = nodes.filter(n => n.type === 'join');
+            if (parallels.length === 0 && joins.length === 0) return null;
+            if (parallels.length !== joins.length) {
+                return `並列ゲートウェイ(${parallels.length}個)と合流ゲートウェイ(${joins.length}個)の数が一致しません`;
+            }
+            for (const parallel of parallels) {
+                const visited = new Set<string>();
+                const stack = [parallel.id];
+                let foundJoin = false;
+                while (stack.length > 0) {
+                    const curr = stack.pop()!;
+                    if (visited.has(curr)) continue;
+                    visited.add(curr);
+                    if (nodes.find(n => n.id === curr)?.type === 'join') { foundJoin = true; break; }
+                    edges.filter(e => e.source === curr).forEach(e => stack.push(e.target));
+                }
+                if (!foundJoin) return `並列ゲートウェイ "${parallel.data?.label || parallel.id}" から合流ゲートウェイに到達できません`;
+            }
+            return null;
+        }
+    },
+    {
+        id: 'parallel-outputs',
+        name: '並列出力確認',
+        description: '並列ゲートウェイには2つ以上の出力が必要です',
+        category: 'connectivity',
+        check: (nodes, edges) => {
+            for (const n of nodes.filter(nd => nd.type === 'parallel')) {
+                if (edges.filter(e => e.source === n.id).length < 2) {
+                    return `並列ゲートウェイ "${n.data?.label || '並行'}" には2つ以上の出力が必要です`;
+                }
+            }
+            return null;
+        }
+    },
+    {
+        id: 'join-inputs',
+        name: '合流入力確認',
+        description: '合流ゲートウェイには2つ以上の入力が必要です',
+        category: 'connectivity',
+        check: (nodes, edges) => {
+            for (const n of nodes.filter(nd => nd.type === 'join')) {
+                if (edges.filter(e => e.target === n.id).length < 2) {
+                    return `合流ゲートウェイ "${n.data?.label || '合流'}" には2つ以上の入力が必要です`;
+                }
+            }
+            return null;
+        }
     },
 ];
 
@@ -132,10 +187,19 @@ function FlowDesignerContent({ appId, isStatsMode, statsOverlay }: { appId: stri
     const isReadOnly = !!versionId || isStatsMode; // Stats mode implies read-only
     const queryClient = useQueryClient();
     const [flowName, setFlowName] = useState('');
-    const [nodes, setNodes, onNodesChange] = useNodesState(DEFAULT_NODES);
+    const [nodes, setNodes, onNodesChangeBase] = useNodesState(DEFAULT_NODES);
     const [edges, setEdges, onEdgesChange] = useEdgesState([] as Edge[]);
     const [selectedNodes, setSelectedNodes] = useState<string[]>([]);
     const [selectedEdges, setSelectedEdges] = useState<string[]>([]);
+
+    // Custom onNodesChange that maintains swimlane z-index
+    const onNodesChange = useCallback((changes: any) => {
+        onNodesChangeBase(changes);
+        // After any change, ensure swimlanes have correct z-index
+        setNodes(nds => nds.map(n => 
+            n.type === 'swimlane' ? { ...n, zIndex: -100 } : n
+        ));
+    }, [onNodesChangeBase, setNodes]);
 
     const { data: app, isLoading } = useQuery({ queryKey: ['apps', appId], queryFn: () => api.get(`/application-definitions/${appId}`), enabled: !!appId });
     
@@ -169,6 +233,7 @@ function FlowDesignerContent({ appId, isStatsMode, statsOverlay }: { appId: stri
                     ...n, 
                     draggable: false, 
                     deletable: false,
+                    ...(n.type === 'swimlane' && { zIndex: -100 }),
                     data: { ...n.data, readOnly: true } 
                 })));
                 setEdges(version.flowEdges.map((e: any) => ({ ...e, deletable: false })));
@@ -185,9 +250,13 @@ function FlowDesignerContent({ appId, isStatsMode, statsOverlay }: { appId: stri
                      newData = { ...newData, statCount: statsOverlay[n.id] };
                  }
 
+                // Ensure swimlane has correct zIndex
+                const swimlaneProps = n.type === 'swimlane' ? { zIndex: -100 } : {};
+
                 if (n.type === 'start') {
                     return { 
                         ...n, 
+                        ...swimlaneProps,
                         data: { 
                             ...newData, 
                             webhookToken: (app as any).webhookToken, 
@@ -198,10 +267,10 @@ function FlowDesignerContent({ appId, isStatsMode, statsOverlay }: { appId: stri
                 
                 // For other nodes
                 if (['branch', 'apiCall', 'llmCall', 'approval', 'userInput'].includes(n.type || '')) {
-                   return { ...n, data: newData };
+                   return { ...n, ...swimlaneProps, data: newData };
                 }
-                // Even simpler default
-                return { ...n, data: newData };
+                // Even simpler default (includes swimlane)
+                return { ...n, ...swimlaneProps, data: newData };
             }));
 
             // Initial load of flowDefinition if exists

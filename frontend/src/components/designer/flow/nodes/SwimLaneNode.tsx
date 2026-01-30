@@ -65,8 +65,8 @@ export default function SwimLaneNode({ id, data, selected }: SwimLaneNodeProps) 
         <>
             {!isReadOnly && <NodeResizer color="#90caf9" isVisible={selected} minWidth={300} minHeight={100} />}
             <div
-                className="w-full h-full rounded border-2 border-blue-300 relative -z-10"
-                style={{ background: data.color || '#e3f2fd', cursor: isReadOnly ? 'pointer' : 'default' }}
+                className="w-full h-full rounded border-2 border-blue-300 relative"
+                style={{ background: data.color || '#e3f2fd', cursor: isReadOnly ? 'pointer' : 'default', zIndex: -1 }}
                 onClick={isReadOnly ? () => setDialogOpen(true) : undefined}
             >
                 {/* Lane Header (left side) */}

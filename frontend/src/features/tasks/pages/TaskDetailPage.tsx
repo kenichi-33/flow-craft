@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { ArrowLeft, Loader2, Clock, User, CheckCircle, XCircle, AlertCircle, GitFork } from 'lucide-react';
+import { ArrowLeft, Loader2, Clock, User, CheckCircle, XCircle, GitFork, CornerDownLeft } from 'lucide-react';
 import DynamicFormRenderer from '@/components/model/form/renderer/DynamicFormRenderer';
 import ApprovalHistory from '@/components/model/application/ApprovalHistory';
 import FlowVisualization from '@/components/designer/flow/FlowVisualization';
@@ -22,6 +22,15 @@ import {
     AlertDialogHeader,
     AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from '@/components/ui/dialog';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 
 interface TaskDetail {
     id: string;
@@ -77,7 +86,15 @@ interface TaskDetail {
 const taskStatusConfig: Record<string, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' }> = {
     PENDING: { label: '未処理', variant: 'secondary' },
     COMPLETED: { label: '完了', variant: 'default' },
+    INVALIDATED: { label: '無効', variant: 'outline' },
 };
+
+interface RemandableStep {
+    stepId: string;
+    label: string;
+    type: string;
+    completedAt: string;
+}
 
 export default function TaskDetailPage() {
     const { id } = useParams();
@@ -90,6 +107,10 @@ export default function TaskDetailPage() {
     const [errorDetail, setErrorDetail] = useState('');
     const [pendingAction, setPendingAction] = useState<{ action: string; inputData: any } | null>(null);
     
+    // Remand dialog state
+    const [remandDialogOpen, setRemandDialogOpen] = useState(false);
+    const [selectedRemandStepId, setSelectedRemandStepId] = useState<string>('');
+    
     // Ref to capture form data
     const formMethodsRef = useRef<any>(null);
 
@@ -99,12 +120,20 @@ export default function TaskDetailPage() {
         enabled: !!id,
     });
 
+    // Fetch remandable steps when task is loaded
+    const { data: remandableSteps = [] } = useQuery<RemandableStep[]>({
+        queryKey: ['remandable-steps', task?.application?.id, id],
+        queryFn: () => api.get<RemandableStep[]>(`/workflow/applications/${task?.application?.id}/remandable-steps?taskId=${id}`),
+        enabled: !!task?.application?.id && !!id && (task as any)?.config?.allowRemand === true,
+    });
+
     const actionMutation = useMutation({
-        mutationFn: (data: { action: string; comment?: string; inputData?: any }) =>
+        mutationFn: (data: { action: string; comment?: string; inputData?: any; remandTargetStepId?: string }) =>
             api.post(`/workflow/tasks/${id}/complete`, { 
                 action: data.action, 
                 comment: data.comment,
-                inputData: data.inputData
+                inputData: data.inputData,
+                remandTargetStepId: data.remandTargetStepId,
             }),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['task', id] });
@@ -167,6 +196,60 @@ export default function TaskDetailPage() {
 
         setActionInProgress(action);
         actionMutation.mutate({ action, comment: comment.trim() || undefined, inputData });
+    };
+    // Handle remand with selected step
+    const handleRemandWithStep = () => {
+        setRemandDialogOpen(false);
+        setActionInProgress('REMAND');
+        
+        // Handle special '__previous__' value
+        let targetStepId = selectedRemandStepId;
+        if (targetStepId === '__previous__') {
+            targetStepId = getPreviousStepId() || '';
+        }
+        
+        actionMutation.mutate({ 
+            action: 'REMAND', 
+            comment: comment.trim() || undefined, 
+            remandTargetStepId: targetStepId || undefined 
+        });
+    };
+
+    // Get previous step ID from history
+    const getPreviousStepId = (): string | undefined => {
+        // Find the latest completed task before current step
+        if (remandableSteps.length > 0) {
+            return remandableSteps[remandableSteps.length - 1].stepId;
+        }
+        return undefined;
+    };
+
+    // Open remand dialog or execute direct remand based on config
+    const openRemandDialog = () => {
+        const taskConfig = (task as any).config;
+        const remandDestination = taskConfig?.remandDestination || 'applicant';
+        
+        if (remandDestination === 'applicant') {
+            // Direct remand to applicant
+            setActionInProgress('REMAND');
+            actionMutation.mutate({ 
+                action: 'REMAND', 
+                comment: comment.trim() || undefined 
+            });
+        } else if (remandDestination === 'previous') {
+            // Direct remand to previous step
+            const previousStepId = getPreviousStepId();
+            setActionInProgress('REMAND');
+            actionMutation.mutate({ 
+                action: 'REMAND', 
+                comment: comment.trim() || undefined,
+                remandTargetStepId: previousStepId 
+            });
+        } else {
+            // 'select' - show dialog
+            setSelectedRemandStepId(''); // default to applicant
+            setRemandDialogOpen(true);
+        }
     };
 
     if (isLoading) {
@@ -373,15 +456,15 @@ export default function TaskDetailPage() {
                                     {(task as any).config?.allowRemand === true && (
                                         <Button
                                             variant="outline"
-                                            onClick={() => handleAction('REMAND')}
+                                            onClick={openRemandDialog}
                                             disabled={!!actionInProgress}
                                         >
                                             {actionInProgress === 'REMAND' ? (
                                                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                                             ) : (
-                                                <AlertCircle className="h-4 w-4 mr-2" />
+                                                <CornerDownLeft className="h-4 w-4 mr-2" />
                                             )}
-                                            差戻し
+                                            差し戻し
                                         </Button>
                                     )}
                                 </>
@@ -402,6 +485,57 @@ export default function TaskDetailPage() {
                     </CardContent>
                 </Card>
             )}
+
+            {/* Remand Step Selection Dialog */}
+            <Dialog open={remandDialogOpen} onOpenChange={setRemandDialogOpen}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>差し戻し先を選択</DialogTitle>
+                        <DialogDescription>
+                            差し戻し先のステップを選択してください。
+                        </DialogDescription>
+                    </DialogHeader>
+                    <RadioGroup value={selectedRemandStepId} onValueChange={setSelectedRemandStepId} className="space-y-3">
+                        <div className="flex items-center space-x-3 p-3 border rounded-lg hover:bg-muted/50 cursor-pointer">
+                            <RadioGroupItem value="" id="applicant" />
+                            <Label htmlFor="applicant" className="flex-1 cursor-pointer">
+                                <span className="font-medium">申請者に差し戻す（最初から）</span>
+                                <p className="text-sm text-muted-foreground">申請者が内容を修正して再送信します</p>
+                            </Label>
+                        </div>
+                        {remandableSteps.length > 0 && (
+                            <div className="flex items-center space-x-3 p-3 border rounded-lg hover:bg-muted/50 cursor-pointer border-blue-200 bg-blue-50/50">
+                                <RadioGroupItem value="__previous__" id="previous" />
+                                <Label htmlFor="previous" className="flex-1 cursor-pointer">
+                                    <span className="font-medium text-blue-700">一つ前のステップに差し戻す</span>
+                                    <p className="text-sm text-blue-600/70">
+                                        {remandableSteps[remandableSteps.length - 1]?.label || '前のステップ'}へ戻します
+                                    </p>
+                                </Label>
+                            </div>
+                        )}
+                        {remandableSteps.map(step => (
+                            <div key={step.stepId} className="flex items-center space-x-3 p-3 border rounded-lg hover:bg-muted/50 cursor-pointer">
+                                <RadioGroupItem value={step.stepId} id={step.stepId} />
+                                <Label htmlFor={step.stepId} className="flex-1 cursor-pointer">
+                                    <span className="font-medium">{step.label}</span>
+                                    <p className="text-sm text-muted-foreground">
+                                        {step.type === 'approval' ? '承認タスク' : '入力タスク'} ・ 
+                                        {new Date(step.completedAt).toLocaleString('ja-JP')}
+                                    </p>
+                                </Label>
+                            </div>
+                        ))}
+                    </RadioGroup>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setRemandDialogOpen(false)}>キャンセル</Button>
+                        <Button onClick={handleRemandWithStep}>
+                            <CornerDownLeft className="h-4 w-4 mr-2" />
+                            差し戻す
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
 
             {/* Error Dialog */}
             <AlertDialog open={errorDialogOpen} onOpenChange={setErrorDialogOpen}>

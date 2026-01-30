@@ -295,6 +295,7 @@ export class WorkflowEngineService {
     actorId: string;
     comment?: string;
     inputData?: any;
+    remandTargetStepId?: string; // 任意ステップへの差し戻し用
   }) {
     const task = await this.prisma.workflowTask.findUnique({
       where: { id: input.taskId },
@@ -347,11 +348,12 @@ export class WorkflowEngineService {
     let shouldAdvance = false;
 
     await this.prisma.$transaction(async (tx) => {
-      // Update Task Status
+      // Update Task Status - REMAND uses INVALIDATED, others use COMPLETED
+      const taskStatus = input.action === 'REMAND' ? 'INVALIDATED' : 'COMPLETED';
       await tx.workflowTask.update({
         where: { id: input.taskId, status: 'PENDING' },
         data: {
-          status: 'COMPLETED',
+          status: taskStatus,
           result: {
             action: input.action,
             comment: input.comment,
@@ -424,25 +426,101 @@ export class WorkflowEngineService {
         const nodes = (application?.flowNodes ||
           application?.flowDefinition?.nodes ||
           []) as any[];
-        const startNode = nodes.find((n: any) => n.type === 'start');
+
+        const remandTargetStepId = input.remandTargetStepId;
+        let targetNode;
+        
+        if (remandTargetStepId) {
+          // 任意ステップへの差し戻し
+          targetNode = nodes.find((n: any) => n.id === remandTargetStepId);
+          if (!targetNode) {
+            throw new BadRequestException('差し戻し先のノードが見つかりません');
+          }
+        } else {
+          // デフォルト: 開始ノード（申請者へ）
+          targetNode = nodes.find((n: any) => n.type === 'start');
+        }
 
         // Cancel other pending tasks
         await tx.workflowTask.updateMany({
           where: {
             applicationId: task.applicationId,
-            status: 'PENDING',
+            status: { in: ['PENDING', 'QUEUED', 'RUNNING'] },
             id: { not: task.id },
           },
           data: { status: 'CANCELED' },
         });
 
-        await tx.application.update({
-          where: { id: task.applicationId },
-          data: {
-            status: 'REMANDED',
-            currentNodeId: startNode?.id || null,
-          },
-        });
+        // 差し戻し先以降のCOMPLETEDタスクをINVALIDATED
+        if (remandTargetStepId) {
+          const targetTask = await tx.workflowTask.findFirst({
+            where: { applicationId: task.applicationId, stepId: remandTargetStepId },
+            orderBy: { createdAt: 'asc' },
+          });
+          const cutoffTime = targetTask?.createdAt || new Date(0);
+
+          const updateResult = await tx.workflowTask.updateMany({
+            where: {
+              applicationId: task.applicationId,
+              status: 'COMPLETED',
+              createdAt: { gte: cutoffTime },
+            },
+            data: { status: 'INVALIDATED' },
+          });
+          this.logger.log(`REMAND: Updated ${updateResult.count} tasks to INVALIDATED (target step: ${remandTargetStepId})`);
+        } else {
+          // 申請者への差し戻し: 全COMPLETEDタスクをINVALIDATED
+          const updateResult = await tx.workflowTask.updateMany({
+            where: {
+              applicationId: task.applicationId,
+              status: 'COMPLETED',
+            },
+            data: { status: 'INVALIDATED' },
+          });
+          this.logger.log(`REMAND to applicant: Updated ${updateResult.count} tasks to INVALIDATED`);
+        }
+
+        // 申請ステータス更新
+        if (remandTargetStepId && targetNode?.type !== 'start') {
+          // 任意ステップへの差し戻し: IN_PROGRESSのまま
+          await tx.application.update({
+            where: { id: task.applicationId },
+            data: { currentNodeId: targetNode?.id || null },
+          });
+
+          // 差し戻し先に新しいタスクを作成
+          const originalTask = await tx.workflowTask.findFirst({
+            where: { 
+              applicationId: task.applicationId, 
+              stepId: remandTargetStepId, 
+              status: 'INVALIDATED' 
+            },
+            orderBy: { createdAt: 'desc' },
+          });
+          if (originalTask) {
+            await tx.workflowTask.create({
+              data: {
+                applicationId: task.applicationId,
+                stepId: remandTargetStepId,
+                type: originalTask.type,
+                status: 'PENDING',
+                assignedTo: originalTask.assignedTo,
+                assignedToDisplay: originalTask.assignedToDisplay,
+                assignedToInfo: originalTask.assignedToInfo as any,
+                config: originalTask.config as any,
+              },
+            });
+          }
+        } else {
+          // 申請者への差し戻し: REMANDEDステータス
+          await tx.application.update({
+            where: { id: task.applicationId },
+            data: {
+              status: 'REMANDED',
+              currentNodeId: targetNode?.id || null,
+            },
+          });
+        }
         shouldAdvance = false;
       }
     });
@@ -635,6 +713,82 @@ export class WorkflowEngineService {
         workflowTasks: true,
         history: true,
       },
+    });
+  }
+
+  /**
+   * 差し戻し可能なステップ一覧を取得
+   */
+  async getRemandableSteps(applicationId: string, currentTaskId?: string) {
+    // Get current application with flow definition
+    const application = await this.prisma.application.findUnique({
+      where: { id: applicationId },
+      include: { flowDefinition: true },
+    });
+
+    const nodes = (application?.flowNodes ||
+      application?.flowDefinition?.nodes ||
+      []) as any[];
+    const edges = (application?.flowEdges ||
+      application?.flowDefinition?.edges ||
+      []) as any[];
+
+    // Get current task to find current step
+    let currentStepId: string | null = null;
+    if (currentTaskId) {
+      const currentTask = await this.prisma.workflowTask.findUnique({
+        where: { id: currentTaskId },
+        select: { stepId: true },
+      });
+      currentStepId = currentTask?.stepId || null;
+    }
+
+    if (!currentStepId) {
+      // No current task, return empty
+      return [];
+    }
+
+    // Find all upstream nodes using BFS traversal backwards
+    const upstreamNodeIds = new Set<string>();
+    const visited = new Set<string>();
+    const queue: string[] = [currentStepId];
+
+    while (queue.length > 0) {
+      const nodeId = queue.shift()!;
+      if (visited.has(nodeId)) continue;
+      visited.add(nodeId);
+
+      // Find all edges pointing TO this node (upstream edges)
+      const incomingEdges = edges.filter((e: any) => e.target === nodeId);
+      for (const edge of incomingEdges) {
+        const sourceId = edge.source;
+        if (!visited.has(sourceId)) {
+          upstreamNodeIds.add(sourceId);
+          queue.push(sourceId);
+        }
+      }
+    }
+
+    // Get completed/invalidated tasks for upstream nodes only
+    const completedTasks = await this.prisma.workflowTask.findMany({
+      where: {
+        applicationId,
+        status: { in: ['COMPLETED', 'INVALIDATED'] },
+        type: { in: ['approval', 'userInput', 'input'] },
+        stepId: { in: Array.from(upstreamNodeIds) },
+      },
+      orderBy: { createdAt: 'asc' },
+      distinct: ['stepId'],
+    });
+
+    return completedTasks.map((task) => {
+      const node = nodes.find((n: any) => n.id === task.stepId);
+      return {
+        stepId: task.stepId,
+        label: node?.data?.label || task.stepId,
+        type: task.type,
+        completedAt: task.updatedAt,
+      };
     });
   }
 }

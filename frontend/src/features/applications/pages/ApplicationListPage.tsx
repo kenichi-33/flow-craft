@@ -123,8 +123,7 @@ export default function ApplicationListPage() {
             cell: ({ row }) => <strong>#{row.original.applicationNumber}</strong>,
         },
         {
-            id: 'applicationDefinition', // Sorting by relation needs special handling in backend, passed as 'applicationDefinition' (or AppName?)
-            // Backend maps 'applicationDefinition' to relation sort
+            id: 'applicationDefinition',
             accessorKey: 'applicationDefinition.name',
             header: ({ column }) => (
                 <Button variant="ghost" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")} className="p-0 hover:bg-transparent">
@@ -213,6 +212,7 @@ export default function ApplicationListPage() {
                     )}
                 </div>
             ),
+            meta: { stickyRight: true },
         },
     ], [navigate]);
 
@@ -275,18 +275,34 @@ export default function ApplicationListPage() {
                                 <TableHeader>
                                     {table.getHeaderGroups().map((hg) => (
                                         <TableRow key={hg.id}>
-                                            {hg.headers.map((h) => (
-                                                <TableHead key={h.id} className="whitespace-nowrap">
-                                                    {h.isPlaceholder ? null : flexRender(h.column.columnDef.header, h.getContext())}
-                                                </TableHead>
-                                            ))}
+                                            {hg.headers.map((h) => {
+                                                const isStickyRight = (h.column.columnDef.meta as any)?.stickyRight;
+                                                return (
+                                                    <TableHead 
+                                                        key={h.id} 
+                                                        className={`whitespace-nowrap ${isStickyRight ? 'sticky right-0 z-20 bg-card shadow-[-2px_0_5px_-2px_rgba(0,0,0,0.1)]' : ''}`}
+                                                    >
+                                                        {h.isPlaceholder ? null : flexRender(h.column.columnDef.header, h.getContext())}
+                                                    </TableHead>
+                                                );
+                                            })}
                                         </TableRow>
                                     ))}
                                 </TableHeader>
                                 <TableBody>
                                     {table.getRowModel().rows?.length ? table.getRowModel().rows.map((row) => (
                                         <TableRow key={row.id} className="cursor-pointer hover:bg-muted/50" onClick={() => navigate(`/applications/${row.original.id}`)}>
-                                            {row.getVisibleCells().map((cell) => (<TableCell key={cell.id} className="whitespace-nowrap">{flexRender(cell.column.columnDef.cell, cell.getContext())}</TableCell>))}
+                                            {row.getVisibleCells().map((cell) => {
+                                                const isStickyRight = (cell.column.columnDef.meta as any)?.stickyRight;
+                                                return (
+                                                    <TableCell 
+                                                        key={cell.id} 
+                                                        className={`whitespace-nowrap ${isStickyRight ? 'sticky right-0 z-10 bg-card shadow-[-2px_0_5px_-2px_rgba(0,0,0,0.1)]' : ''}`}
+                                                    >
+                                                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                                                    </TableCell>
+                                                );
+                                            })}
                                         </TableRow>
                                     )) : (<TableRow><TableCell colSpan={columns.length} className="h-24 text-center">申請がありません</TableCell></TableRow>)}
                                 </TableBody>

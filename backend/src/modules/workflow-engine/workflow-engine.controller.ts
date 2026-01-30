@@ -26,6 +26,10 @@ class CompleteTaskDto {
 
   @IsOptional()
   inputData?: any;
+
+  @IsOptional()
+  @IsString()
+  remandTargetStepId?: string; // 任意ステップへの差し戻し用
 }
 
 @Controller('workflow')
@@ -59,7 +63,8 @@ export class WorkflowEngineController {
       action: dto.action,
       comment: dto.comment,
       inputData: dto.inputData,
-      actorId: user.username, // ログインユーザーを承認者に設定
+      actorId: user.username,
+      remandTargetStepId: dto.remandTargetStepId,
     });
   }
 
@@ -95,5 +100,13 @@ export class WorkflowEngineController {
   @Get('applications/:id/status')
   getWorkflowStatus(@Param('id') applicationId: string) {
     return this.workflowService.getWorkflowStatus(applicationId);
+  }
+
+  @Get('applications/:id/remandable-steps')
+  getRemandableSteps(
+    @Param('id') applicationId: string,
+    @Query('taskId') taskId?: string,
+  ) {
+    return this.workflowService.getRemandableSteps(applicationId, taskId);
   }
 }

@@ -256,14 +256,20 @@ export default function ApprovalNode({ id, data }: { id: string; data: any }) {
                                     </div>
                                     {allowRemand && (
                                         <div className="pl-6 grid gap-2">
-                                            <Label>差し戻し先</Label>
+                                            <Label>差し戻し先の選択方法</Label>
                                             <Select value={remandDestination} onValueChange={setRemandDestination} disabled={isReadOnly}>
                                                 <SelectTrigger><SelectValue /></SelectTrigger>
                                                 <SelectContent>
-                                                    <SelectItem value="applicant">申請者 (最初に戻る)</SelectItem>
-                                                    <SelectItem value="previous" disabled>一つ前のステップ (未実装)</SelectItem>
+                                                    <SelectItem value="applicant">申請者へ（最初から）</SelectItem>
+                                                    <SelectItem value="previous">一つ前のステップへ</SelectItem>
+                                                    <SelectItem value="select">差し戻し時に選択</SelectItem>
                                                 </SelectContent>
                                             </Select>
+                                            <p className="text-xs text-muted-foreground">
+                                                {remandDestination === 'applicant' && '申請者からの再提出となります'}
+                                                {remandDestination === 'previous' && '直前の承認/入力ステップに戻ります'}
+                                                {remandDestination === 'select' && '差し戻し時に担当者がステップを選択できます'}
+                                            </p>
                                         </div>
                                     )}
                                 </div>
