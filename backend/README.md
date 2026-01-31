@@ -100,6 +100,7 @@ APIサーバーは [http://localhost:8080](http://localhost:8080) で起動し�
 - `src/modules/tasks`: 承認タスク管理
 - `src/modules/auth`: 認証・認可
 - `src/modules/notifications`: メール通知等
+- `src/modules/master-connectors`: 外部データ連携コネクタ管理
 
 ## テスト
 

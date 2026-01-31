@@ -38,6 +38,7 @@ interface ApplicationDetail {
     applicantInfo?: any;
     currentNodeId?: string;
     completedStepIds?: string[];
+    formSchema?: any; // Snapshot
     // Direct relations from backend
     formDefinition?: {
         id: string;
@@ -521,10 +522,10 @@ export default function ApplicationDetailPage() {
                     <CardTitle className="text-lg">申請内容</CardTitle>
                 </CardHeader>
                 <CardContent>
-                    {application.formDefinition?.schema ? (
+                    {application.formSchema || application.formDefinition?.schema ? (
                         <DynamicFormRenderer
-                            schema={application.formDefinition.schema}
-                            layouts={application.formDefinition.schema?.['x-layout']}
+                            schema={application.formSchema || application.formDefinition?.schema}
+                            layouts={application.formSchema?.['x-layout'] || application.formDefinition?.schema?.['x-layout']}
                             defaultValues={application.inputData}
                             readOnly={true}
                         />

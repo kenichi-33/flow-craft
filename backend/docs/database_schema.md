@@ -53,6 +53,22 @@ erDiagram
         string action "APPROVE, REJECT..."
         string stepId
     }
+
+    MasterConnector ||--o{ MasterDataItem : "has items"
+    MasterConnector ||--o{ ApplicationDefinition : "used by"
+
+    MasterConnector {
+        string id PK
+        string name
+        string type "rest, sql, csv"
+        boolean isShared
+    }
+
+    MasterDataItem {
+        string id PK
+        string connectorId FK
+        json data
+    }
 ```
 
 ## テーブル概要
@@ -66,3 +82,10 @@ erDiagram
 | **approval_histories** | ユーザーによる承認・却下のアクション履歴（監査ログ的役割）。 |
 | **form_definitions** | フォームのスキーマ定義 (RJSF形式)。 |
 | **flow_definitions** | フローのノード・エッジ定義 (ReactFlow形式)。 |
+| **master_connectors** | 外部システム連携設定。`isShared`による共有設定や、作成・更新者の監査情報(`createdBy`, `updatedBy`)を保持。 |
+| **master_data_items** | CSV連携タイプの場合のインポートデータレコード。 |
+
+## スナップショット機能
+
+`applications` テーブルは、申請時点のフォーム定義(`form_schema`)やフロー定義(`flow_nodes`)をスナップショットとして保持します。
+これにより、アプリケーション定義が更新されても、過去の申請は作成時点の状態を忠実に再現して表示することが可能です。
