@@ -212,6 +212,7 @@ model ApplicationDefinition {
   flowDefinition   FlowDefinition? @relation(fields: [flowDefinitionId], references: [id])
   applications     Application[]
   versions         AppVersion[]
+  allowedConnectors MasterConnector[] @relation("ConnectorAccess")
 
   @@map("application_definitions")
 }
@@ -298,6 +299,22 @@ model MasterConnector {
 
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
+  createdBy   String?  @map("created_by")
+  updatedBy   String?  @map("updated_by")
+
+  dataItems   MasterDataItem[]
+  allowedApps ApplicationDefinition[] @relation("ConnectorAccess")
 
   @@map("master_connectors")
+}
+
+model MasterDataItem {
+  id          String   @id @default(uuid())
+  connectorId String   @map("connector_id")
+  data        Json     // CSV row data
+  
+  connector   MasterConnector @relation(fields: [connectorId], references: [id], onDelete: Cascade)
+
+  @@index([connectorId])
+  @@map("master_data_items")
 }

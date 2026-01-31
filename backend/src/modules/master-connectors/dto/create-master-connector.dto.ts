@@ -20,4 +20,7 @@ export class CreateMasterConnectorDto {
   @IsBoolean()
   @IsOptional()
   isShared?: boolean;
+
+  @IsOptional()
+  allowedAppIds?: string[];
 }

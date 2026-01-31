@@ -22,5 +22,8 @@ export class UpdateMasterConnectorDto {
   @IsBoolean()
   @IsOptional()
   isShared?: boolean;
+
+  @IsOptional()
+  allowedAppIds?: string[];
 }
 

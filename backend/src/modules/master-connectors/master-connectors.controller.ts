@@ -1,4 +1,5 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, Query, UseGuards, UploadedFile, UseInterceptors, BadRequestException } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { MasterConnectorsService } from './master-connectors.service';
 import { CreateMasterConnectorDto } from './dto/create-master-connector.dto';
 import { UpdateMasterConnectorDto } from './dto/update-master-connector.dto';
@@ -12,12 +13,12 @@ export class MasterConnectorsController {
 
   @Post()
   create(@Body() createMasterConnectorDto: CreateMasterConnectorDto, @CurrentUser() user: any) {
-    return this.masterConnectorsService.create(createMasterConnectorDto, user?.userId);
+    return this.masterConnectorsService.create(createMasterConnectorDto, user);
   }
 
   @Get()
-  findAll() {
-    return this.masterConnectorsService.findAll();
+  findAll(@CurrentUser() user: any) {
+    return this.masterConnectorsService.findAll(user);
   }
 
   @Get(':id')
@@ -31,14 +32,32 @@ export class MasterConnectorsController {
       return this.masterConnectorsService.proxy(id, query);
   }
 
+  @Get(':id/data')
+  getData(@Param('id') id: string) {
+      return this.masterConnectorsService.getDataItems(id);
+  }
+
   @Post('test')
-  test(@Body() body: { config: any, mapping: any, query: string }) {
-      return this.masterConnectorsService.test(body.config, body.mapping, body.query);
+  test(@Body() body: { config: any, mapping: any, query: string, type?: string }) {
+      return this.masterConnectorsService.test(body.config, body.mapping, body.query, body.type);
+  }
+
+  @Post(':id/csv')
+  @UseInterceptors(FileInterceptor('file'))
+  uploadCsv(@Param('id') id: string, @UploadedFile() file: Express.Multer.File) {
+      if (!file) {
+          console.log('Upload failed: No file received');
+          // const req = context.switchToHttp().getRequest(); // Need context to log req? 
+          // Just throw for now
+          throw new BadRequestException('File is required and must be named "file"');
+      }
+      console.log(`Received file: ${file.originalname}, size: ${file.size}, mimetype: ${file.mimetype}`);
+      return this.masterConnectorsService.importCsv(id, file.buffer);
   }
 
   @Patch(':id')
-  update(@Param('id') id: string, @Body() updateMasterConnectorDto: UpdateMasterConnectorDto) {
-    return this.masterConnectorsService.update(id, updateMasterConnectorDto);
+  update(@Param('id') id: string, @Body() updateMasterConnectorDto: UpdateMasterConnectorDto, @CurrentUser() user: any) {
+    return this.masterConnectorsService.update(id, updateMasterConnectorDto, user);
   }
 
   @Delete(':id')

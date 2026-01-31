@@ -27,14 +27,19 @@ async function request<T>(endpoint: string, options: RequestInit = {}, retryCoun
 
     const currentToken = useAuthStore.getState().token;
 
+    const headers: Record<string, string> = {
+        ...(currentToken ? { 'Authorization': `Bearer ${currentToken}` } : {}),
+        ...(options.headers as Record<string, string>),
+    };
+
+    if (!(options.body instanceof FormData)) {
+        headers['Content-Type'] = 'application/json';
+    }
+
     try {
         const response = await fetch(url, {
             ...options,
-            headers: {
-                'Content-Type': 'application/json',
-                ...(currentToken ? { 'Authorization': `Bearer ${currentToken}` } : {}),
-                ...options.headers,
-            },
+            headers,
         });
 
         // 401 retry logic
@@ -81,8 +86,17 @@ async function request<T>(endpoint: string, options: RequestInit = {}, retryCoun
 
 export const api = {
     get: <T>(endpoint: string) => request<T>(endpoint, { method: 'GET' }),
-    post: <T>(endpoint: string, body: any) => request<T>(endpoint, { method: 'POST', body: JSON.stringify(body) }),
-    put: <T>(endpoint: string, body: any) => request<T>(endpoint, { method: 'PUT', body: JSON.stringify(body) }),
-    patch: <T>(endpoint: string, body: any) => request<T>(endpoint, { method: 'PATCH', body: JSON.stringify(body) }),
+    post: <T>(endpoint: string, body: any) => {
+        const isFormData = body instanceof FormData;
+        return request<T>(endpoint, { method: 'POST', body: isFormData ? body : JSON.stringify(body) });
+    },
+    put: <T>(endpoint: string, body: any) => {
+        const isFormData = body instanceof FormData;
+        return request<T>(endpoint, { method: 'PUT', body: isFormData ? body : JSON.stringify(body) });
+    },
+    patch: <T>(endpoint: string, body: any) => {
+        const isFormData = body instanceof FormData;
+        return request<T>(endpoint, { method: 'PATCH', body: isFormData ? body : JSON.stringify(body) });
+    },
     delete: <T>(endpoint: string) => request<T>(endpoint, { method: 'DELETE' }),
 };

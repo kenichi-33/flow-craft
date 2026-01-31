@@ -90,6 +90,8 @@ export default function MasterConnectorsListPage() {
                             <TableHead>名前 / 説明</TableHead>
                             <TableHead>タイプ</TableHead>
                             <TableHead>公開設定</TableHead>
+                            <TableHead>作成者</TableHead>
+                            <TableHead>更新者</TableHead>
                             <TableHead>最終更新</TableHead>
                             <TableHead className="text-right">操作</TableHead>
                         </TableRow>
@@ -97,11 +99,11 @@ export default function MasterConnectorsListPage() {
                     <TableBody>
                         {isLoading ? (
                             <TableRow>
-                                <TableCell colSpan={6} className="h-24 text-center">読み込み中...</TableCell>
+                                <TableCell colSpan={8} className="h-24 text-center">読み込み中...</TableCell>
                             </TableRow>
                         ) : filteredConnectors?.length === 0 ? (
                             <TableRow>
-                                <TableCell colSpan={6} className="h-32 text-center text-muted-foreground">
+                                <TableCell colSpan={8} className="h-32 text-center text-muted-foreground">
                                     コネクタが見つかりません
                                 </TableCell>
                             </TableRow>
@@ -130,6 +132,24 @@ export default function MasterConnectorsListPage() {
                                         <Badge variant={connector.isShared ? "secondary" : "outline"}>
                                             {connector.isShared ? '全体公開' : '限定公開'}
                                         </Badge>
+                                    </TableCell>
+                                    <TableCell className="text-xs">
+                                        {connector.createdByInfo ? (
+                                            <div className="flex items-center gap-1">
+                                                <span>{connector.createdByInfo.lastName} {connector.createdByInfo.firstName}</span>
+                                            </div>
+                                        ) : (
+                                            <span className="text-muted-foreground">-</span>
+                                        )}
+                                    </TableCell>
+                                    <TableCell className="text-xs">
+                                        {connector.updatedByInfo ? (
+                                            <div className="flex items-center gap-1">
+                                                <span>{connector.updatedByInfo.lastName} {connector.updatedByInfo.firstName}</span>
+                                            </div>
+                                        ) : (
+                                            <span className="text-muted-foreground">-</span>
+                                        )}
                                     </TableCell>
                                     <TableCell className="text-xs text-muted-foreground">
                                         {new Date(connector.updatedAt).toLocaleString('ja-JP')}
