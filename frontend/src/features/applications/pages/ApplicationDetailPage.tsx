@@ -336,7 +336,30 @@ export default function ApplicationDetailPage() {
                     </CardHeader>
                     <CardContent>
                         <FlowVisualization
-                            nodes={application.flowNodes || application.flowDefinition?.nodes || []}
+                            nodes={(() => {
+                                const flowNodes = application.flowNodes || application.flowDefinition?.nodes || [];
+                                // Create a map of stepId -> latest task for merging assignee info
+                                const latestTaskByStepId = new Map<string, any>();
+                                application.workflowTasks?.forEach((t: any) => {
+                                    if (!latestTaskByStepId.has(t.stepId)) {
+                                        latestTaskByStepId.set(t.stepId, t);
+                                    }
+                                });
+                                // Merge task assignee info into flow nodes
+                                return flowNodes.map((node: any) => {
+                                    const task = latestTaskByStepId.get(node.id);
+                                    if (task && task.assignedToDisplay) {
+                                        return {
+                                            ...node,
+                                            data: {
+                                                ...node.data,
+                                                assigneeDisplay: task.assignedToDisplay,
+                                            }
+                                        };
+                                    }
+                                    return node;
+                                });
+                            })()}
                             edges={application.flowEdges || application.flowDefinition?.edges || []}
                             currentNodeId={
                                 (() => {

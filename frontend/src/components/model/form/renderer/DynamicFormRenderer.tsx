@@ -436,7 +436,7 @@ export default function DynamicFormRenderer({
             };
 
             return (
-                <div key={field.id} className="space-y-2" style={{ gridColumn: `span ${colSpan}` }}>
+                <div key={field.id} className="space-y-2 relative" style={{ gridColumn: `span ${colSpan}` }}>
                     {field.type !== 'richText' && field.type !== 'spacer' && field.type !== 'section' && field.type !== 'divider' && field.type !== 'label' && (
                         <Label className={`${styles.label} block text-${field.align || 'left'}`}>
                             {field.label}

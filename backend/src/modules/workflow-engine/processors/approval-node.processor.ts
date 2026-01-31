@@ -44,15 +44,24 @@ export class ApprovalNodeProcessor implements INodeProcessor {
       resolvedAssignee || '',
     );
 
+    // Calculate display name (same logic as userInput-node.processor)
+    let assignedToDisplay = node.data?.assigneeDisplay || resolvedAssignee;
+    if (assignedToInfo) {
+      const nameParts = [assignedToInfo.lastName, assignedToInfo.firstName].filter(Boolean);
+      if (nameParts.length > 0) {
+        assignedToDisplay = nameParts.join(' ');
+      } else if (assignedToInfo.username) {
+        assignedToDisplay = assignedToInfo.username;
+      }
+    }
+
     await this.helper.enqueueTask(
       applicationId,
       node,
       inputData,
       applicantId,
       resolvedAssignee,
-      assignedToInfo && assignedToInfo.lastName && assignedToInfo.firstName
-        ? `${assignedToInfo.lastName} ${assignedToInfo.firstName}`
-        : node.data?.assigneeDisplay || resolvedAssignee,
+      assignedToDisplay,
       assignedToInfo,
       tx,
     );

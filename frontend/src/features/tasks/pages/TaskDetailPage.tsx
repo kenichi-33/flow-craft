@@ -54,6 +54,13 @@ interface TaskDetail {
         applicantInfo?: any;
         currentNodeId?: string;
         completedStepIds?: string[];
+        workflowTasks?: {
+            id: string;
+            stepId: string;
+            status: string;
+            assignedTo?: string;
+            assignedToDisplay?: string;
+        }[];
         // Direct relations from backend
         formDefinition?: {
             id: string;
@@ -355,7 +362,30 @@ export default function TaskDetailPage() {
                     </CardHeader>
                     <CardContent>
                         <FlowVisualization
-                            nodes={application.flowDefinition.nodes || []}
+                            nodes={(() => {
+                                const flowNodes = application.flowDefinition.nodes || [];
+                                // Create a map of stepId -> latest task for merging assignee info
+                                const latestTaskByStepId = new Map<string, any>();
+                                application.workflowTasks?.forEach((t: any) => {
+                                    if (!latestTaskByStepId.has(t.stepId)) {
+                                        latestTaskByStepId.set(t.stepId, t);
+                                    }
+                                });
+                                // Merge task assignee info into flow nodes
+                                return flowNodes.map((node: any) => {
+                                    const taskForNode = latestTaskByStepId.get(node.id);
+                                    if (taskForNode && taskForNode.assignedToDisplay) {
+                                        return {
+                                            ...node,
+                                            data: {
+                                                ...node.data,
+                                                assigneeDisplay: taskForNode.assignedToDisplay,
+                                            }
+                                        };
+                                    }
+                                    return node;
+                                });
+                            })()}
                             edges={application.flowDefinition.edges || []}
                             currentNodeId={task.status === 'PENDING' ? task.stepId : application.currentNodeId}
                             completedStepIds={application.history?.filter((h: any) => h.action !== 'REMAND').map((h: any) => h.stepId) || []}
