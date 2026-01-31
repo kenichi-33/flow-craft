@@ -31,6 +31,9 @@ export default function DesignerNewAppPage() {
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
+        // Prevent duplicate submissions
+        if (createMutation.isPending) return;
+        
         setError(null);
         if (!name.trim()) {
             setError('アプリ名は必須です');

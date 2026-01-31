@@ -27,37 +27,6 @@ export class ApplicationDefinitionsService {
   ) {}
 
   async create(createDto: CreateApplicationDefinitionDto, user: AuthUser) {
-    const result = await this.prisma.applicationDefinition.create({
-      data: {
-        ...createDto,
-        version: 1,
-        status: AppDefStatus.DRAFT,
-        createdBy: user.username,
-        updatedBy: user.username,
-        webhookToken: createDto.webhookToken || uuidv4(),
-        adminIds: [user.username], // Auto-assign creator as admin (using username)
-      },
-      include: {
-        formDefinition: true,
-        flowDefinition: true,
-      },
-    });
-
-    // Extract scheduleCron from flowDefinition if present (Start Node config)
-    const scheduleCron = createDto.scheduleCron;
-    if (!scheduleCron && createDto.flowDefinitionId) {
-      // New definition creation might pass flowDefinitionId of a template?
-      // Or usually we create definition first then update flow?
-      // If createDto has flowDefinition directly (DTO might differ), check it.
-      // But CreateDto only has IDs? Let's check DTO.
-      // Actually, usually we create with valid DTO.
-      // If createDto extends Prisma.ApplicationDefinitionCreateInput, it might have flowDefinition?
-      // Checked DTO file? No. Assuming we fix UPDATE mostly, but CREATE should also handle it if possible.
-      // However, typical flow is: Create AppDef -> Create/Update FlowDef -> Update AppDef.
-      // So logic in UPDATE is more critical.
-      // But let's keep existing explicit scheduleCron if passed.
-    }
-
     const appDef = await this.prisma.applicationDefinition.create({
       data: {
         ...createDto,
