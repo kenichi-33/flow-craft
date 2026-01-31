@@ -6,11 +6,12 @@ import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Textarea } from '@/components/ui/textarea';
+
 import { Label } from '@/components/ui/label';
-import { ArrowLeft, Loader2, Clock, User, CheckCircle, XCircle, GitFork, CornerDownLeft } from 'lucide-react';
+import { ArrowLeft, Loader2, Clock, User, XCircle, GitFork, CornerDownLeft } from 'lucide-react';
 import DynamicFormRenderer from '@/components/model/form/renderer/DynamicFormRenderer';
 import ApprovalHistory from '@/components/model/application/ApprovalHistory';
+import ApprovalAction from '@/components/model/application/ApprovalAction';
 import FlowVisualization from '@/components/designer/flow/FlowVisualization';
 import { UserDisplay } from '@/components/common/UserDisplay';
 import {
@@ -100,7 +101,6 @@ export default function TaskDetailPage() {
     const { id } = useParams();
     const navigate = useNavigate();
     const queryClient = useQueryClient();
-    const [comment, setComment] = useState('');
     const [actionInProgress, setActionInProgress] = useState<string | null>(null);
     const [errorDialogOpen, setErrorDialogOpen] = useState(false);
     const [errorMessage, setErrorMessage] = useState('');
@@ -151,8 +151,9 @@ export default function TaskDetailPage() {
         },
     });
 
-    const handleAction = async (action: string) => {
-        if (action === 'REJECT' && !comment.trim()) {
+    const handleAction = async (action: string, actionComment?: string) => {
+        const commentToUse = actionComment ?? '';
+        if (action === 'REJECT' && !commentToUse.trim()) {
             setErrorMessage('入力エラー');
             setErrorDetail('却下の場合はコメントを入力してください');
             setErrorDialogOpen(true);
@@ -195,7 +196,7 @@ export default function TaskDetailPage() {
         }
 
         setActionInProgress(action);
-        actionMutation.mutate({ action, comment: comment.trim() || undefined, inputData });
+        actionMutation.mutate({ action, comment: commentToUse.trim() || undefined, inputData });
     };
     // Handle remand with selected step
     const handleRemandWithStep = () => {
@@ -210,7 +211,7 @@ export default function TaskDetailPage() {
         
         actionMutation.mutate({ 
             action: 'REMAND', 
-            comment: comment.trim() || undefined, 
+            comment: undefined, 
             remandTargetStepId: targetStepId || undefined 
         });
     };
@@ -234,7 +235,7 @@ export default function TaskDetailPage() {
             setActionInProgress('REMAND');
             actionMutation.mutate({ 
                 action: 'REMAND', 
-                comment: comment.trim() || undefined 
+                comment: undefined 
             });
         } else if (remandDestination === 'previous') {
             // Direct remand to previous step
@@ -242,7 +243,7 @@ export default function TaskDetailPage() {
             setActionInProgress('REMAND');
             actionMutation.mutate({ 
                 action: 'REMAND', 
-                comment: comment.trim() || undefined,
+                comment: undefined,
                 remandTargetStepId: previousStepId 
             });
         } else {
@@ -396,7 +397,7 @@ export default function TaskDetailPage() {
                                     setActionInProgress(pendingAction.action);
                                     actionMutation.mutate({ 
                                         action: pendingAction.action, 
-                                        comment: comment.trim() || undefined, 
+                                        comment: undefined, 
                                         inputData 
                                     });
                                     setPendingAction(null);
@@ -422,68 +423,13 @@ export default function TaskDetailPage() {
 
             {/* Action Area */}
             {isPending && (
-                <Card className="border-0 shadow-md bg-muted/30">
-                    <CardHeader>
-                        <CardTitle className="text-lg">アクション</CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                        <div>
-                            <Label htmlFor="comment">コメント</Label>
-                            <Textarea
-                                id="comment"
-                                placeholder={['input', 'userInput'].includes(task.type) ? "コメントを入力（任意）" : "コメントを入力（却下の場合は必須）"}
-                                value={comment}
-                                onChange={(e) => setComment(e.target.value)}
-                                className="mt-2"
-                                rows={3}
-                            />
-                        </div>
-                        <div className="flex gap-3 justify-center pt-4">
-                            {!['input', 'userInput'].includes(task.type) && (
-                                <>
-                                    <Button
-                                        variant="destructive"
-                                        onClick={() => handleAction('REJECT')}
-                                        disabled={!!actionInProgress}
-                                    >
-                                        {actionInProgress === 'REJECT' ? (
-                                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                                        ) : (
-                                            <XCircle className="h-4 w-4 mr-2" />
-                                        )}
-                                        却下
-                                    </Button>
-                                    {(task as any).config?.allowRemand === true && (
-                                        <Button
-                                            variant="outline"
-                                            onClick={openRemandDialog}
-                                            disabled={!!actionInProgress}
-                                        >
-                                            {actionInProgress === 'REMAND' ? (
-                                                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                                            ) : (
-                                                <CornerDownLeft className="h-4 w-4 mr-2" />
-                                            )}
-                                            差し戻し
-                                        </Button>
-                                    )}
-                                </>
-                            )}
-                            <Button
-                                onClick={() => handleAction(['input', 'userInput'].includes(task.type) ? 'SUBMIT' : 'APPROVE')}
-                                disabled={!!actionInProgress}
-                                className={['input', 'userInput'].includes(task.type) ? "bg-blue-600 hover:bg-blue-700" : "bg-emerald-600 hover:bg-emerald-700"}
-                            >
-                                {actionInProgress === 'APPROVE' || actionInProgress === 'SUBMIT' ? (
-                                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                                ) : (
-                                    <CheckCircle className="h-4 w-4 mr-2" />
-                                )}
-                                {['input', 'userInput'].includes(task.type) ? '完了' : '承認'}
-                            </Button>
-                        </div>
-                    </CardContent>
-                </Card>
+                <ApprovalAction
+                    taskType={task.type}
+                    allowRemand={(task as any).config?.allowRemand === true}
+                    actionInProgress={actionInProgress}
+                    onAction={handleAction}
+                    onRemand={openRemandDialog}
+                />
             )}
 
             {/* Remand Step Selection Dialog */}

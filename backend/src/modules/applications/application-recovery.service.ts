@@ -150,16 +150,20 @@ export class ApplicationRecoveryService {
 
     for (const app of stuckApplications) {
       // Check if there is a FAILED task for the current node
-      // If so, we only skip if it has exceeded max retries.
-      // Since we upgraded `enqueueTask` to reuse FAILED tasks and increment retries,
-      // we can trust that the retry count will eventually hit the limit and stop the loop.
-      const failedTask = (app as any).workflowTasks?.find(
+      // If so, we only skip if ANY of them has exceeded max retries.
+      // Use filter() instead of find() to handle multiple failed tasks for the same step
+      const failedTasks = ((app as any).workflowTasks || []).filter(
         (t: any) => t.stepId === app.currentNodeId && t.status === 'FAILED',
       );
 
-      if (failedTask && failedTask.retries >= this.MAX_RECOVERY_RETRIES) {
+      // Get the maximum retry count across all failed tasks for this step
+      const maxRetries = failedTasks.length > 0 
+        ? Math.max(...failedTasks.map((t: any) => t.retries || 0)) 
+        : 0;
+
+      if (maxRetries >= this.MAX_RECOVERY_RETRIES) {
         this.logger.warn(
-          `Skipping recovery for application ${app.id}: Task ${failedTask.id} exceeded max retries (${this.MAX_RECOVERY_RETRIES}).`,
+          `Skipping recovery for application ${app.id}: Task(s) for step ${app.currentNodeId} exceeded max retries (${maxRetries}/${this.MAX_RECOVERY_RETRIES}).`,
         );
         continue;
       }
