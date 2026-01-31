@@ -154,6 +154,7 @@ export default function FormDesigner({ appId }: { appId: string }) {
                 rows: config.rows,
                 connectorId: config.connectorId,
                 binding: config.binding,
+                conditionalOptions: config.conditionalOptions,
                 columns: config.items ? Object.entries(config.items.properties || {}).map(([key, prop]: [string, any]) => ({
                     id: key, 
                     key: key,
@@ -425,6 +426,8 @@ export default function FormDesigner({ appId }: { appId: string }) {
                     // Master Lookup
                     connectorId: field.connectorId,
                     binding: field.binding,
+                    // Dynamic Options
+                    conditionalOptions: field.conditionalOptions,
                 };
                 
                 if (field.required) required.push(field.id);

@@ -52,4 +52,14 @@ export interface FormField {
     // Master Lookup
     connectorId?: string;
     binding?: Record<string, string>; // { [metadataKey]: fieldId }
+    // Dynamic Options (Cascading)
+    conditionalOptions?: ConditionalOptionConfig;
+}
+
+export interface ConditionalOptionConfig {
+    triggerFieldId: string;
+    // Map trigger value -> List of options to show
+    mapping: Record<string, Option[]>; 
+    // Options to show when trigger is empty or no mapping found
+    defaultOptions?: Option[];
 }

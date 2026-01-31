@@ -111,6 +111,8 @@ export default function DynamicFormRenderer({
         // Master Lookup
         connectorId: config.connectorId,
         binding: config.binding,
+        // Dynamic Options
+        conditionalOptions: config.conditionalOptions,
     }));
 
     // 2. Compute default values
@@ -434,6 +436,54 @@ export default function DynamicFormRenderer({
                 );
             }
 
+            // Determine effective options based on trigger
+            const getEffectiveOptions = () => {
+                if (!field.conditionalOptions) return field.options;
+                
+                const triggerValue = allValues[field.conditionalOptions.triggerFieldId];
+                const defaultOptions = field.conditionalOptions.defaultOptions || field.options; // Use configured defaults or all options
+
+                if (triggerValue === undefined || triggerValue === null || triggerValue === '') {
+                     return defaultOptions;
+                }
+                
+                // Try to find mapping for current trigger value
+                const mapping = field.conditionalOptions.mapping;
+                // Note: triggerValue might be non-string, so convert to string for lookup if needed
+                if (mapping && mapping[String(triggerValue)]) {
+                    return mapping[String(triggerValue)];
+                }
+                
+                return defaultOptions; // Fallback to default options if mapping not found
+            };
+
+            const effectiveOptions = getEffectiveOptions();
+
+            // Effect to clear value if it becomes invalid due to option change
+            useEffect(() => {
+                // Skip if no conditional options or no value
+                if (!field.conditionalOptions || !value) return;
+                
+                const currentOptionValues = (effectiveOptions || []).map((o: any) => 
+                    typeof o === 'string' ? o : o.value
+                );
+                
+                // Logic depends on field type
+                if (Array.isArray(value)) {
+                    // For checkbox / multi-select
+                     const validValues = value.filter((v: any) => currentOptionValues.includes(v));
+                     if (validValues.length !== value.length) {
+                         setValue(field.id, validValues);
+                     }
+                } else {
+                    // For single select / radio
+                    if (!currentOptionValues.includes(value)) {
+                        setValue(field.id, undefined); // Clear invalid selection
+                    }
+                }
+
+            }, [effectiveOptions, field.id, setValue, value, field.conditionalOptions]);
+
             const commonRules = { 
                 required: validationState.required,
                 validate: () => validationState.error || true 
@@ -465,14 +515,14 @@ export default function DynamicFormRenderer({
                     ) : field.type === 'select' ? (
                         isFieldReadOnly ? (
                             <div className="p-3 rounded-lg bg-muted text-sm">
-                                {field.options.find((o: any) => (typeof o === 'string' ? o : o.value) === value)?.label || value || '-'}
+                                {effectiveOptions.find((o: any) => (typeof o === 'string' ? o : o.value) === value)?.label || value || '-'}
                             </div>
                         ) : (
                             <Controller name={field.id} control={control} rules={commonRules} render={({ field: f }) => (
                                 <Select value={f.value || ''} onValueChange={f.onChange}>
                                     <SelectTrigger className={styles.input}><SelectValue placeholder="選択してください" /></SelectTrigger>
                                     <SelectContent>
-                                        {field.options.map((opt: any) => {
+                                        {effectiveOptions.map((opt: any) => {
                                             const val = typeof opt === 'string' ? opt : opt.value;
                                             const label = typeof opt === 'string' ? opt : opt.label;
                                             return <SelectItem key={val} value={val}>{label}</SelectItem>;
@@ -483,7 +533,7 @@ export default function DynamicFormRenderer({
                         )
                     ) : field.type === 'checkbox' ? (
                         <div className={`space-y-2 ${theme !== 'elegant' ? 'p-3 bg-muted/30 rounded-lg border' : 'p-0'}`}>
-                            {field.options.map((opt: any, i: number) => {
+                            {effectiveOptions.map((opt: any, i: number) => {
                                 const val = typeof opt === 'string' ? opt : opt.value;
                                 const label = typeof opt === 'string' ? opt : opt.label;
                                 const checked = Array.isArray(value) ? value.includes(val) : false;
@@ -511,7 +561,7 @@ export default function DynamicFormRenderer({
                         <div className={`space-y-2 ${theme !== 'elegant' ? 'p-3 bg-muted/30 rounded-lg border' : 'p-0'}`}>
                              {isFieldReadOnly ? (
                                 (() => {
-                                    const selectedOption = field.options.find((opt: any) => (typeof opt === 'string' ? opt : opt.value) === value);
+                                    const selectedOption = effectiveOptions.find((opt: any) => (typeof opt === 'string' ? opt : opt.value) === value);
                                     return selectedOption ? (
                                         <Badge variant="outline" className="text-sm font-normal">
                                             {typeof selectedOption === 'string' ? selectedOption : selectedOption.label}
@@ -525,7 +575,7 @@ export default function DynamicFormRenderer({
                                     rules={commonRules}
                                     render={({ field: f }) => (
                                         <RadioGroup onValueChange={f.onChange} defaultValue={f.value} className="flex flex-col space-y-2">
-                                            {field.options.map((opt: any, i: number) => {
+                                            {effectiveOptions.map((opt: any, i: number) => {
                                                 const val = typeof opt === 'string' ? opt : opt.value;
                                                 const label = typeof opt === 'string' ? opt : opt.label;
                                                 return (
