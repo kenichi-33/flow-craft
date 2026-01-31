@@ -36,6 +36,8 @@ const AdminUsersPage = Loadable(lazy(() => import("@/features/admin/AdminUsersPa
 const AdminTeamsPage = Loadable(lazy(() => import("@/features/admin/AdminTeamsPage")));
 const AdminStatsListPage = Loadable(lazy(() => import("@/features/admin/stats/AdminStatsListPage")));
 const AdminStatsDetailPage = Loadable(lazy(() => import("@/features/admin/stats/AdminStatsDetailPage")));
+const MasterConnectorsListPage = Loadable(lazy(() => import("@/features/admin/connectors/MasterConnectorsListPage")));
+const MasterConnectorEditorPage = Loadable(lazy(() => import("@/features/admin/connectors/MasterConnectorEditorPage")));
 
 export const router = createBrowserRouter([
     {
@@ -66,6 +68,9 @@ export const router = createBrowserRouter([
             { path: "/admin/teams", element: <AdminTeamsPage /> },
             { path: "/admin/stats", element: <AdminStatsListPage /> },
             { path: "/admin/stats/:id", element: <AdminStatsDetailPage /> },
+            { path: "/admin/connectors", element: <MasterConnectorsListPage /> },
+            { path: "/admin/connectors/new", element: <MasterConnectorEditorPage /> },
+            { path: "/admin/connectors/:id", element: <MasterConnectorEditorPage /> },
         ]
     },
     // App Studio (Separate Layout)

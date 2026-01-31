@@ -13,7 +13,8 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Badge } from '@/components/ui/badge';
-import { Menu, Home, FileText, ClipboardList, LayoutDashboard, Database, Settings, Users, FolderOpen, LogOut, ChevronRight, PieChart, RefreshCw } from 'lucide-react';
+import { Menu, Home, FileText, ClipboardList, LayoutDashboard, Database, Settings, Users, FolderOpen, LogOut, ChevronRight, PieChart, RefreshCw, Link as LinkIcon } from 'lucide-react';
+
 import { cn } from '@/lib/utils';
 
 export default function AppLayout() {
@@ -52,6 +53,7 @@ export default function AppLayout() {
                 { title: '進捗一覧', href: '/admin/workflows', icon: FolderOpen },
                 { title: 'タスク管理', href: '/admin/tasks', icon: Settings },
                 { title: 'サービスタスク回復', href: '/admin/tasks/recovery', icon: RefreshCw },
+                { title: 'マスター連携設定', href: '/admin/connectors', icon: LinkIcon },
                 hasRole('wf_admin') && { title: 'チーム管理', href: '/admin/teams', icon: Users },
                 hasRole('wf_admin') && { title: 'ユーザー管理', href: '/admin/users', icon: Users },
             ].filter(Boolean) as any[]

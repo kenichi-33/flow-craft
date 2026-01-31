@@ -49,4 +49,7 @@ export interface FormField {
     height?: number;
     rows?: number;
     autoResize?: boolean;
+    // Master Lookup
+    connectorId?: string;
+    binding?: Record<string, string>; // { [metadataKey]: fieldId }
 }

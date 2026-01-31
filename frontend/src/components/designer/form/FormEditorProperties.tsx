@@ -16,7 +16,16 @@ import {
     DialogTitle,
     DialogTrigger,
 } from "@/components/ui/dialog"
-import { Maximize2 } from 'lucide-react';
+import { Maximize2, Database, ArrowRight } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
+import { api } from '@/lib/api';
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select";
 import type { FormField } from './types';
 
 
@@ -554,7 +563,116 @@ export default function FormEditorProperties({
                     </div>
                 </div>
             )}
+            {/* Master Lookup specific properties */}
+            {field.type === 'master-lookup' && (
+                <div className="space-y-3 pt-2 border-t">
+                    <Label className="text-xs font-semibold">マスター連携設定</Label>
+                    <MasterConnectorSettings 
+                        field={field} 
+                        fields={fields} 
+                        onUpdate={onUpdate} 
+                        readOnly={readOnly} 
+                    />
+                </div>
+            )}
+
             {/* Advanced Validation Rules - Moved to Global Dialog */}
+        </div>
+    );
+}
+
+function MasterConnectorSettings({ 
+    field, 
+    fields, 
+    onUpdate, 
+    readOnly 
+}: { 
+    field: FormField; 
+    fields: FormField[]; 
+    onUpdate: (id: string, updates: Partial<FormField>) => void; 
+    readOnly?: boolean;
+}) {
+    const { data: connectors } = useQuery({
+        queryKey: ['master-connectors-list'],
+        queryFn: async () => {
+            return api.get<any[]>('/master-connectors');
+        },
+        staleTime: 5 * 60 * 1000, // cache for 5 min
+    });
+
+    const selectedConnector = connectors?.find(c => c.id === field.connectorId);
+    // Extract metadata keys from mapping
+    const metadataKeys = selectedConnector?.mapping?.metadata 
+        ? Object.keys(selectedConnector.mapping.metadata) 
+        : [];
+
+    // Filter fields that can be target for binding (exclude self and strict layout items)
+    const targetFields = fields.filter(f => 
+        f.id !== field.id && 
+        !['group', 'divider', 'label', 'section', 'spacer', 'richText', 'array', 'calculation'].includes(f.type)
+    );
+
+    return (
+        <div className="space-y-4">
+            <div className="space-y-1.5">
+                <Label className="text-xs">参照先マスター</Label>
+                <ConnectorSelectionDialog 
+                    selectedId={field.connectorId} 
+                    connectors={connectors || []} 
+                    onSelect={(id) => onUpdate(field.id, { connectorId: id })} 
+                    disabled={readOnly}
+                />
+            </div>
+
+            {selectedConnector && metadataKeys.length > 0 && (
+                <div className="space-y-2">
+                     <Label className="text-xs">データバインディング (自動転記)</Label>
+                     <p className="text-[10px] text-muted-foreground">
+                         選択時にマスターのデータを他のフィールドに自動入力します。
+                     </p>
+                     
+                     <div className="border rounded bg-muted/10 p-2 space-y-2">
+                        {metadataKeys.map((metaKey) => {
+                            const currentTarget = field.binding?.[metaKey];
+                            return (
+                                <div key={metaKey} className="flex items-center gap-2">
+                                     <div className="flex-1 text-[10px] font-mono text-muted-foreground truncate" title={metaKey}>
+                                         {metaKey}
+                                     </div>
+                                     <ArrowRight className="h-3 w-3 text-muted-foreground" />
+                                     <div className="w-32">
+                                         <Select 
+                                            value={currentTarget || 'none'} 
+                                            onValueChange={(val) => {
+                                                const newBinding = { ...(field.binding || {}) };
+                                                if (val === 'none') {
+                                                    delete newBinding[metaKey];
+                                                } else {
+                                                    newBinding[metaKey] = val;
+                                                }
+                                                onUpdate(field.id, { binding: newBinding });
+                                            }}
+                                            disabled={readOnly}
+                                        >
+                                            <SelectTrigger className="h-6 text-[10px] px-2">
+                                                <SelectValue placeholder="転記先なし" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="none" className="text-[10px] text-muted-foreground">(転記しない)</SelectItem>
+                                                {targetFields.map((f) => (
+                                                    <SelectItem key={f.id} value={f.id} className="text-[10px]">
+                                                        {f.label} ({f.id})
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                     </div>
+                                </div>
+                            );
+                        })}
+                     </div>
+                </div>
+            )}
         </div>
     );
 }
@@ -607,6 +725,118 @@ function RichTextDialog({ readOnly, value, onSave }: { readOnly?: boolean, value
                     <Button type="button" onClick={handleSave}>
                         保存
                     </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    );
+}
+
+function ConnectorSelectionDialog({ 
+    selectedId, 
+    connectors, 
+    onSelect, 
+    disabled 
+}: { 
+    selectedId?: string; 
+    connectors: any[]; 
+    onSelect: (id: string) => void; 
+    disabled?: boolean;
+}) {
+    const [open, setOpen] = useState(false);
+    const [search, setSearch] = useState('');
+
+    const selectedConnector = connectors.find(c => c.id === selectedId);
+    
+    // Filter connectors
+    const filtered = connectors.filter(c => 
+        c.name.toLowerCase().includes(search.toLowerCase()) || 
+        (c.description && c.description.toLowerCase().includes(search.toLowerCase()))
+    );
+
+    const handleSelect = (id: string) => {
+        onSelect(id);
+        setOpen(false);
+    };
+
+    return (
+        <Dialog open={open} onOpenChange={setOpen}>
+            <DialogTrigger asChild>
+                <Button 
+                    variant="outline" 
+                    role="combobox" 
+                    className="w-full justify-between h-auto min-h-[2rem] py-2 px-3 text-left font-normal"
+                    disabled={disabled}
+                >
+                    <div className="flex flex-col gap-0.5 overflow-hidden">
+                        <span className={selectedConnector ? "text-foreground" : "text-muted-foreground"}>
+                            {selectedConnector ? selectedConnector.name : "コネクタを選択してください"}
+                        </span>
+                        {selectedConnector && (
+                            <span className="text-[10px] text-muted-foreground truncate">
+                                {selectedConnector.description || '説明なし'}
+                            </span>
+                        )}
+                    </div>
+                    <Database className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-2xl max-h-[80vh] flex flex-col p-6">
+                <DialogHeader>
+                    <DialogTitle>マスターコネクタの選択</DialogTitle>
+                    <DialogDescription>
+                        フォームで使用する外部データソースを選択してください。
+                    </DialogDescription>
+                </DialogHeader>
+                
+                <div className="relative mb-2">
+                    <Database className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                    <Input 
+                        placeholder="コネクタを検索..." 
+                        className="pl-9" 
+                        value={search}
+                        onChange={(e) => setSearch(e.target.value)}
+                    />
+                </div>
+
+                <div className="flex-1 overflow-y-auto border rounded-md divide-y">
+                    {filtered.length === 0 ? (
+                        <div className="p-8 text-center text-muted-foreground text-sm">
+                            見つかりませんでした
+                        </div>
+                    ) : (
+                        filtered.map((connector) => (
+                            <div 
+                                key={connector.id} 
+                                className={`
+                                    p-4 cursor-pointer hover:bg-muted/50 transition-colors flex items-start gap-4
+                                    ${selectedId === connector.id ? 'bg-primary/5 border-l-4 border-l-primary' : ''}
+                                `}
+                                onClick={() => handleSelect(connector.id)}
+                            >
+                                <div className={`mt-1 h-8 w-8 rounded-full flex items-center justify-center shrink-0 ${selectedId === connector.id ? 'bg-primary text-primary-foreground' : 'bg-muted'}`}>
+                                    <Database className="h-4 w-4" />
+                                </div>
+                                <div className="space-y-1 overflow-hidden">
+                                    <h4 className="font-semibold text-sm flex items-center gap-2">
+                                        {connector.name}
+                                        <span className="text-[10px] font-normal px-2 py-0.5 rounded-full bg-muted text-muted-foreground">
+                                            {connector.type === 'rest' ? 'REST API' : connector.type}
+                                        </span>
+                                    </h4>
+                                    <p className="text-sm text-muted-foreground line-clamp-2">
+                                        {connector.description || '説明がありません'}
+                                    </p>
+                                    <div className="text-[10px] text-muted-foreground/70 font-mono truncate">
+                                        {connector.config?.url}
+                                    </div>
+                                </div>
+                            </div>
+                        ))
+                    )}
+                </div>
+                
+                <DialogFooter>
+                    <Button variant="ghost" onClick={() => setOpen(false)}>キャンセル</Button>
                 </DialogFooter>
             </DialogContent>
         </Dialog>

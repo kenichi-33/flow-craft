@@ -18,6 +18,7 @@ import DepartmentSelector from '../fields/DepartmentSelector';
 import DataGridField, { type GridColumn } from '../fields/DataGridField';
 import CurrencyInputField from '../fields/CurrencyInputField';
 import CalculationField from '../fields/CalculationField';
+import MasterLookupField from '../fields/MasterLookupField';
 import {
     AlertDialog,
     AlertDialogAction,
@@ -107,6 +108,9 @@ export default function DynamicFormRenderer({
         autoResize: config.autoResize,
         rows: config.rows,
         height: config.height,
+        // Master Lookup
+        connectorId: config.connectorId,
+        binding: config.binding,
     }));
 
     // 2. Compute default values
@@ -683,6 +687,22 @@ export default function DynamicFormRenderer({
                                     readOnly={isFieldReadOnly}
                                     multiple={field.multiple}
                                     placeholder={`${field.label}を選択...`}
+                                />
+                            )}
+                        />
+                    ) : field.type === 'master-lookup' ? ( // Master Lookup Field
+                        <Controller
+                            name={field.id}
+                            control={control}
+                            rules={commonRules}
+                            render={({ field: f }) => (
+                                <MasterLookupField
+                                    field={field}
+                                    value={f.value}
+                                    onChange={f.onChange}
+                                    setValue={setValue}
+                                    readOnly={isFieldReadOnly}
+                                    className={styles.input}
                                 />
                             )}
                         />

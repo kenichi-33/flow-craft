@@ -152,6 +152,8 @@ export default function FormDesigner({ appId }: { appId: string }) {
                 height: config.height,
                 autoResize: config.autoResize,
                 rows: config.rows,
+                connectorId: config.connectorId,
+                binding: config.binding,
                 columns: config.items ? Object.entries(config.items.properties || {}).map(([key, prop]: [string, any]) => ({
                     id: key, 
                     key: key,
@@ -420,6 +422,9 @@ export default function FormDesigner({ appId }: { appId: string }) {
                     height: field.height,
                     autoResize: field.autoResize,
                     rows: field.rows,
+                    // Master Lookup
+                    connectorId: field.connectorId,
+                    binding: field.binding,
                 };
                 
                 if (field.required) required.push(field.id);

@@ -22,6 +22,7 @@ import { RolesGuard } from './auth/guards/roles.guard';
 import { QueueModule } from './modules/queue/queue.module';
 import { SchedulerModule } from './modules/scheduler/scheduler.module';
 import { StatisticsModule } from './modules/statistics/statistics.module';
+import { MasterConnectorsModule } from './modules/master-connectors/master-connectors.module';
 
 @Module({
   imports: [
@@ -42,6 +43,7 @@ import { StatisticsModule } from './modules/statistics/statistics.module';
     SchedulerModule,
     SearchModule,
     StatisticsModule,
+    MasterConnectorsModule,
   ],
   controllers: [AppController],
   providers: [

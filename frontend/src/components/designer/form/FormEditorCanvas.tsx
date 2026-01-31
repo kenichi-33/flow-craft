@@ -3,7 +3,7 @@ import { SortableContext, useSortable, rectSortingStrategy } from '@dnd-kit/sort
 import { CSS } from '@dnd-kit/utilities';
 import { 
     GripVertical, Trash2, Calendar, FolderTree, Upload, User,
-    Building2, ToggleLeft, Mail, Phone, Link
+    Building2, ToggleLeft, Mail, Phone, Link, Database
 } from 'lucide-react';
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
@@ -275,6 +275,17 @@ export function FieldPreview({ field, isSelected, onDelete, dragHandleProps, chi
                                 <span>部署を選択...</span>
                             </span>
                             <div className="h-4 w-4 opacity-50 text-xs">▼</div>
+                        </div>
+                    )}
+                    {field.type === 'master-lookup' && (
+                        <div className="h-9 bg-background border rounded px-3 flex items-center justify-between shadow-sm w-full">
+                            <span className="flex items-center gap-2 text-muted-foreground">
+                                <div className="h-5 w-5 bg-muted rounded-full flex items-center justify-center">
+                                    <Database className="h-3 w-3" />
+                                </div>
+                                <span>{field.label} (検索)...</span>
+                            </span>
+                             <div className="h-4 w-4 opacity-50 text-xs">🔍</div>
                         </div>
                     )}
                     {['email', 'tel', 'url'].includes(field.type) && (

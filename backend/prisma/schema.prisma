@@ -283,3 +283,21 @@ model File {
 
   @@map("files")
 }
+
+// 外部マスター連携コネクタ
+model MasterConnector {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  type        String   // 'rest', 'sql', 'csv'
+  config      Json     // URL, Method, Auth, Headers
+  mapping     Json     // Response mapping
+  
+  isShared    Boolean  @default(true) // 全アプリ作成者に公開するか
+  ownerId     String?  // 非公開の場合の所有者
+
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("master_connectors")
+}

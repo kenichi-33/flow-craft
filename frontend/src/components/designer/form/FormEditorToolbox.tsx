@@ -3,7 +3,7 @@ import { useDraggable } from '@dnd-kit/core';
 import { 
     Type, AlignLeft, Hash, Calendar, List, CheckSquare, 
     FolderTree, Minus, Heading, GripVertical, Clock, Upload, User, Table, JapaneseYen, Calculator,
-    Building2, ToggleLeft, Mail, Phone, Link, Pencil, ArrowUpDown
+    Building2, ToggleLeft, Mail, Phone, Link, Pencil, ArrowUpDown, Database
 } from 'lucide-react';
 
 export const TOOLBOX_GROUPS = [
@@ -37,8 +37,9 @@ export const TOOLBOX_GROUPS = [
             { type: 'radio', label: 'ラジオ', Icon: CheckSquare },
             { type: 'checkbox', label: 'チェックボックス', Icon: CheckSquare },
 			{ type: 'switch', label: 'スイッチ', Icon: ToggleLeft },
-            { type: 'user-select', label: 'ユーザー選択', Icon: User },
+			{ type: 'user-select', label: 'ユーザー選択', Icon: User },
 			{ type: 'department', label: '部署選択', Icon: Building2 },
+            { type: 'master-lookup', label: 'マスター参照', Icon: Database },
         ]
     },
     {
