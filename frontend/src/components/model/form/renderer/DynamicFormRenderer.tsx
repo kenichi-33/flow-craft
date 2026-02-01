@@ -60,6 +60,25 @@ const useWidth = () => {
     return { ref, width };
 };
 
+// Helper to determine effective options based on trigger
+const getEffectiveOptions = (field: any, allValues: any) => {
+    if (!field.conditionalOptions) return field.options;
+    
+    const triggerValue = allValues[field.conditionalOptions.triggerFieldId];
+    const defaultOptions = field.conditionalOptions.defaultOptions || field.options;
+
+    if (triggerValue === undefined || triggerValue === null || triggerValue === '') {
+            return defaultOptions;
+    }
+    
+    const mapping = field.conditionalOptions.mapping;
+    if (mapping && mapping[String(triggerValue)]) {
+        return mapping[String(triggerValue)];
+    }
+    
+    return defaultOptions;
+};
+
 export default function DynamicFormRenderer({ 
     schema, 
     layouts, 
@@ -134,6 +153,36 @@ export default function DynamicFormRenderer({
     
     // Watch all values for cross-field validation
     const allValues = watch();
+
+    // Top-level effect for conditional field values validation/clearing
+    useEffect(() => {
+        fields.forEach(field => {
+             if (!field.conditionalOptions) return;
+             
+             // Calculate effective options
+             const effectiveOptions = getEffectiveOptions(field, allValues);
+             const currentOptionValues = (effectiveOptions || []).map((o: any) => 
+                 typeof o === 'string' ? o : o.value
+             );
+             
+             const value = allValues[field.id];
+
+             if (Array.isArray(value)) {
+                 // For checkbox / multi-select
+                  const validValues = value.filter((v: any) => currentOptionValues.includes(v));
+                  if (validValues.length !== value.length) {
+                      setValue(field.id, validValues);
+                  }
+             } else {
+                 // For single select / radio
+                 if (value !== undefined && value !== null && value !== '' && !currentOptionValues.includes(value)) {
+                     setValue(field.id, undefined); 
+                 }
+             }
+        });
+    }, [allValues]); // Depends on allValues changing. fields and setValue are stable enough or we ignore them to avoid deep deps? 
+    // setValue is from useForm, stable. fields depends on schema, stable-ish.
+
 
     // Condition Evaluator
     const evaluateCondition = (condition: any, allData: any): boolean => {
@@ -437,52 +486,7 @@ export default function DynamicFormRenderer({
             }
 
             // Determine effective options based on trigger
-            const getEffectiveOptions = () => {
-                if (!field.conditionalOptions) return field.options;
-                
-                const triggerValue = allValues[field.conditionalOptions.triggerFieldId];
-                const defaultOptions = field.conditionalOptions.defaultOptions || field.options; // Use configured defaults or all options
-
-                if (triggerValue === undefined || triggerValue === null || triggerValue === '') {
-                     return defaultOptions;
-                }
-                
-                // Try to find mapping for current trigger value
-                const mapping = field.conditionalOptions.mapping;
-                // Note: triggerValue might be non-string, so convert to string for lookup if needed
-                if (mapping && mapping[String(triggerValue)]) {
-                    return mapping[String(triggerValue)];
-                }
-                
-                return defaultOptions; // Fallback to default options if mapping not found
-            };
-
-            const effectiveOptions = getEffectiveOptions();
-
-            // Effect to clear value if it becomes invalid due to option change
-            useEffect(() => {
-                // Skip if no conditional options or no value
-                if (!field.conditionalOptions || !value) return;
-                
-                const currentOptionValues = (effectiveOptions || []).map((o: any) => 
-                    typeof o === 'string' ? o : o.value
-                );
-                
-                // Logic depends on field type
-                if (Array.isArray(value)) {
-                    // For checkbox / multi-select
-                     const validValues = value.filter((v: any) => currentOptionValues.includes(v));
-                     if (validValues.length !== value.length) {
-                         setValue(field.id, validValues);
-                     }
-                } else {
-                    // For single select / radio
-                    if (!currentOptionValues.includes(value)) {
-                        setValue(field.id, undefined); // Clear invalid selection
-                    }
-                }
-
-            }, [effectiveOptions, field.id, setValue, value, field.conditionalOptions]);
+            const effectiveOptions = getEffectiveOptions(field, allValues);
 
             const commonRules = { 
                 required: validationState.required,
@@ -549,7 +553,11 @@ export default function DynamicFormRenderer({
                                                 <>
                                                     <Checkbox id={`${field.id}-${i}`} checked={Array.isArray(f.value) && f.value.includes(val)} onCheckedChange={(c) => {
                                                         const arr = Array.isArray(f.value) ? [...f.value] : [];
-                                                        c ? arr.push(val) : arr.splice(arr.indexOf(val), 1);
+                                                        if (c) {
+                                                            arr.push(val);
+                                                        } else {
+                                                            arr.splice(arr.indexOf(val), 1);
+                                                        }
                                                         f.onChange(arr);
                                                     }} />
                                                     <Label htmlFor={`${field.id}-${i}`} className="cursor-pointer font-normal">{label}</Label>

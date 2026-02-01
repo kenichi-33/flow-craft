@@ -1,5 +1,5 @@
 import React, { memo } from 'react';
-import { Handle, Position } from '@xyflow/react';
+import { Handle, Position, useReactFlow } from '@xyflow/react';
 import { Variable, Plus, Trash2, Pencil } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -17,7 +17,8 @@ interface VariableItem {
     value: string;
 }
 
-const SetVariableNode = ({ data }: any) => {
+const SetVariableNode = ({ id, data }: any) => {
+    const { updateNodeData } = useReactFlow();
     const [open, setOpen] = React.useState(false);
     const [config, setConfig] = React.useState({
         label: data.label || '',
@@ -25,12 +26,12 @@ const SetVariableNode = ({ data }: any) => {
     const [variables, setVariables] = React.useState<VariableItem[]>(data.variables || []);
 
     const handleSave = () => {
-        data.label = config.label;
-        data.variables = variables;
-        // Map to updates for compatible processor logic if we reuse UpdateRecordProcessor?
-        // Or specific processor.
-        // Let's assume we use a specific processor or mapping.
-        data.updates = variables; // Compatibility hack if using same processor logic structure
+        updateNodeData(id, {
+            ...data,
+            label: config.label,
+            variables: variables,
+            updates: variables
+        });
         setOpen(false);
     };
 

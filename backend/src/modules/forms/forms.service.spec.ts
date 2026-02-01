@@ -4,7 +4,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 
 describe('FormsService', () => {
   let service: FormsService;
-  let prisma: any;
+  // let prisma: any;
 
   const mockPrisma = {
     formDefinition: {
@@ -24,7 +24,7 @@ describe('FormsService', () => {
     }).compile();
 
     service = module.get<FormsService>(FormsService);
-    prisma = module.get<PrismaService>(PrismaService);
+    // prisma = module.get<PrismaService>(PrismaService);
     jest.clearAllMocks();
   });
 

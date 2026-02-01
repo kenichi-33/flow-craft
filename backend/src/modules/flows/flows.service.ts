@@ -73,7 +73,7 @@ export class FlowsService {
 
           // Update Scheduler
           // 1. Always unschedule old
-          await this.scheduler.unscheduleWorkflow(appDef.id);
+          this.scheduler.unscheduleWorkflow(appDef.id);
 
           // 2. Schedule new if active and has cron
           if (newCron && appDef.status === 'ACTIVE') {

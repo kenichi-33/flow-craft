@@ -3,10 +3,7 @@ import { AppModule } from '../app.module';
 import { WorkflowEngineService } from '../modules/workflow-engine/workflow-engine.service';
 import { SearchService } from '../modules/search/search.service';
 import { PrismaService } from '../prisma/prisma.service';
-import {
-  SearchQueryDto,
-  SearchOperator,
-} from '../modules/search/dto/search-application.dto';
+import { SearchOperator } from '../modules/search/dto/search-application.dto';
 
 async function main() {
   const app = await NestFactory.createApplicationContext(AppModule);
@@ -154,4 +151,4 @@ async function main() {
   }
 }
 
-main();
+void main();

@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { QueueService } from '../queue/queue.service';
 import { UsersService } from '../users/users.service';
-import { Prisma, TaskStatus } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 import { TaskExecuteJob } from './workers/task-handler.interface';
 
 @Injectable()
@@ -293,7 +293,8 @@ export class WorkflowHelperService {
   }
 
   // Helper to trigger specific node execution (for Parallel branches)
-  async triggerNodeExecution(applicationId: string, nodeId: string) {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  async triggerNodeExecution(_applicationId: string, _nodeId: string) {
     // Enqueue job with targetNodeId?
     // Current worker logic looks up 'currentNodeId' or 'nextNode'.
     // We probably need to update the worker logic to accept 'targetNodeId' as override?
@@ -313,6 +314,7 @@ export class WorkflowHelperService {
   evaluateCondition(data: any, condition: string): boolean {
     try {
       // Safe evaluation using Function
+      // eslint-disable-next-line @typescript-eslint/no-implied-eval
       const check = new Function('data', `return ${condition}`);
       return check(data);
     } catch (e) {
@@ -436,7 +438,7 @@ export class WorkflowHelperService {
    * 指定されたノードが含まれるスイムレーンを特定する
    * React Flowの座標情報(position)とSwimLaneのサイズ(data.width/height)を使用する
    */
-  findEnclosingSwimLane(targetNode: any, allNodes: any[]): any | null {
+  findEnclosingSwimLane(targetNode: any, allNodes: any[]): any {
     if (!targetNode || !allNodes) return null;
 
     // ParentId based check (Prioritize explicit grouping)

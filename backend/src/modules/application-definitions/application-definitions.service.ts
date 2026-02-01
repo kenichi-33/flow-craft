@@ -360,7 +360,7 @@ export class ApplicationDefinitionsService {
       // We assume it was scheduled if current.scheduleCron AND current.status === ACTIVE
       // But to be safe, just unschedule if old cron existed.
       if (current.scheduleCron) {
-        await this.schedulerService.unscheduleWorkflow(id);
+        this.schedulerService.unscheduleWorkflow(id);
       }
 
       // Schedule new if:
@@ -381,7 +381,7 @@ export class ApplicationDefinitionsService {
     await this.findOne(id); // Check if exists
 
     // Unschedule
-    await this.schedulerService.unscheduleWorkflow(id);
+    this.schedulerService.unscheduleWorkflow(id);
 
     return this.prisma.applicationDefinition.delete({
       where: { id },

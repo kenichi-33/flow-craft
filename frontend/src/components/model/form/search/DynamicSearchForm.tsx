@@ -31,11 +31,12 @@ export function DynamicSearchForm({ schema, onChange, className }: DynamicSearch
     const [activeFilters, setActiveFilters] = useState<string[]>([]);
     const [selectedFieldToAdd, setSelectedFieldToAdd] = useState<string>('');
 
-    if (!schema?.properties) return null;
-
-    const allFields = Object.entries(schema.properties)
-        .map(([id, config]: [string, any]) => ({ id, ...config }))
-        .filter((f) => !NON_INPUT_TYPES.includes(f.type));
+    const formattedSchema = schema || {};
+    const allFields = formattedSchema.properties
+        ? Object.entries(formattedSchema.properties)
+            .map(([id, config]: [string, any]) => ({ id, ...config }))
+            .filter((f) => !NON_INPUT_TYPES.includes(f.type))
+        : [];
     
     // Helper to calculate criteria from values
     const calculateCriteria = (values: any, filters: string[]) => {
@@ -89,6 +90,8 @@ export function DynamicSearchForm({ schema, onChange, className }: DynamicSearch
         setActiveFilters([]);
         reset();
     };
+
+    if (!schema?.properties) return null;
 
     return (
         <div className={className}>

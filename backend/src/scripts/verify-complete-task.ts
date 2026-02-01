@@ -3,7 +3,7 @@ import { AppModule } from '../app.module';
 import { WorkflowEngineService } from '../modules/workflow-engine/workflow-engine.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { Logger } from '@nestjs/common';
-import { TaskStatus } from '@prisma/client';
+// import { TaskStatus } from '@prisma/client';
 
 async function bootstrap() {
   const app = await NestFactory.createApplicationContext(AppModule);
@@ -101,4 +101,4 @@ async function bootstrap() {
   await app.close();
 }
 
-bootstrap();
+void bootstrap();

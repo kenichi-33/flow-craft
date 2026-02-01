@@ -1,5 +1,5 @@
 import React, { memo } from 'react';
-import { Handle, Position } from '@xyflow/react';
+import { Handle, Position, useReactFlow } from '@xyflow/react';
 import { Database, Plus, Trash2, Pencil } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -17,7 +17,8 @@ interface UpdateItem {
     value: string;
 }
 
-const UpdateRecordNode = ({ data }: any) => {
+const UpdateRecordNode = ({ id, data }: any) => {
+    const { updateNodeData } = useReactFlow();
     const [open, setOpen] = React.useState(false);
     const [config, setConfig] = React.useState({
         label: data.label || '',
@@ -27,8 +28,11 @@ const UpdateRecordNode = ({ data }: any) => {
     // Sync label from data if needed, but simple init is usually enough for these nodes unless data changes externally
 
     const handleSave = () => {
-        data.label = config.label;
-        data.updates = updates;
+        updateNodeData(id, {
+            ...data,
+            label: config.label,
+            updates: updates
+        });
         setOpen(false);
     };
 

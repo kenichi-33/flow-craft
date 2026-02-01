@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { Button } from '@/components/ui/button';
@@ -29,29 +29,18 @@ interface AppDefinition {
     adminInfo?: any[];
 }
 
-export default function DesignerOverviewPage() {
-    const { id } = useParams();
-    const queryClient = useQueryClient();
-    const [name, setName] = useState('');
-    const [description, setDescription] = useState('');
-    const [status, setStatus] = useState<'DRAFT' | 'ACTIVE' | 'ARCHIVED'>('DRAFT');
-    const [initialized, setInitialized] = useState(false);
 
-    const { data: app, isLoading, error } = useQuery<AppDefinition>({
-        queryKey: ['application-definition', id],
-        queryFn: () => api.get<AppDefinition>(`/application-definitions/${id}`),
-        enabled: !!id,
-    });
-
-    const [tags, setTags] = useState<string[]>([]);
+const DesignerOverviewForm = ({ app, id, updateMutation }: { app: AppDefinition, id: string, updateMutation: any }) => {
+    const [name, setName] = useState(app.name || app.appName || '');
+    const [description, setDescription] = useState(app.description || '');
+    const [status, setStatus] = useState<'DRAFT' | 'ACTIVE' | 'ARCHIVED'>(app.status);
+    const [tags, setTags] = useState<string[]>(app.tags || []);
     const [newTag, setNewTag] = useState('');
-
-    const [adminIds, setAdminIds] = useState<string[]>([]);
-    const [displayAdmins, setDisplayAdmins] = useState<any[]>([]); // To show names immediately
+    const [adminIds, setAdminIds] = useState<string[]>(app.adminIds || []);
+    const [displayAdmins, setDisplayAdmins] = useState<any[]>(app.adminInfo || []);
     const [adminDialogOpen, setAdminDialogOpen] = useState(false);
     const [adminSearchQuery, setAdminSearchQuery] = useState('');
 
-    // User Search Query
     const { data: userSearchResults } = useQuery<any[]>({ 
         queryKey: ['user-search', adminSearchQuery], 
         queryFn: () => api.get(`/users/search?q=${encodeURIComponent(adminSearchQuery)}&limit=10`).then((r: any) => {
@@ -59,35 +48,6 @@ export default function DesignerOverviewPage() {
             return list.filter((u: any) => u.roles?.includes('wf_app_admin') || u.roles?.includes('wf_admin'));
         }), 
         enabled: adminDialogOpen && adminSearchQuery.length > 0 
-    });
-
-    // Initialize form when data loads
-    useEffect(() => {
-        if (app && !initialized) {
-            setName(app.name || app.appName || '');
-            setDescription(app.description || '');
-            setStatus(app.status);
-            setTags(app.tags || []);
-            setAdminIds(app.adminIds || []);
-            setDisplayAdmins(app.adminInfo || []);
-            setInitialized(true);
-        }
-    }, [app, initialized]);
-
-    const updateMutation = useMutation({
-        mutationFn: (data: { name: string; description?: string; status: string; tags: string[]; adminIds?: string[] }) =>
-            api.put(`/application-definitions/${id}`, data),
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['application-definition', id] });
-            toast.success("保存しました", {
-                description: "設定が正常に更新されました。",
-            });
-        },
-        onError: () => {
-            toast.error("保存失敗", {
-                description: "設定の更新に失敗しました。",
-            });
-        }
     });
 
     const addTag = (e?: React.FormEvent) => {
@@ -104,10 +64,9 @@ export default function DesignerOverviewPage() {
     };
 
     const addAdmin = (user: any) => {
-        // Use username for stability across realm recreations
         if (user.username && !adminIds.includes(user.username)) {
             setAdminIds([...adminIds, user.username]);
-            setDisplayAdmins([...displayAdmins, { ...user, type: 'user' }]); // Add to display list
+            setDisplayAdmins([...displayAdmins, { ...user, type: 'user' }]); 
             setAdminDialogOpen(false);
             setAdminSearchQuery('');
         }
@@ -115,12 +74,8 @@ export default function DesignerOverviewPage() {
 
     const removeAdmin = (adminId: string) => {
         setAdminIds(adminIds.filter(id => id !== adminId));
-        // Filter out from display list. adminId passed here is expected to be the stored ID (username or UUID)
         setDisplayAdmins(displayAdmins.filter(a => (a.username !== adminId && a.id !== adminId)));
     };
-
-    if (isLoading) return <div className="flex items-center justify-center h-64"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
-    if (error || !app) return <div className="flex items-center justify-center h-64"><p className="text-destructive">アプリ情報の取得に失敗しました</p></div>;
 
     const formFieldCount = app.formDefinition?.schema?.properties ? Object.keys(app.formDefinition.schema.properties).length : 0;
     const flowNodeCount = app.flowDefinition?.nodes?.length || 0;
@@ -130,7 +85,6 @@ export default function DesignerOverviewPage() {
             <h2 className="text-2xl font-bold">概観設定 (Overview)</h2>
 
             <div className="grid gap-6 md:grid-cols-3">
-                {/* Basic Info */}
                 <Card className="md:col-span-2 border-0 shadow-sm">
                     <CardHeader><CardTitle>基本情報</CardTitle></CardHeader>
                     <CardContent className="space-y-4">
@@ -175,7 +129,6 @@ export default function DesignerOverviewPage() {
                             </div>
                         </div>
                         
-                        {/* App Admins */}
                         <div className="space-y-2">
                             <div className="flex items-center justify-between">
                                 <Label>アプリ管理者</Label>
@@ -221,7 +174,6 @@ export default function DesignerOverviewPage() {
                     </CardContent>
                 </Card>
 
-                {/* Summary Cards */}
                 <div className="space-y-4">
                     <Card className="border-0 shadow-sm">
                         <CardHeader className="pb-2">
@@ -255,7 +207,6 @@ export default function DesignerOverviewPage() {
                 </div>
             </div>
 
-            {/* Warnings */}
             {(formFieldCount === 0 || flowNodeCount === 0) && (
                 <Alert>
                     <AlertDescription>
@@ -266,7 +217,6 @@ export default function DesignerOverviewPage() {
                 </Alert>
             )}
 
-            {/* Admin Add Dialog */}
             <Dialog open={adminDialogOpen} onOpenChange={setAdminDialogOpen}>
                 <DialogContent>
                     <DialogHeader>
@@ -302,4 +252,36 @@ export default function DesignerOverviewPage() {
             </Dialog>
         </div>
     );
+};
+
+export default function DesignerOverviewPage() {
+    const { id } = useParams();
+    const queryClient = useQueryClient();
+
+    const { data: app, isLoading, error } = useQuery<AppDefinition>({
+        queryKey: ['application-definition', id],
+        queryFn: () => api.get<AppDefinition>(`/application-definitions/${id}`),
+        enabled: !!id,
+    });
+
+    const updateMutation = useMutation({
+        mutationFn: (data: { name: string; description?: string; status: string; tags: string[]; adminIds?: string[] }) =>
+            api.put(`/application-definitions/${id}`, data),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['application-definition', id] });
+            toast.success("保存しました", {
+                description: "設定が正常に更新されました。",
+            });
+        },
+        onError: () => {
+            toast.error("保存失敗", {
+                description: "設定の更新に失敗しました。",
+            });
+        }
+    });
+
+    if (isLoading) return <div className="flex items-center justify-center h-64"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
+    if (error || !app) return <div className="flex items-center justify-center h-64"><p className="text-destructive">アプリ情報の取得に失敗しました</p></div>;
+
+    return <DesignerOverviewForm app={app} id={id!} updateMutation={updateMutation} />;
 }

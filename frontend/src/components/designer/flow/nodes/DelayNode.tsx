@@ -1,5 +1,5 @@
 import React, { memo } from 'react';
-import { Handle, Position } from '@xyflow/react';
+import { Handle, Position, useReactFlow } from '@xyflow/react';
 import { Clock, Pencil, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -14,7 +14,8 @@ import { Input } from '@/components/ui/input';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
-const DelayNode = ({ data }: any) => {
+const DelayNode = ({ id, data }: any) => {
+    const { updateNodeData } = useReactFlow();
     const [open, setOpen] = React.useState(false);
     const [config, setConfig] = React.useState({
         label: data.label || '',
@@ -24,16 +25,18 @@ const DelayNode = ({ data }: any) => {
     });
 
     const handleSave = () => {
-        data.label = config.label;
-        data.delayType = config.delayType;
-        data.unit = config.unit;
-        
         let minutes = parseInt(config.value, 10);
         if (config.unit === 'hours') minutes *= 60;
         if (config.unit === 'days') minutes *= 60 * 24;
         
-        data.displayValue = config.value;
-        data.value = minutes.toString(); 
+        updateNodeData(id, {
+            ...data,
+            label: config.label,
+            delayType: config.delayType,
+            unit: config.unit,
+            displayValue: config.value,
+            value: minutes.toString()
+        });
         
         setOpen(false);
     };

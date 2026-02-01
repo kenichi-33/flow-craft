@@ -1,5 +1,5 @@
 import React, { memo } from 'react';
-import { Handle, Position } from '@xyflow/react';
+import { Handle, Position, useReactFlow } from '@xyflow/react';
 import { MessageSquare, Pencil } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -13,7 +13,8 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 
-const SlackNode = ({ data }: any) => {
+const SlackNode = ({ id, data }: any) => {
+    const { updateNodeData } = useReactFlow();
     const [open, setOpen] = React.useState(false);
     const [config, setConfig] = React.useState({
         label: data.label || '',
@@ -22,9 +23,12 @@ const SlackNode = ({ data }: any) => {
     });
 
     const handleSave = () => {
-        data.label = config.label;
-        data.webhookUrl = config.webhookUrl;
-        data.message = config.message;
+        updateNodeData(id, {
+            ...data,
+            label: config.label,
+            webhookUrl: config.webhookUrl,
+            message: config.message,
+        });
         setOpen(false);
     };
 

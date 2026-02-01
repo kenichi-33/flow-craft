@@ -70,6 +70,28 @@ interface FlowVisualizationProps {
     onNodeClick?: (event: React.MouseEvent, node: any) => void;
 }
 
+// Input node
+const UserInputNode = ({ data }: { data: any }) => (
+    <div className="p-2 text-center min-w-[120px] min-h-[60px] flex flex-col items-center justify-center relative">
+        <CommonHandles />
+        <span className="text-sm font-bold">{data?.title || getNodeLabel('userInput', data?.label)}</span>
+        <span className="text-xs text-muted-foreground mt-0.5">{data?.assignedTo === 'applicant' ? '申請者' : (data?.assignedTo || '未割当')}</span>
+        {data?.isCurrent && <Badge className="mt-1 h-4 text-[10px] px-1.5">現在</Badge>}
+        {data?.isCompleted && !data?.isCurrent && <Badge variant="secondary" className="mt-1 h-4 text-[10px] px-1.5 bg-emerald-100 text-emerald-700">完了</Badge>}
+    </div>
+);
+
+// Generic Action Node (for simple actions like SendEmail, UpdateRecord etc.)
+const ActionNode = ({ data, label, bgColor }: { data: any, label: string, bgColor?: string }) => (
+    <div className="p-2 text-center min-w-[120px] min-h-[50px] flex flex-col items-center justify-center relative" style={{ backgroundColor: bgColor }}>
+        <CommonHandles />
+        <span className="text-xs font-bold">{label}</span>
+        {data?.isFailed && <Badge variant="destructive" className="mt-1 h-4 text-[10px] px-1.5">失敗</Badge>}
+        {data?.isCurrent && !data?.isFailed && <Badge className="mt-1 h-4 text-[10px] px-1.5">現在</Badge>}
+        {data?.isCompleted && !data?.isCurrent && !data?.isFailed && <Badge variant="secondary" className="mt-1 h-4 text-[10px] px-1.5 bg-emerald-100 text-emerald-700">完了</Badge>}
+    </div>
+);
+
 export default function FlowVisualization({
     nodes: rawNodes,
     edges: rawEdges,
@@ -83,12 +105,12 @@ export default function FlowVisualization({
     const completedStepIds = completedStepIdsInput instanceof Set ? completedStepIdsInput : new Set(completedStepIdsInput);
     const failedStepIds = failedStepIdsInput instanceof Set ? failedStepIdsInput : new Set(failedStepIdsInput);
 
-    const currentStepIds = useMemo(() => {
+    const currentStepIds = (() => {
         if (!currentNodeId) return new Set<string>();
         return new Set(Array.isArray(currentNodeId) ? currentNodeId : [currentNodeId]);
-    }, [currentNodeId]);
+    })();
 
-    const { displayNodes, displayEdges } = useMemo(() => {
+    const { displayNodes, displayEdges } = (() => {
         const displayNodes = rawNodes.map((node: any) => {
             // Swimlane
             if (node.type === 'swimlane') {
@@ -174,29 +196,7 @@ export default function FlowVisualization({
         });
 
         return { displayNodes, displayEdges };
-    }, [rawNodes, rawEdges, currentStepIds, completedStepIds]);
-
-    // Input node
-    const UserInputNode = ({ data }: { data: any }) => (
-        <div className="p-2 text-center min-w-[120px] min-h-[60px] flex flex-col items-center justify-center relative">
-            <CommonHandles />
-            <span className="text-sm font-bold">{data?.title || getNodeLabel('userInput', data?.label)}</span>
-            <span className="text-xs text-muted-foreground mt-0.5">{data?.assignedTo === 'applicant' ? '申請者' : (data?.assignedTo || '未割当')}</span>
-            {data?.isCurrent && <Badge className="mt-1 h-4 text-[10px] px-1.5">現在</Badge>}
-            {data?.isCompleted && !data?.isCurrent && <Badge variant="secondary" className="mt-1 h-4 text-[10px] px-1.5 bg-emerald-100 text-emerald-700">完了</Badge>}
-        </div>
-    );
-
-    // Generic Action Node (for simple actions like SendEmail, UpdateRecord etc.)
-    const ActionNode = ({ data, label, bgColor }: { data: any, label: string, bgColor?: string }) => (
-        <div className="p-2 text-center min-w-[120px] min-h-[50px] flex flex-col items-center justify-center relative" style={{ backgroundColor: bgColor }}>
-            <CommonHandles />
-            <span className="text-xs font-bold">{label}</span>
-            {data?.isFailed && <Badge variant="destructive" className="mt-1 h-4 text-[10px] px-1.5">失敗</Badge>}
-            {data?.isCurrent && !data?.isFailed && <Badge className="mt-1 h-4 text-[10px] px-1.5">現在</Badge>}
-            {data?.isCompleted && !data?.isCurrent && !data?.isFailed && <Badge variant="secondary" className="mt-1 h-4 text-[10px] px-1.5 bg-emerald-100 text-emerald-700">完了</Badge>}
-        </div>
-    );
+    })();
 
     const nodeTypes = useMemo(() => ({
         approval: ApprovalNode,

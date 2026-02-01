@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
@@ -172,6 +172,7 @@ export default function AdminTeamsPage() {
                 <div className="flex-1 overflow-auto bg-background">
                     {selection ? (
                         <TeamDetailView 
+                            key={selection.type === 'custom' ? selection.team.id : (selection as any).group?.id + selection.type}
                             selection={selection} 
                             isAdmin={isAdmin} 
                             onDeleteTeam={() => deleteTeamMutation.mutate(selection.type === 'custom' ? selection.team.id : '')}
@@ -261,19 +262,13 @@ function TeamDetailView({ selection, isAdmin, onDeleteTeam, customTeamOverride }
     const [localMembers, setLocalMembers] = useState<any[]>(initialMembers);
     const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
     
-    // Sync local state when selection changes
-    useEffect(() => {
-        if (selection.type === 'custom') {
-            const currentMembers = customTeamOverride?.members || (selection as any).team.members || [];
-            setLocalMembers(currentMembers);
-            setHasUnsavedChanges(false);
-        }
-    }, [selection, customTeamOverride]);
+    // Sync local state when selection changes - REMOVED useEffect
+    // handled by key prop on component
 
     const handleAddMember = (member: { memberType: 'user' | 'department', memberId: string, memberInfo?: any }) => {
         // Build a temporary member object for display
         const newMember = {
-            id: `temp-${Date.now()}`, // temporary ID
+            id: `temp-${crypto.randomUUID()}`, // temporary ID
             ...member
         };
         setLocalMembers([...localMembers, newMember]);

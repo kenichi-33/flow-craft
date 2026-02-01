@@ -5,8 +5,8 @@ import { SchedulerService } from '../scheduler/scheduler.service';
 
 describe('FlowsService', () => {
   let service: FlowsService;
-  let prisma: any;
-  let scheduler: any;
+  // let prisma: any;
+  // let scheduler: any;
 
   const mockPrisma = {
     flowDefinition: {
@@ -36,8 +36,8 @@ describe('FlowsService', () => {
     }).compile();
 
     service = module.get<FlowsService>(FlowsService);
-    prisma = module.get<PrismaService>(PrismaService);
-    scheduler = module.get<SchedulerService>(SchedulerService);
+    // prisma = module.get<PrismaService>(PrismaService);
+    // scheduler = module.get<SchedulerService>(SchedulerService);
     jest.clearAllMocks();
   });
 

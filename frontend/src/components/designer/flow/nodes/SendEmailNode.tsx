@@ -1,5 +1,5 @@
 import React, { memo } from 'react';
-import { Handle, Position } from '@xyflow/react';
+import { Handle, Position, useReactFlow } from '@xyflow/react';
 import { Mail, Pencil } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -18,7 +18,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { UserSelector } from '@/components/common/UserSelector';
 import { GroupSelector } from '@/components/common/GroupSelector';
 
-const SendEmailNode = ({ data }: any) => {
+const SendEmailNode = ({ id, data }: any) => {
+    const { updateNodeData } = useReactFlow();
     const [open, setOpen] = React.useState(false);
     const [config, setConfig] = React.useState({
         label: data.label || '',
@@ -29,11 +30,14 @@ const SendEmailNode = ({ data }: any) => {
     });
 
     const handleSave = () => {
-        data.label = config.label;
-        data.to = config.to;
-        data.subject = config.subject;
-        data.body = config.body;
-        data.templateId = config.templateId;
+        updateNodeData(id, {
+            ...data,
+            label: config.label,
+            to: config.to,
+            subject: config.subject,
+            body: config.body,
+            templateId: config.templateId,
+        });
         setOpen(false);
     };
 

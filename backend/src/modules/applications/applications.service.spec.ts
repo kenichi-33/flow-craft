@@ -9,7 +9,7 @@ import { CreateApplicationDto } from './dto/create-application.dto';
 
 describe('ApplicationsService', () => {
   let service: ApplicationsService;
-  let prisma: any;
+  // let prisma: any; // Unused
   let queueService: any;
   let usersService: any;
 
@@ -65,7 +65,7 @@ describe('ApplicationsService', () => {
     }).compile();
 
     service = module.get<ApplicationsService>(ApplicationsService);
-    prisma = module.get<PrismaService>(PrismaService);
+    // prisma = module.get<PrismaService>(PrismaService);
     queueService = module.get<QueueService>(QueueService);
     usersService = module.get<UsersService>(UsersService);
 

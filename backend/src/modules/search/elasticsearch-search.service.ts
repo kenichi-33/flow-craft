@@ -1,10 +1,7 @@
-import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Client } from '@elastic/elasticsearch';
-import {
-  ISearchService,
-  SearchResult,
-} from './interfaces/search-service.interface';
+import { SearchResult } from './interfaces/search-service.interface';
 import { SearchQueryDto, SearchOperator } from './dto/search-application.dto';
 import { Application } from '@prisma/client';
 
@@ -55,8 +52,8 @@ export class ElasticsearchSearchService extends SearchService {
     });
 
     this.logger.log(`Elasticsearch client initialized at ${node}`);
-    this.checkConnection();
-    this.ensureIndex();
+    await this.checkConnection();
+    await this.ensureIndex();
   }
 
   private async checkConnection() {
@@ -148,7 +145,6 @@ export class ElasticsearchSearchService extends SearchService {
       page = 1,
       limit = 20,
       applicationDefinitionId,
-      criteria,
     } = dto;
 
     const from = (page - 1) * limit;

@@ -1,5 +1,5 @@
 import { memo, useState } from 'react';
-import { Handle, Position } from '@xyflow/react';
+import { Handle, Position, useReactFlow } from '@xyflow/react';
 import { Workflow, Pencil } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -17,7 +17,8 @@ import { Checkbox } from '@/components/ui/checkbox';
 // Ideally should use a query hook.
 // For now, we will just use a text input for ID or simple placeholder.
 
-const SubProcessNode = ({ data }: any) => {
+const SubProcessNode = ({ id, data }: any) => {
+    const { updateNodeData } = useReactFlow();
     const [open, setOpen] = useState(false);
     const [config, setConfig] = useState({
         label: data.label || '',
@@ -29,15 +30,21 @@ const SubProcessNode = ({ data }: any) => {
     });
 
     const handleSave = () => {
-        data.label = config.label;
-        data.applicationDefinitionId = config.applicationDefinitionId;
-        data.passAllInput = config.passAllInput;
+        let inputMapping = {};
         try {
-            data.inputMapping = JSON.parse(config.inputMappingJSON);
+            inputMapping = JSON.parse(config.inputMappingJSON);
         } catch (e) {
             // ignore or alert
             console.error("Invalid JSON mapping");
         }
+
+        updateNodeData(id, {
+            ...data,
+            label: config.label,
+            applicationDefinitionId: config.applicationDefinitionId,
+            passAllInput: config.passAllInput,
+            inputMapping: inputMapping
+        });
         setOpen(false);
     };
 

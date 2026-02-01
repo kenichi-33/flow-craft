@@ -89,7 +89,7 @@ async function main() {
     // We update the record directly then force re-index.
     const fakeLastName = `Yamada${uniqueId}`;
     const fakeFirstName = 'Taro';
-    const fakeFullName = `${fakeLastName} ${fakeFirstName}`;
+    // const fakeFullName = `${fakeLastName} ${fakeFirstName}`;
 
     await prisma.application.update({
       where: { id: application.id },
@@ -170,4 +170,4 @@ async function main() {
   }
 }
 
-main();
+void main();
