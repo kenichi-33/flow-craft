@@ -182,7 +182,7 @@ function validateFlow(nodes: Node[], edges: Edge[]) {
 
 const DEFAULT_NODES: Node[] = [{ id: 'start', type: 'start', position: { x: 250, y: 50 }, data: { label: '開始' } }];
 
-function FlowDesignerContent({ appId, isStatsMode, statsOverlay }: { appId: string, isStatsMode?: boolean, statsOverlay?: Record<string, number> }) {
+function FlowDesignerContent({ appId, isStatsMode, statsOverlay }: { appId: string, isStatsMode?: boolean, statsOverlay?: Record<string, any> }) {
     const { versionId } = useParams();
     const isReadOnly = !!versionId || isStatsMode; // Stats mode implies read-only
     const queryClient = useQueryClient();
@@ -481,7 +481,7 @@ function FlowDesignerContent({ appId, isStatsMode, statsOverlay }: { appId: stri
     );
 }
 
-export default function FlowDesigner(props: { appId: string, isStatsMode?: boolean, statsOverlay?: Record<string, number> }) {
+export default function FlowDesigner(props: { appId: string, isStatsMode?: boolean, statsOverlay?: Record<string, any> }) {
     return (
         <ReactFlowProvider>
             <FlowDesignerContent {...props} />

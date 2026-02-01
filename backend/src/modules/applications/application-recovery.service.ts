@@ -157,9 +157,10 @@ export class ApplicationRecoveryService {
       );
 
       // Get the maximum retry count across all failed tasks for this step
-      const maxRetries = failedTasks.length > 0 
-        ? Math.max(...failedTasks.map((t: any) => t.retries || 0)) 
-        : 0;
+      const maxRetries =
+        failedTasks.length > 0
+          ? Math.max(...failedTasks.map((t: any) => t.retries || 0))
+          : 0;
 
       if (maxRetries >= this.MAX_RECOVERY_RETRIES) {
         this.logger.warn(

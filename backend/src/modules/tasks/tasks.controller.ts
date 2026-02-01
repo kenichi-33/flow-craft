@@ -1,4 +1,4 @@
-import { Controller, Get, Param, Query } from '@nestjs/common';
+import { Controller, Get, Post, Param, Query } from '@nestjs/common';
 import { TasksService } from './tasks.service';
 import { CurrentUser } from '../../auth/decorators';
 import type { AuthUser } from '../../auth/types/user.interface';
@@ -57,5 +57,15 @@ export class TasksController {
       limit ? parseInt(limit, 10) : 20,
       search,
     );
+  }
+
+  @Post(':id/claim')
+  claim(@Param('id') id: string, @CurrentUser() user: AuthUser) {
+    return this.tasksService.claimTask(id, user);
+  }
+
+  @Post(':id/release')
+  release(@Param('id') id: string, @CurrentUser() user: AuthUser) {
+    return this.tasksService.releaseTask(id, user);
   }
 }

@@ -1,16 +1,10 @@
-import {
-  Injectable,
-  OnModuleDestroy,
-  Logger,
-} from '@nestjs/common';
+import { Injectable, OnModuleDestroy, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { KafkaJS } from '@confluentinc/kafka-javascript';
 import { IQueueAdapter } from '../queue.interface';
 
 @Injectable()
-export class KafkaAdapter
-  implements IQueueAdapter, OnModuleDestroy
-{
+export class KafkaAdapter implements IQueueAdapter, OnModuleDestroy {
   private readonly logger = new Logger(KafkaAdapter.name);
   private kafka: KafkaJS.Kafka;
   private producer: KafkaJS.Producer;
@@ -118,7 +112,9 @@ export class KafkaAdapter
     }
 
     // Debug logging
-    this.logger.debug(`Subscribing to topic: "${topic}", isConnected: ${this.isConnected}`);
+    this.logger.debug(
+      `Subscribing to topic: "${topic}", isConnected: ${this.isConnected}`,
+    );
 
     // Subscribe to topic (using topics array as per Confluent Kafka JS API)
     await this.consumer.subscribe({ topics: [topic] });

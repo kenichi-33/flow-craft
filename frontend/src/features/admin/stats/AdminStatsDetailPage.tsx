@@ -20,10 +20,21 @@ import {
   Cell,
   Legend
 } from 'recharts';
+import { PerformanceTraceTable } from './components/PerformanceTraceGraph';
+import { ApplicationRatesChart } from './components/ApplicationRatesChart';
+import { AssigneeStatsTable } from './components/AssigneeStatsTable';
+import { ServiceTaskErrorTable } from './components/ServiceTaskErrorTable';
 
 interface NodeStat {
     nodeId: string;
     count: number;
+    breakdown?: {
+        active?: number;
+        draft?: number;
+        completed?: number;
+        assigned?: number;
+        unassigned?: number;
+    };
 }
 
 interface DailyStat {
@@ -51,7 +62,7 @@ const STATUS_LABELS: Record<string, string> = {
     APPROVED: '完了',
     REJECTED: '却下',
     REMANDED: '差戻し',
-    CANCELLED: 'キャンセル',
+    CANCELED: '取下げ',
 };
 
 export default function AdminStatsDetailPage() {
@@ -63,12 +74,39 @@ export default function AdminStatsDetailPage() {
         enabled: !!id
     });
 
+    const { data: performanceData, isLoading: isPerformanceLoading } = useQuery({
+        queryKey: ['admin-stats-performance', id],
+        queryFn: () => api.get<any[]>(`/statistics/applications/${id}/performance`),
+        enabled: !!id
+    });
+
+    const { data: ratesData, isLoading: isRatesLoading } = useQuery({
+        queryKey: ['admin-stats-rates', id],
+        queryFn: () => api.get<any>(`/statistics/applications/${id}/rates`),
+        enabled: !!id
+    });
+
+    const { data: assigneeData, isLoading: isAssigneeLoading } = useQuery({
+        queryKey: ['admin-stats-assignees', id],
+        queryFn: () => api.get<any[]>(`/statistics/applications/${id}/assignees`),
+        enabled: !!id
+    });
+
+    const { data: errorData, isLoading: isErrorLoading } = useQuery({
+        queryKey: ['admin-stats-errors', id],
+        queryFn: () => api.get<any[]>(`/statistics/applications/${id}/errors`),
+        enabled: !!id
+    });
+
     const totalCount = useMemo(() => stats?.statusDistribution.reduce((acc, cur) => acc + cur.count, 0) || 0, [stats]);
 
     const flowOverlay = useMemo(() => {
         if (!stats?.nodeDistribution) return null;
-        const countMap = new Map(stats.nodeDistribution.map(n => [n.nodeId, n.count]));
-        return countMap;
+        const overlay: Record<string, any> = {};
+        stats.nodeDistribution.forEach(n => {
+            overlay[n.nodeId] = { count: n.count, breakdown: n.breakdown };
+        });
+        return overlay;
     }, [stats]);
 
     const statusData = useMemo(() => {
@@ -85,7 +123,7 @@ export default function AdminStatsDetailPage() {
     const app = stats.definition;
 
     return (
-        <div className="space-y-6 p-6">
+        <div className="space-y-6 p-6 pb-20">
             <div className="flex items-center gap-4 px-1 shrink-0">
                 <Button variant="ghost" size="icon" asChild>
                     <Link to="/admin/stats"><ArrowLeft className="h-4 w-4" /></Link>
@@ -145,6 +183,43 @@ export default function AdminStatsDetailPage() {
                 </Card>
             </div>
 
+            {/* Application Rates */}
+            {isRatesLoading ? (
+                <div className="flex justify-center p-8"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
+            ) : ratesData ? (
+                <ApplicationRatesChart data={ratesData} />
+            ) : null}
+
+            {/* Performance Trace & Statistics */}
+            <div className="space-y-6">
+                {/* Performance Trace (Full Width) */}
+                <div>
+                    {isPerformanceLoading ? (
+                         <Card className="h-[500px] flex items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></Card>
+                    ) : (
+                        <PerformanceTraceTable data={performanceData || []} />
+                    )}
+                </div>
+
+                {/* Assignees & Errors (Half/Half) */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                         {isAssigneeLoading ? (
+                             <Card className="h-[500px] flex items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></Card>
+                         ) : (
+                            <AssigneeStatsTable data={assigneeData || []} />
+                         )}
+                    </div>
+                    <div>
+                         {isErrorLoading ? (
+                             <Card className="h-[500px] flex items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></Card>
+                         ) : (
+                            <ServiceTaskErrorTable data={errorData || []} />
+                         )}
+                    </div>
+                </div>
+            </div>
+
             <Card className="flex flex-col h-[600px] border-2 border-primary/20 bg-accent/5">
                 <CardHeader className="border-b bg-background py-3">
                     <div className="flex items-center justify-between">
@@ -155,7 +230,7 @@ export default function AdminStatsDetailPage() {
                 <div className="flex-1 relative">
                     {/* ここで FlowDesigner を ReadOnly で表示し、各ノードにバッジを表示する仕組みが必要 */}
                     {/* FlowDesigner に `statsOverlay` プロップを追加して対応する */}
-                    <FlowDesigner appId={app.id} isStatsMode={true} statsOverlay={Object.fromEntries(flowOverlay || [])} />
+                    <FlowDesigner appId={app.id} isStatsMode={true} statsOverlay={flowOverlay || {}} />
                 </div>
             </Card>
         </div>

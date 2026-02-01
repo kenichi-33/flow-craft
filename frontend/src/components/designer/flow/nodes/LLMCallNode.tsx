@@ -46,11 +46,19 @@ export default function LLMCallNode({ id, data }: { id: string; data: any }) {
                 </div>
                 {data.model && <span className="text-[9px] text-white/80">{data.model}</span>}
                 <Handle type="source" position={Position.Right} className="!bg-teal-700 !w-2.5 !h-2.5 !border-2 !border-white" />
-                {data.statCount !== undefined && data.statCount > 0 && (
-                    <div className="absolute -top-3 -right-3 bg-red-500 text-white text-xs font-bold px-2 py-1 rounded-full border border-white shadow-sm z-10 animate-pulse">
-                        {data.statCount}
-                    </div>
-                )}
+                {/* Stats Badge */}
+                {(() => {
+                    const stats = data.statCount;
+                    if (!stats) return null;
+                    const count = typeof stats === 'number' ? stats : stats.count;
+                    if (!count) return null;
+                    
+                    return (
+                        <div className="absolute -top-3 -right-3 bg-red-500 text-white text-xs font-bold px-2 py-1 rounded-full border border-white shadow-sm z-10 animate-pulse">
+                            {count}
+                        </div>
+                    );
+                })()}
             </div>
 
             <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>

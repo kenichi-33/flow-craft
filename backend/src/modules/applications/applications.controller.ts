@@ -58,4 +58,8 @@ export class ApplicationsController {
   ) {
     return this.applicationsService.update(id, updateData);
   }
+  @Post(':id/cancel')
+  cancel(@Param('id') id: string, @CurrentUser() user: AuthUser) {
+    return this.applicationsService.cancel(id, user.username);
+  }
 }

@@ -27,10 +27,19 @@ import { SearchMetaService } from './search-meta.service';
         const mode = config.get('SEARCH_MODE') || 'postgres';
         if (mode === 'elasticsearch') {
           // ElasticsearchSearchService(configService, queueService, prisma, searchMetaService)
-          return new ElasticsearchSearchService(config, queueService, prisma, searchMetaService);
+          return new ElasticsearchSearchService(
+            config,
+            queueService,
+            prisma,
+            searchMetaService,
+          );
         }
         // PostgresSearchService(prisma, queueService, searchMetaService)
-        return new PostgresSearchService(prisma, queueService, searchMetaService);
+        return new PostgresSearchService(
+          prisma,
+          queueService,
+          searchMetaService,
+        );
       },
       inject: [ConfigService, QueueService, PrismaService, SearchMetaService],
     },

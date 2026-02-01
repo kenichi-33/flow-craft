@@ -19,4 +19,23 @@ export class StatisticsController {
   async getApplicationStats(@Param('id') id: string) {
     return this.statisticsService.getApplicationStats(id);
   }
+
+  @Get('applications/:id/performance')
+  async getTaskPerformanceStats(@Param('id') id: string) {
+    return this.statisticsService.getTaskPerformanceStats(id);
+  }
+
+  @Get('applications/:id/rates')
+  async getApplicationRates(@Param('id') id: string) {
+    return this.statisticsService.getApplicationRates(id);
+  }
+
+  @Get('applications/:id/assignees')
+  async getAssigneeStats(@Param('id') id: string) {
+    return this.statisticsService.getAssigneeStats(id);
+  }
+  @Get('applications/:id/errors')
+  async getServiceTaskErrorStats(@Param('id') id: string) {
+    return this.statisticsService.getServiceTaskErrorStats(id);
+  }
 }

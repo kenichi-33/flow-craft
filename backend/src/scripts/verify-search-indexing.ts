@@ -1,4 +1,3 @@
-
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from '../app.module';
 import { WorkflowEngineService } from '../modules/workflow-engine/workflow-engine.service';
@@ -8,14 +7,14 @@ import { SearchQueryDto } from '../modules/search/dto/search-application.dto';
 
 async function main() {
   const app = await NestFactory.createApplicationContext(AppModule);
-  
+
   try {
     const prisma = app.get(PrismaService);
     const workflowEngineService = app.get(WorkflowEngineService);
     const searchService = app.get(SearchService);
 
     // Use 'admin' as a fallback test user
-    const testUsername = 'admin'; 
+    const testUsername = 'admin';
     console.log(`Using test user: ${testUsername}`);
 
     console.log('Finding an active application definition...');
@@ -24,7 +23,9 @@ async function main() {
     });
 
     if (!appDef) {
-      throw new Error('No active application definition found. Please publish an application first.');
+      throw new Error(
+        'No active application definition found. Please publish an application first.',
+      );
     }
     console.log(`Using application definition: ${appDef.name} (${appDef.id})`);
 
@@ -40,10 +41,12 @@ async function main() {
     });
 
     if (!application) {
-        throw new Error('Failed to create application');
+      throw new Error('Failed to create application');
     }
 
-    console.log(`Application created and workflow started. ID: ${application.id}`);
+    console.log(
+      `Application created and workflow started. ID: ${application.id}`,
+    );
 
     // Wait for indexing (Elasticsearch might take a moment + Kafka consumer latency)
     console.log('Waiting for indexing (10 seconds)...');
@@ -55,13 +58,15 @@ async function main() {
     // Debug ES content
     console.log('--- Debugging Elasticsearch ---');
     try {
-        const indices = await fetch('http://elasticsearch:9200/_cat/indices?v');
-        console.log('Indices:\n', await indices.text());
-        
-        const allDocs = await fetch('http://elasticsearch:9200/_search?q=*&size=20&pretty');
-        console.log('All Documents:\n', await allDocs.text());
+      const indices = await fetch('http://elasticsearch:9200/_cat/indices?v');
+      console.log('Indices:\n', await indices.text());
+
+      const allDocs = await fetch(
+        'http://elasticsearch:9200/_search?q=*&size=20&pretty',
+      );
+      console.log('All Documents:\n', await allDocs.text());
     } catch (e) {
-        console.error('ES Debug failed:', e);
+      console.error('ES Debug failed:', e);
     }
     console.log('-----------------------------');
 
@@ -78,7 +83,7 @@ async function main() {
     const result = await searchService.search(query);
 
     console.log(`Search result total: ${result.total}`);
-    
+
     // Check if our application is in the results
     const found = result.items.some((a) => a.id === application.id);
 
@@ -88,9 +93,11 @@ async function main() {
       console.log('Found item:', foundItem?.title);
     } else {
       console.error('❌ FAILURE: Application NOT found in search index.');
-      console.log('Returned items:', result.items.map(i => `${i.id}: ${i.title}`));
+      console.log(
+        'Returned items:',
+        result.items.map((i) => `${i.id}: ${i.title}`),
+      );
     }
-
   } catch (error) {
     console.error('Test failed:', error);
     process.exit(1);

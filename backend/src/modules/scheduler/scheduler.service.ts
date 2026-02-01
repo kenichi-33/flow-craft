@@ -75,7 +75,9 @@ export class SchedulerService implements OnModuleInit {
             },
           });
 
-          this.logger.log(`Acquired lock for ${name} at ${lockedAt.toISOString()}`);
+          this.logger.log(
+            `Acquired lock for ${name} at ${lockedAt.toISOString()}`,
+          );
           this.logger.log(`Executing scheduled workflow: ${name}`);
           await this.queueService.enqueue('WORKFLOW_START', payload);
         } catch (error) {

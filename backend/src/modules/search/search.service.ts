@@ -60,7 +60,9 @@ export abstract class SearchService implements ISearchService, OnModuleInit {
   /**
    * Abstract methods to be implemented by specific strategies
    */
-  abstract search(dto: SearchApplicationDto): Promise<SearchResult<Application>>;
+  abstract search(
+    dto: SearchApplicationDto,
+  ): Promise<SearchResult<Application>>;
 
   abstract indexApplication(app: Application): Promise<void>;
 

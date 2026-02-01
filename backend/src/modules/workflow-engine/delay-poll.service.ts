@@ -34,7 +34,9 @@ export class DelayPollService {
     });
 
     if (tasks.length > 0) {
-      this.logger.log(`Found ${tasks.length} delayed tasks due for resumption.`);
+      this.logger.log(
+        `Found ${tasks.length} delayed tasks due for resumption.`,
+      );
     }
 
     for (const task of tasks) {

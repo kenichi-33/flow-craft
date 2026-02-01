@@ -114,18 +114,18 @@ export class ElasticsearchSearchService extends SearchService {
             properties: {
               id: { type: 'keyword' },
               applicationDefinitionId: { type: 'keyword' },
-              title: { 
-                type: 'text', 
-                analyzer: 'ngram_analyzer', 
-                search_analyzer: 'ngram_analyzer' 
+              title: {
+                type: 'text',
+                analyzer: 'ngram_analyzer',
+                search_analyzer: 'ngram_analyzer',
               },
               status: { type: 'keyword' },
               applicantId: { type: 'keyword' },
               createdAt: { type: 'date' },
-              full_text: { 
-                type: 'text', 
-                analyzer: 'ngram_analyzer', 
-                search_analyzer: 'ngram_analyzer' 
+              full_text: {
+                type: 'text',
+                analyzer: 'ngram_analyzer',
+                search_analyzer: 'ngram_analyzer',
               },
               inputData: {
                 type: 'object',
@@ -175,7 +175,7 @@ export class ElasticsearchSearchService extends SearchService {
     if (filters && filters.length > 0) {
       filters.forEach((filter) => {
         const { field, operator, value } = filter;
-        
+
         switch (operator) {
           case SearchOperator.EQUALS:
             // Use match_phrase for exact matching on analyzed text fields
@@ -228,8 +228,7 @@ export class ElasticsearchSearchService extends SearchService {
           },
         },
       };
-      
-  
+
       const result = await this.client.search(body as any);
 
       const hits = result.hits.hits;
@@ -265,7 +264,8 @@ export class ElasticsearchSearchService extends SearchService {
     if (!this.client) return;
 
     try {
-      const searchMetaString = await this.searchMetaService.generateSearchMeta(app);
+      const searchMetaString =
+        await this.searchMetaService.generateSearchMeta(app);
 
       // Sanitize inputData to remove empty strings which cause date parsing errors in ES
       const cleanInputData = this.cleanInputData(app.inputData);

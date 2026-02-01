@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { UserDisplay } from '@/components/common/UserDisplay';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, Loader2, Clock, User, FileText, CheckCircle, XCircle, AlertCircle, GitFork, RotateCcw } from 'lucide-react';
+import { ArrowLeft, Loader2, Clock, User, FileText, CheckCircle, XCircle, AlertCircle, GitFork, RotateCcw, Lock, Shield, Edit, FileX } from 'lucide-react';
 import DynamicFormRenderer from '@/components/model/form/renderer/DynamicFormRenderer';
 import ApprovalHistory from '@/components/model/application/ApprovalHistory';
 import TaskList from '@/components/model/application/TaskList';
@@ -65,6 +65,9 @@ interface ApplicationDetail {
         assignedTo?: string;
         assignedToDisplay?: string;
         assignedToInfo?: any;
+        claimedBy?: string;
+        claimedAt?: string;
+        claimedByInfo?: any;
         result?: any;
         error?: string;
         createdAt: string;
@@ -98,6 +101,7 @@ const statusConfig: Record<string, { label: string; variant: 'default' | 'second
     APPROVED: { label: '完了', variant: 'default', icon: CheckCircle },
     REJECTED: { label: '却下', variant: 'destructive', icon: XCircle },
     REMANDED: { label: '差戻し', variant: 'destructive', icon: AlertCircle },
+    CANCELED: { label: '取下げ', variant: 'outline', icon: XCircle },
     COMPLETED: { label: '完了', variant: 'default', icon: CheckCircle },
 };
 
@@ -108,6 +112,7 @@ export default function ApplicationDetailPage() {
     const queryClient = useQueryClient();
     const [retryDialogOpen, setRetryDialogOpen] = useState(false);
     const [retryTargetId, setRetryTargetId] = useState<string | null>(null);
+    const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
 
     const { data: application, isLoading, error } = useQuery<ApplicationDetail>({
         queryKey: ['application', id],
@@ -138,52 +143,8 @@ export default function ApplicationDetailPage() {
     const status = statusConfig[application.status] || { label: application.status, variant: 'outline' as const, icon: FileText };
     const StatusIcon = status.icon;
 
-    // Check if current user is assignee
-    const isUserAssignedToTask = (assignedTo: string | undefined): boolean => {
-        if (!assignedTo || !user) return false;
 
-        const assignments = assignedTo.split(',').map(s => s.trim());
-        return assignments.some(a => {
-            // User check
-            if (a.startsWith('user:')) {
-                return a.substring(5) === user.username;
-            }
-            // Role check
-            if (a.startsWith('role:')) {
-                return user.roles?.includes(a.substring(5));
-            }
-            // Group check
-            if (a.startsWith('group:')) {
-                const assignedGroup = a.substring(6);
 
-                // Code based check (Legacy/ID-based)
-                const codeMatch = user.groupCodes?.includes(assignedGroup);
-                
-                // Path based check (Robustness for path-based assignments)
-                const pathMatch = user.groups?.some(g => {
-                    const gPath = g.startsWith('/') ? g : '/' + g;
-                    const aPath = assignedGroup.startsWith('/') ? assignedGroup : '/' + assignedGroup;
-                    
-                    if (gPath === aPath) return true;
-                    if (gPath.startsWith(aPath + '/')) return true;
-                    
-                    return false;
-                });
-
-                return !!codeMatch || !!pathMatch;
-            }
-            // Applicant check (assuming applicantId is available in context, but here we check against 'applicant')
-            if (a === 'applicant') {
-                 return application.applicantId === user.username;
-            }
-             // Applicant Manager check (placeholder logic as we don't have manager info easily here without extra call)
-            if (a === 'applicant_manager') {
-                return false; // TODO: Implement manager check if needed
-            }
-            // Legacy/Simple username check
-            return a === user.username;
-        });
-    };
 
 
 
@@ -207,6 +168,19 @@ export default function ApplicationDetailPage() {
         }
     };
 
+    const confirmCancel = async () => {
+        try {
+            await api.post(`/applications/${id}/cancel`, {});
+            queryClient.invalidateQueries({ queryKey: ['application', id] });
+            toast.success('申請を取り下げました');
+        } catch (e) {
+            console.error(e);
+            toast.error('取下げに失敗しました');
+        } finally {
+            setCancelDialogOpen(false);
+        }
+    };
+
     return (
         <div className="max-w-4xl mx-auto space-y-6">
             {/* Header */}
@@ -227,6 +201,12 @@ export default function ApplicationDetailPage() {
                     </div>
                     <h1 className="text-2xl font-bold">{application.title}</h1>
                 </div>
+                {user?.username === application.applicantId && application.status === 'IN_PROGRESS' && (
+                    <Button variant="destructive" size="sm" onClick={() => setCancelDialogOpen(true)}>
+                        <FileX className="mr-2 h-4 w-4" />
+                        申請取下げ
+                    </Button>
+                )}
             </div>
 
             {/* Pending Tasks Section (Legacy Style) */}
@@ -247,13 +227,21 @@ export default function ApplicationDetailPage() {
                             // UserInputNode uses 'title' in data, not 'label'. Fallback to type-based name.
                             const stepLabel = stepNode?.data?.label || stepNode?.data?.title || (['input', 'userInput'].includes(task.type) ? '入力タスク' : task.stepId);
                             const isInput = ['input', 'userInput'].includes(task.type);
+                            const isClaimedByMe = task.claimedBy === user?.username;
+                            const isClaimedByOther = task.claimedBy && !isClaimedByMe;
                             
                             return (
                                 <div key={task.id} className="flex items-center justify-between p-3 bg-background rounded-lg border shadow-sm">
                                     <div>
                                         <div className="font-semibold text-sm">ステップ: {stepLabel}</div>
                                         <div className="text-xs text-muted-foreground mt-1">
-                                            担当者: {task.assignedToInfo ? (
+
+                                            担当者: {task.claimedBy ? (
+                                                <span className="inline-flex items-center gap-1 text-blue-600 font-medium">
+                                                    <Shield className="h-3 w-3" /> 
+                                                    <UserDisplay user={task.claimedByInfo} fallback={task.claimedBy} />
+                                                </span>
+                                            ) : task.assignedToInfo ? (
                                                 <UserDisplay user={task.assignedToInfo} fallback={task.assignedToDisplay} />
                                             ) : (
                                                 task.assignedTo?.split(',').map(s => {
@@ -268,13 +256,21 @@ export default function ApplicationDetailPage() {
                                         </div>
                                     </div>
                                     {isAssigned && (
-                                        <Button 
-                                            onClick={() => navigate(`/tasks/${task.id}`)}
-                                            className="bg-blue-600 hover:bg-blue-700 text-white shadow-sm"
-                                            size="sm"
-                                        >
-                                            {isInput ? '入力画面へ' : '承認画面へ'}
-                                        </Button>
+                                        isClaimedByOther ? (
+                                            <Button disabled className="gap-2 opacity-70" variant="outline" size="sm">
+                                                <Lock className="h-3 w-3" /> ロック中
+                                            </Button>
+                                        ) : (
+                                            <Button 
+                                                onClick={() => navigate(`/tasks/${task.id}`)}
+                                                className={isClaimedByMe ? "gap-2" : "bg-blue-600 hover:bg-blue-700 text-white shadow-sm gap-2"}
+                                                size="sm"
+                                                variant={isClaimedByMe ? "secondary" : "default"}
+                                            >
+                                                {isClaimedByMe ? <Edit className="h-3 w-3" /> : null}
+                                                {isClaimedByMe ? '再開する' : (isInput ? '入力画面へ' : '承認画面へ')}
+                                            </Button>
+                                        )
                                     )}
                                 </div>
                             );
@@ -555,6 +551,24 @@ export default function ApplicationDetailPage() {
                     <AlertDialogFooter>
                         <AlertDialogCancel>キャンセル</AlertDialogCancel>
                         <AlertDialogAction onClick={confirmRetry}>再実行する</AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+
+            {/* Cancel Confirmation Dialog */}
+            <AlertDialog open={cancelDialogOpen} onOpenChange={setCancelDialogOpen}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>申請の取下げ</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            この申請を取り下げますか？この操作は取り消せません。
+                            <br />
+                            <span className="text-xs text-muted-foreground">※ ステータスが「取下げ」となります。</span>
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>キャンセル</AlertDialogCancel>
+                        <AlertDialogAction onClick={confirmCancel} className="bg-destructive hover:bg-destructive/90">取り下げる</AlertDialogAction>
                     </AlertDialogFooter>
                 </AlertDialogContent>
             </AlertDialog>

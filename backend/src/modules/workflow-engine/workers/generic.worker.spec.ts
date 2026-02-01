@@ -20,6 +20,7 @@ describe('GenericWorker', () => {
   const mockPrisma = {
     workflowTask: {
       update: jest.fn(),
+      updateMany: jest.fn().mockResolvedValue({ count: 1 }),
     },
     workflowTaskHistory: {
       create: jest.fn(),
@@ -87,13 +88,13 @@ describe('GenericWorker', () => {
 
     // First call is setting RUNNING (updatedAt)
     // Second call is result update
-    expect(mockPrisma.workflowTask.update).toHaveBeenCalledTimes(2);
-    const updateArg = mockPrisma.workflowTask.update.mock.calls[1][0];
+    expect(mockPrisma.workflowTask.update).toHaveBeenCalledTimes(1);
+    const updateArg = mockPrisma.workflowTask.update.mock.calls[0][0];
 
     expect(updateArg.where).toEqual({ id: 'task-1' });
     expect(updateArg.data.result).toBeDefined();
-    // Verify status is NOT present in data
-    expect(updateArg.data.status).toBeUndefined();
+    // Verify status is PENDING (reverted/maintained)
+    expect(updateArg.data.status).toBe(TaskStatus.PENDING);
 
     expect(mockQueueService.enqueue).toHaveBeenCalledWith(
       'TASK_COMPLETE',
@@ -126,8 +127,8 @@ describe('GenericWorker', () => {
 
     await worker.processJob(job);
 
-    expect(mockPrisma.workflowTask.update).toHaveBeenCalledTimes(2);
-    const updateArg = mockPrisma.workflowTask.update.mock.calls[1][0];
+    expect(mockPrisma.workflowTask.update).toHaveBeenCalledTimes(1);
+    const updateArg = mockPrisma.workflowTask.update.mock.calls[0][0];
 
     expect(updateArg.data.status).toBe(TaskStatus.COMPLETED);
   });

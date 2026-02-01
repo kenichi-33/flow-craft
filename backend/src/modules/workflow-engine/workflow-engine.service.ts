@@ -86,14 +86,14 @@ export class WorkflowEngineService {
 
     // Validate Input
     try {
-        this.helper.validateTaskInput(
-            { application: { inputData: {} } }, 
-            input.inputData, 
-            formSchema,
-            startNode.id
-        );
+      this.helper.validateTaskInput(
+        { application: { inputData: {} } },
+        input.inputData,
+        formSchema,
+        startNode.id,
+      );
     } catch (e) {
-        throw new BadRequestException(e.message);
+      throw new BadRequestException(e.message);
     }
 
     const application = await this.prisma.$transaction(async (tx) => {
@@ -137,7 +137,9 @@ export class WorkflowEngineService {
     await this.helper.advanceToNextNode(application.id);
 
     // Trigger indexing
-    await this.queueService.enqueue('application-indexing', { applicationId: application.id });
+    await this.queueService.enqueue('application-indexing', {
+      applicationId: application.id,
+    });
 
     return this.prisma.application.findUnique({
       where: { id: application.id },
@@ -240,14 +242,14 @@ export class WorkflowEngineService {
 
     // Validate Input
     try {
-        this.helper.validateTaskInput(
-            { application: application }, 
-            inputData, 
-            application.formSchema,
-            startNode.id
-        );
+      this.helper.validateTaskInput(
+        { application: application },
+        inputData,
+        application.formSchema,
+        startNode.id,
+      );
     } catch (e) {
-        throw new BadRequestException(e.message);
+      throw new BadRequestException(e.message);
     }
 
     await this.prisma.$transaction(async (tx) => {
@@ -332,14 +334,14 @@ export class WorkflowEngineService {
 
     // Validate Input
     try {
-        this.helper.validateTaskInput(
-            task, 
-            input.inputData, 
-            task.application.formSchema,
-            task.stepId
-        );
+      this.helper.validateTaskInput(
+        task,
+        input.inputData,
+        task.application.formSchema,
+        task.stepId,
+      );
     } catch (e) {
-        throw new BadRequestException(e.message);
+      throw new BadRequestException(e.message);
     }
 
     const actorInfo = await this.usersService.getUserSnapshotByUsername(
@@ -349,7 +351,8 @@ export class WorkflowEngineService {
 
     await this.prisma.$transaction(async (tx) => {
       // Update Task Status - REMAND uses INVALIDATED, others use COMPLETED
-      const taskStatus = input.action === 'REMAND' ? 'INVALIDATED' : 'COMPLETED';
+      const taskStatus =
+        input.action === 'REMAND' ? 'INVALIDATED' : 'COMPLETED';
       await tx.workflowTask.update({
         where: { id: input.taskId, status: 'PENDING' },
         data: {
@@ -410,7 +413,7 @@ export class WorkflowEngineService {
             currentNodeId: endNode?.id || null,
           },
         });
-        if (endNode) shouldAdvance = true;
+        // REJECTの場合は次は進まない (shouldAdvance = false)
       } else if (input.action === 'REMAND') {
         const taskConfig = task.config as any;
         if (taskConfig?.allowRemand !== true) {
@@ -429,7 +432,7 @@ export class WorkflowEngineService {
 
         const remandTargetStepId = input.remandTargetStepId;
         let targetNode;
-        
+
         if (remandTargetStepId) {
           // 任意ステップへの差し戻し
           targetNode = nodes.find((n: any) => n.id === remandTargetStepId);
@@ -454,7 +457,10 @@ export class WorkflowEngineService {
         // 差し戻し先以降のCOMPLETEDタスクをINVALIDATED
         if (remandTargetStepId) {
           const targetTask = await tx.workflowTask.findFirst({
-            where: { applicationId: task.applicationId, stepId: remandTargetStepId },
+            where: {
+              applicationId: task.applicationId,
+              stepId: remandTargetStepId,
+            },
             orderBy: { createdAt: 'asc' },
           });
           const cutoffTime = targetTask?.createdAt || new Date(0);
@@ -467,7 +473,9 @@ export class WorkflowEngineService {
             },
             data: { status: 'INVALIDATED' },
           });
-          this.logger.log(`REMAND: Updated ${updateResult.count} tasks to INVALIDATED (target step: ${remandTargetStepId})`);
+          this.logger.log(
+            `REMAND: Updated ${updateResult.count} tasks to INVALIDATED (target step: ${remandTargetStepId})`,
+          );
         } else {
           // 申請者への差し戻し: 全COMPLETEDタスクをINVALIDATED
           const updateResult = await tx.workflowTask.updateMany({
@@ -477,7 +485,9 @@ export class WorkflowEngineService {
             },
             data: { status: 'INVALIDATED' },
           });
-          this.logger.log(`REMAND to applicant: Updated ${updateResult.count} tasks to INVALIDATED`);
+          this.logger.log(
+            `REMAND to applicant: Updated ${updateResult.count} tasks to INVALIDATED`,
+          );
         }
 
         // 申請ステータス更新
@@ -490,10 +500,10 @@ export class WorkflowEngineService {
 
           // 差し戻し先に新しいタスクを作成
           const originalTask = await tx.workflowTask.findFirst({
-            where: { 
-              applicationId: task.applicationId, 
-              stepId: remandTargetStepId, 
-              status: 'INVALIDATED' 
+            where: {
+              applicationId: task.applicationId,
+              stepId: remandTargetStepId,
+              status: 'INVALIDATED',
             },
             orderBy: { createdAt: 'desc' },
           });
@@ -528,9 +538,11 @@ export class WorkflowEngineService {
     if (shouldAdvance) {
       await this.helper.advanceToNextNode(task.applicationId, task.stepId);
     }
-    
+
     // Trigger indexing
-    await this.queueService.enqueue('application-indexing', { applicationId: task.applicationId });
+    await this.queueService.enqueue('application-indexing', {
+      applicationId: task.applicationId,
+    });
 
     return this.prisma.application.findUnique({
       where: { id: task.applicationId },
@@ -538,6 +550,58 @@ export class WorkflowEngineService {
         applicationDefinition: true,
         workflowTasks: { orderBy: { createdAt: 'desc' } },
       },
+    });
+  }
+
+  /**
+   * Cancel an application
+   */
+  async cancelApplication(applicationId: string, actorId: string) {
+    const actorInfo =
+      await this.usersService.getUserSnapshotByUsername(actorId);
+
+    return this.prisma.$transaction(async (tx) => {
+      // 0. Get current node for history context (Optional)
+      const app = await tx.application.findUnique({
+        where: { id: applicationId },
+      });
+
+      // 1. Update Application Status to CANCELED
+      // Reset currentNodeId to null as flow is stopped
+      await tx.application.update({
+        where: { id: applicationId },
+        data: {
+          status: 'CANCELED',
+          currentNodeId: null,
+        },
+      });
+
+      // 2. Update Pending/Running Tasks to CANCELED
+      await tx.workflowTask.updateMany({
+        where: {
+          applicationId: applicationId,
+          status: { in: ['PENDING', 'QUEUED', 'RUNNING'] },
+        },
+        data: {
+          status: 'CANCELED',
+        },
+      });
+
+      // 3. Record History
+      await tx.approvalHistory.create({
+        data: {
+          applicationId,
+          actorId,
+          actorInfo: actorInfo as any,
+          action: 'CANCEL',
+          comment: '申請者による取下げ',
+          stepId: app?.currentNodeId || 'withdrawal',
+        },
+      });
+
+      this.logger.log(
+        `Application ${applicationId} has been canceled by ${actorId}.`,
+      );
     });
   }
 

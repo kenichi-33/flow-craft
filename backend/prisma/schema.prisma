@@ -86,6 +86,7 @@ enum ApplicationStatus {
   APPROVED
   REJECTED
   REMANDED
+  CANCELED
 }
 
 
@@ -131,6 +132,8 @@ model WorkflowTask {
   assignedTo        String?   @map("assigned_to")
   assignedToDisplay String?   @map("assigned_to_display")
   assignedToInfo    Json?     @map("assigned_to_info")
+  claimedBy         String?   @map("claimed_by")
+  claimedAt         DateTime? @map("claimed_at")
   dueDate           DateTime? @map("due_date")
   
   // タスク設定スナップショット（ノード設定を保存）

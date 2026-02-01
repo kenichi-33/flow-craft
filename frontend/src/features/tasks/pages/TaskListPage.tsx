@@ -13,7 +13,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, Edit, Search, ArrowUpDown } from 'lucide-react';
+import { Loader2, Edit, Search, ArrowUpDown, Lock, Shield } from 'lucide-react';
+import { useAuthStore } from '@/stores/useAuthStore';
 import { UserDisplay, type UserSnapshot } from '@/components/common/UserDisplay';
 import { Label } from '@/components/ui/label';
 import { TruncatedCell } from '@/components/common/TruncatedCell';
@@ -27,6 +28,9 @@ interface Task {
     assigneeId: string;
     assignedTo?: string;
     assignedToInfo?: UserSnapshot;
+    claimedBy?: string;
+    claimedAt?: string;
+    claimedByInfo?: UserSnapshot;
     dueDate?: string;
     createdAt: string;
     updatedAt: string;
@@ -72,6 +76,7 @@ function formatAssignedTo(assignedTo?: string): string {
 
 export default function TaskListPage() {
     const navigate = useNavigate();
+    const { user } = useAuthStore();
     const [sorting, setSorting] = useState<SortingState>([]);
     const [globalFilter, setGlobalFilter] = useState('');
     const [dateFrom, setDateFrom] = useState('');
@@ -153,7 +158,18 @@ export default function TaskListPage() {
                     <ArrowUpDown className="ml-2 h-4 w-4" />
                 </Button>
             ),
-            cell: ({ row }) => <UserDisplay user={row.original.assignedToInfo} fallback={formatAssignedTo(row.original.assignedTo || row.original.assigneeId)} />
+            cell: ({ row }) => {
+                const claimedBy = row.original.claimedBy;
+                if (claimedBy) {
+                     return (
+                        <div className="flex items-center gap-1.5 text-blue-600 font-medium">
+                            <Shield className="h-3.5 w-3.5" />
+                            <UserDisplay user={row.original.claimedByInfo} fallback={claimedBy} />
+                        </div>
+                     );
+                }
+                return <UserDisplay user={row.original.assignedToInfo} fallback={formatAssignedTo(row.original.assignedTo || row.original.assigneeId)} />;
+            }
         },
         { id: 'stepId', header: '現在のステップ', cell: ({ row }) => <TruncatedCell text={getStepLabel(row.original.stepId, row.original.application?.flowDefinition?.nodes)} maxWidth="150px" /> },
         { 
@@ -194,8 +210,35 @@ export default function TaskListPage() {
             header: '更新日時',
             cell: ({ row }) => row.original.updatedAt ? new Date(row.original.updatedAt).toLocaleString('ja-JP') : '-'
         },
-        { id: 'actions', header: '操作', cell: ({ row }) => <Button variant="default" size="sm" onClick={(e) => { e.stopPropagation(); navigate(`/tasks/${row.original.id}`); }}><Edit className="h-3 w-3 mr-1" />処理</Button> },
-    ], [navigate]);
+        { 
+            id: 'actions', 
+            header: '操作', 
+            cell: ({ row }) => {
+                const isClaimedByMe = row.original.claimedBy === user?.username;
+                const isClaimedByOther = row.original.claimedBy && !isClaimedByMe;
+                
+                if (isClaimedByOther) {
+                    return (
+                         <Button variant="ghost" size="sm" className="text-muted-foreground w-20 px-0" disabled>
+                             <Lock className="h-3 w-3 mr-1" />
+                             ロック中
+                         </Button>
+                    );
+                }
+                
+                return (
+                    <Button 
+                        variant={isClaimedByMe ? "secondary" : "default"} 
+                        size="sm" 
+                        onClick={(e) => { e.stopPropagation(); navigate(`/tasks/${row.original.id}`); }}
+                    >
+                        <Edit className="h-3 w-3 mr-1" />
+                        {isClaimedByMe ? '再開' : '処理'}
+                    </Button>
+                );
+            }
+        },
+    ], [navigate, user]);
     const table = useReactTable({ 
         data: tasks, 
         columns, 

@@ -1,4 +1,10 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+  ForbiddenException,
+  ConflictException,
+} from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { Prisma, TaskStatus } from '@prisma/client';
 import { UsersService } from '../users/users.service';
@@ -199,6 +205,8 @@ export class TasksService {
           error: true,
           createdAt: true,
           updatedAt: true,
+          claimedBy: true,
+          claimedAt: true,
           application: {
             select: {
               id: true,
@@ -274,6 +282,8 @@ export class TasksService {
           error: true,
           createdAt: true,
           updatedAt: true,
+          claimedBy: true,
+          claimedAt: true,
           application: {
             select: {
               id: true,
@@ -312,7 +322,10 @@ export class TasksService {
             await this.usersService.resolveAssignedToSnapshot(
               task.assignedTo || '',
             );
-          return { ...task, assignedToInfo };
+          const claimedByInfo = task.claimedBy
+            ? await this.usersService.getUserSnapshotByUsername(task.claimedBy)
+            : undefined;
+          return { ...task, assignedToInfo, claimedByInfo };
         }),
       );
 
@@ -348,6 +361,8 @@ export class TasksService {
           error: true,
           createdAt: true,
           updatedAt: true,
+          claimedBy: true,
+          claimedAt: true,
           application: {
             select: {
               id: true,
@@ -375,7 +390,10 @@ export class TasksService {
           await this.usersService.resolveAssignedToSnapshot(
             task.assignedTo || '',
           );
-        return { ...task, assignedToInfo };
+        const claimedByInfo = task.claimedBy
+          ? await this.usersService.getUserSnapshotByUsername(task.claimedBy)
+          : undefined;
+        return { ...task, assignedToInfo, claimedByInfo };
       }),
     );
 
@@ -414,7 +432,11 @@ export class TasksService {
       throw new NotFoundException(`Task with ID ${id} not found`);
     }
 
-    return task;
+    const claimedByInfo = task.claimedBy
+      ? await this.usersService.getUserSnapshotByUsername(task.claimedBy)
+      : undefined;
+
+    return { ...task, claimedByInfo };
   }
 
   async findPending(assignedTo?: string) {
@@ -491,5 +513,66 @@ export class TasksService {
         totalPages: Math.ceil(total / limit),
       },
     };
+  }
+
+  async claimTask(taskId: string, user: any) {
+    const task = await this.prisma.workflowTask.findUnique({
+      where: { id: taskId },
+      include: { application: true },
+    });
+
+    if (!task) throw new NotFoundException('Task not found');
+    if (task.status !== 'PENDING')
+      throw new BadRequestException('Task is not pending');
+
+    // Access Check
+    const canAccess = this.canUserAccessTask(
+      task,
+      user.username,
+      user.roles,
+      user.groups,
+      user.groupCodes,
+    );
+    if (!canAccess)
+      throw new ForbiddenException('User is not assigned to this task');
+
+    if (task.claimedBy && task.claimedBy !== user.username) {
+      throw new ConflictException(
+        `Task is already claimed by ${task.claimedBy}`,
+      );
+    }
+
+    if (task.claimedBy === user.username) return task;
+
+    return this.prisma.workflowTask.update({
+      where: { id: taskId },
+      data: {
+        claimedBy: user.username,
+        claimedAt: new Date(),
+      },
+    });
+  }
+
+  async releaseTask(taskId: string, user: any) {
+    const task = await this.prisma.workflowTask.findUnique({
+      where: { id: taskId },
+    });
+
+    if (!task) throw new NotFoundException('Task not found');
+
+    const isAdmin =
+      user.roles?.includes('admin') || user.roles?.includes('wf_admin');
+
+    if (task.claimedBy !== user.username && !isAdmin) {
+      throw new ForbiddenException('You can only release your own tasks');
+    }
+
+    return this.prisma.workflowTask.update({
+      where: { id: taskId },
+      data: {
+        claimedBy: null,
+        claimedAt: null,
+      },
+    });
   }
 }

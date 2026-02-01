@@ -181,8 +181,6 @@ export class PostgresSearchService extends SearchService {
     this.logger.debug(`Indexed app ${app.id} successfully`);
   }
 
-
-
   private generateRawDataString(data: any): string {
     const parts: string[] = [];
 

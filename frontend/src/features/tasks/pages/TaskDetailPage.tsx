@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 
 import { Label } from '@/components/ui/label';
-import { ArrowLeft, Loader2, Clock, User, XCircle, GitFork, CornerDownLeft } from 'lucide-react';
+import { ArrowLeft, Loader2, Clock, User, XCircle, GitFork, CornerDownLeft, Lock, Unlock } from 'lucide-react';
 import DynamicFormRenderer from '@/components/model/form/renderer/DynamicFormRenderer';
 import ApprovalHistory from '@/components/model/application/ApprovalHistory';
 import ApprovalAction from '@/components/model/application/ApprovalAction';
@@ -32,6 +32,7 @@ import {
     DialogTitle,
 } from '@/components/ui/dialog';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { useAuthStore } from '@/stores/useAuthStore';
 
 interface TaskDetail {
     id: string;
@@ -42,6 +43,9 @@ interface TaskDetail {
     assigneeType: string;
     assigneeId: string;
     createdAt: string;
+    claimedBy?: string;
+    claimedAt?: string;
+    claimedByInfo?: any;
     nodeName?: string;
     application: {
         id: string;
@@ -109,6 +113,7 @@ export default function TaskDetailPage() {
     const { id } = useParams();
     const navigate = useNavigate();
     const queryClient = useQueryClient();
+    const { user } = useAuthStore();
     const [actionInProgress, setActionInProgress] = useState<string | null>(null);
     const [errorDialogOpen, setErrorDialogOpen] = useState(false);
     const [errorMessage, setErrorMessage] = useState('');
@@ -157,6 +162,28 @@ export default function TaskDetailPage() {
             setErrorDialogOpen(true);
             setActionInProgress(null);
         },
+    });
+
+    const claimMutation = useMutation({
+        mutationFn: () => api.post(`/tasks/${id}/claim`),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['task', id] });
+            toast.success('タスクを着手しました');
+        },
+        onError: (error: any) => {
+            toast.error(error?.response?.data?.message || '着手に失敗しました');
+        }
+    });
+
+    const releaseMutation = useMutation({
+        mutationFn: () => api.post(`/tasks/${id}/release`),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['task', id] });
+            toast.success('着手を解除しました');
+        },
+        onError: (error: any) => {
+            toast.error(error?.response?.data?.message || '解除に失敗しました');
+        }
     });
 
     const handleAction = async (action: string, actionComment?: string) => {
@@ -289,6 +316,14 @@ export default function TaskDetailPage() {
     const currentNode = application.flowDefinition?.nodes?.find((n: any) => n.id === task.stepId);
     const fieldPermissions = currentNode?.data?.fieldPermissions;
 
+    // Claim Status Logic
+    const isClaimedByMe = task.claimedBy === user?.username;
+    const isClaimedByOther = task.claimedBy && !isClaimedByMe;
+    const isUnclaimed = !task.claimedBy;
+    
+    // Read-only if claimed by other OR not pending
+    const isReadOnly = !isPending || !!isClaimedByOther;
+
     return (
         <div className="max-w-4xl mx-auto space-y-6">
             {/* Header */}
@@ -309,7 +344,52 @@ export default function TaskDetailPage() {
                     <h1 className="text-2xl font-bold">{application.title}</h1>
                     <p className="text-muted-foreground">{application.applicationDefinition?.appName}</p>
                 </div>
+                {/* Claim Actions */}
+                {isPending && (
+                    <div className="flex items-center gap-2">
+                        {isUnclaimed && (
+                            <Button 
+                                onClick={() => claimMutation.mutate()} 
+                                disabled={claimMutation.isPending}
+                                className="gap-2"
+                                variant="outline"
+                            >
+                                {claimMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin"/> : <Lock className="h-4 w-4"/>}
+                                着手する
+                            </Button>
+                        )}
+                        {isClaimedByMe && (
+                            <Button 
+                                onClick={() => releaseMutation.mutate()} 
+                                disabled={releaseMutation.isPending}
+                                className="gap-2"
+                                variant="secondary"
+                            >
+                                {releaseMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin"/> : <Unlock className="h-4 w-4"/>}
+                                着手を解除
+                            </Button>
+                        )}
+                    </div>
+                )}
             </div>
+
+            {/* Locked Alert */}
+            {isPending && isClaimedByOther && (
+                 <div className="bg-yellow-50 border border-yellow-200 text-yellow-800 px-4 py-3 rounded-md flex items-center gap-2">
+                     <Lock className="h-4 w-4" />
+                     <div className="font-medium flex items-center gap-1">
+                        現在、他の担当者 (<UserDisplay user={task.claimedByInfo} fallback={task.claimedBy} />) が作業中です。このタスクはロックされています。
+                     </div>
+                 </div>
+            )}
+            {/* Self Claimed Alert */}
+            {isPending && isClaimedByMe && (
+                 <div className="bg-blue-50 border border-blue-200 text-blue-800 px-4 py-3 rounded-md flex items-center gap-2">
+                     <Lock className="h-4 w-4" />
+                     <span className="font-medium">あなたが着手中です。</span>
+                 </div>
+            )}
+
 
             {/* Info Cards */}
             <div className="grid gap-4 md:grid-cols-3">
@@ -419,7 +499,7 @@ export default function TaskDetailPage() {
                             schema={application.formSchema || application.formDefinition?.schema}
                             layouts={application.formSchema?.['x-layout'] || application.formDefinition?.schema?.['x-layout']}
                             defaultValues={application.inputData}
-                            readOnly={!isPending}
+                            readOnly={isReadOnly}
                             fieldPermissions={fieldPermissions}
                             currentStepId={task.stepId}
                             onConfirmWarnings={(inputData) => {
@@ -453,7 +533,7 @@ export default function TaskDetailPage() {
             </Card>
 
             {/* Action Area */}
-            {isPending && (
+            {isPending && !isClaimedByOther && (
                 <ApprovalAction
                     taskType={task.type}
                     allowRemand={(task as any).config?.allowRemand === true}

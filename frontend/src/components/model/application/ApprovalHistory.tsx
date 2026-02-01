@@ -29,6 +29,7 @@ const getIcon = (action: string) => {
         case 'SERVICE_TASK': return <Settings className={`${iconClass} text-slate-500`} />;
         case 'SERVICE_TASK_COMPLETE': return <Check className={`${iconClass} text-emerald-500`} />;
         case 'APPLICATION_COMPLETE': return <CheckCheck className={`${iconClass} text-emerald-500`} />;
+        case 'CANCEL': return <XCircle className={`${iconClass} text-muted-foreground`} />;
         default: return <Info className={`${iconClass} text-muted-foreground`} />;
     }
 };
@@ -44,6 +45,7 @@ const getLabel = (action: string) => {
         case 'SERVICE_TASK': return 'システム処理開始';
         case 'SERVICE_TASK_COMPLETE': return 'システム処理完了';
         case 'APPLICATION_COMPLETE': return '申請完了';
+        case 'CANCEL': return '取下げ';
         default: return action;
     }
 };

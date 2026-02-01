@@ -26,4 +26,3 @@ export class UpdateMasterConnectorDto {
   @IsOptional()
   allowedAppIds?: string[];
 }
-

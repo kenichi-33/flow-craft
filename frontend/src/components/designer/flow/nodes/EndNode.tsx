@@ -59,6 +59,11 @@ export default function EndNode({ id, data }: { id: string, data: any }) {
                     position={Position.Left}
                     className="!bg-red-700 !w-2.5 !h-2.5 !border-2 !border-white"
                 />
+                {data.statCount?.breakdown?.completed > 0 && (
+                     <div className="absolute -top-4 left-1/2 transform -translate-x-1/2 bg-slate-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow border border-white whitespace-nowrap z-20">
+                        完了: {data.statCount.breakdown.completed}
+                    </div>
+                )}
             </div>
 
             <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>

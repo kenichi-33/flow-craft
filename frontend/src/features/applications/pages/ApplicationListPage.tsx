@@ -63,6 +63,7 @@ const statusConfig: Record<string, { label: string; variant: 'default' | 'second
     APPROVED: { label: '完了', variant: 'default' },
     REJECTED: { label: '却下', variant: 'destructive' },
     REMANDED: { label: '差戻し', variant: 'destructive' },
+    CANCELED: { label: '取下げ', variant: 'outline' },
     COMPLETED: { label: '完了', variant: 'default' },
 };
 
@@ -101,7 +102,7 @@ export default function ApplicationListPage() {
              } else if (activeTab === 'completed') {
                  searchParams.append('status', 'APPROVED');
              } else if (activeTab === 'rejected') {
-                 searchParams.append('status', 'REJECTED,REMANDED');
+                 searchParams.append('status', 'REJECTED,REMANDED,CANCELED');
              }
 
              return api.get<ApplicationsResponse>(`/applications?${searchParams.toString()}`);
@@ -252,7 +253,7 @@ export default function ApplicationListPage() {
                         <TabsTrigger value="all">すべて</TabsTrigger>
                         <TabsTrigger value="in_progress">進行中</TabsTrigger>
                         <TabsTrigger value="completed">完了</TabsTrigger>
-                        <TabsTrigger value="rejected">却下・差戻し</TabsTrigger>
+                        <TabsTrigger value="rejected">却下・差戻し・取下げ</TabsTrigger>
                     </TabsList>
                     
                     <div className="relative flex-1 max-w-sm">

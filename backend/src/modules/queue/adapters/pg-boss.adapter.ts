@@ -1,8 +1,4 @@
-import {
-  Injectable,
-  OnModuleDestroy,
-  Logger,
-} from '@nestjs/common';
+import { Injectable, OnModuleDestroy, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PgBoss } from 'pg-boss';
 import { IQueueAdapter } from '../queue.interface';

@@ -1,11 +1,10 @@
-
 import { Client } from '@elastic/elasticsearch';
 
 async function run() {
   const client = new Client({
     node: 'http://localhost:9200',
     auth: { username: 'elastic', password: 'changeme' },
-    tls: { rejectUnauthorized: false }
+    tls: { rejectUnauthorized: false },
   });
 
   const mapping = await client.indices.getMapping({ index: 'applications' });

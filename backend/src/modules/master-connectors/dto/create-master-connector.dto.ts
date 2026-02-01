@@ -1,4 +1,10 @@
-import { IsString, IsOptional, IsBoolean, IsJSON, IsEnum } from 'class-validator';
+import {
+  IsString,
+  IsOptional,
+  IsBoolean,
+  IsJSON,
+  IsEnum,
+} from 'class-validator';
 
 export class CreateMasterConnectorDto {
   @IsString()

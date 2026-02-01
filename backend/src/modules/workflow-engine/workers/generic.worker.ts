@@ -154,7 +154,9 @@ export class GenericWorker implements OnModuleInit {
         });
 
         if (txnResult.shouldIndex) {
-           await this.queueService.enqueue('application-indexing', { applicationId });
+          await this.queueService.enqueue('application-indexing', {
+            applicationId,
+          });
         }
       } else {
         await this.prisma.$transaction(async (tx) => {

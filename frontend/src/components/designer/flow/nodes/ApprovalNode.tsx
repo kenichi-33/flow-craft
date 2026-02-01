@@ -135,11 +135,42 @@ export default function ApprovalNode({ id, data }: { id: string; data: any }) {
                     </div>
                 )}
                 <Handle type="source" position={Position.Right} className="!bg-blue-700 !w-2.5 !h-2.5 !border-2 !border-white" />
-                {data.statCount !== undefined && data.statCount > 0 && (
-                    <div className="absolute -top-3 -right-3 bg-red-500 text-white text-xs font-bold px-2 py-1 rounded-full border border-white shadow-sm z-10 animate-pulse">
-                        {data.statCount}
-                    </div>
-                )}
+                {/* Stats Badge */}
+                {(() => {
+                    const stats = data.statCount;
+                    if (!stats) return null;
+                    
+                    const count = typeof stats === 'number' ? stats : stats.count;
+                    if (!count && count !== 0) return null;
+                    if (count === 0) return null;
+
+                    const breakdown = typeof stats === 'object' ? stats.breakdown : null;
+                    const unassigned = breakdown?.unassigned || 0;
+                    const assigned = breakdown?.assigned || 0;
+
+                    if (breakdown) {
+                         return (
+                            <div className="absolute -top-5 -right-5 flex flex-col gap-0.5 items-end z-20">
+                                {unassigned > 0 && (
+                                    <div className="bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full shadow border border-white whitespace-nowrap animate-pulse">
+                                        未割当: {unassigned}
+                                    </div>
+                                )}
+                                {assigned > 0 && (
+                                    <div className="bg-blue-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full shadow border border-white whitespace-nowrap">
+                                        担当済: {assigned}
+                                    </div>
+                                )}
+                            </div>
+                        );
+                    }
+                    
+                    return (
+                        <div className="absolute -top-3 -right-3 bg-red-500 text-white text-xs font-bold px-2 py-1 rounded-full border border-white shadow-sm z-10 animate-pulse">
+                            {count}
+                        </div>
+                    );
+                })()}
             </div>
 
             <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>

@@ -20,6 +20,8 @@ interface WorkflowTask {
     assignedTo?: string;
     assignedToDisplay?: string;
     assignedToInfo?: any;
+    claimedBy?: string;
+    claimedByInfo?: any;
     result?: any;
     error?: string;
     createdAt: string;
@@ -42,7 +44,10 @@ interface TaskListProps {
     history?: any[];
 }
 
-const getStatusBadge = (status: string, isStartNode: boolean, applicationStatus?: string) => {
+const getStatusBadge = (task: WorkflowTask, isStartNode: boolean, applicationStatus?: string) => {
+    const status = task.status;
+    const result = task.result;
+
     if (isStartNode && applicationStatus === 'REMANDED') {
          return <Badge variant="secondary" className="bg-orange-100 text-orange-800 hover:bg-orange-100 border-orange-200">差戻(対応中)</Badge>;
     }
@@ -53,6 +58,16 @@ const getStatusBadge = (status: string, isStartNode: boolean, applicationStatus?
         case 'APPROVED':
             return <Badge variant="default" className="bg-green-600 hover:bg-green-700">承認済</Badge>;
         case 'COMPLETED':
+            // 結果に応じた詳細表示
+            if (result && typeof result === 'object') {
+                if (result.action === 'APPROVE') return <Badge variant="default" className="bg-green-600 hover:bg-green-700">承認</Badge>;
+                if (result.action === 'REJECT') return <Badge variant="destructive">却下</Badge>;
+                if (result.action === 'REMAND') return <Badge variant="destructive" className="bg-orange-600">差戻</Badge>;
+            }
+            // システムタスク等の完了
+            if (task.type !== 'approval' && task.type !== 'userInput') {
+                 return <Badge variant="default" className="bg-emerald-600 hover:bg-emerald-700">処理完了</Badge>;
+            }
             return <Badge variant="default" className="bg-green-600 hover:bg-green-700">完了</Badge>;
         case 'INVALIDATED':
             return <Badge variant="outline" className="text-muted-foreground bg-gray-100">無効(差戻)</Badge>;
@@ -66,7 +81,7 @@ const getStatusBadge = (status: string, isStartNode: boolean, applicationStatus?
         case 'WAITING':
             return <Badge variant="outline" className="text-muted-foreground">待機中</Badge>;
         case 'CANCELED':
-            return <Badge variant="outline" className="text-muted-foreground">キャンセル</Badge>;
+            return <Badge variant="outline" className="text-muted-foreground">取下げ</Badge>;
         case 'DRAFT':
             return <Badge variant="outline" className="text-muted-foreground bg-gray-100">下書き</Badge>;
         default:
@@ -79,14 +94,25 @@ const getAssigneeDisplay = (
     nodeData: any, 
     assignedToDisplay?: string, 
     assignedToInfo?: any,
-    history?: any[]
+    history?: any[],
+    claimedBy?: string,
+    claimedByInfo?: any,
+    status?: string
 ) => {
+    // If claimed, show claimed user with lock icon
+    if (claimedBy && status === 'PENDING') {
+        return (
+            <div className="flex items-center gap-1.5 text-blue-600 font-medium">
+                <Shield className="h-3.5 w-3.5" /> 
+                <UserDisplay user={claimedByInfo} fallback={claimedBy} />
+                <span className="text-xs text-blue-500">(着手中)</span>
+            </div>
+        );
+    }
+
     // 完了済みで履歴がある場合は履歴の実行者を表示する (ただし、システムによる自動割り当てログは除外 && タスクがPENDINGでないこと)
     // PENDINGの場合は現在の担当者を表示するため、履歴（割り当てログなど）は無視する
-    const isPending = nodeData && nodeData.status === 'PENDING'; // Note: nodeData here is actually node.data from Flow, not task status. 
-    // Wait, getAssigneeDisplay doesn't get task status directly. 
-    // But history checks usually imply completion for Approval. For Input/System tasks, we have intermediate logs.
-    // Let's filter out 'ASSIGN_INPUT' action from history for display purposes.
+    const isPending = nodeData && nodeData.status === 'PENDING'; 
     
     if (history && history.length > 0) {
         const latestHistory = history[history.length - 1];
@@ -114,9 +140,6 @@ const getAssigneeDisplay = (
     const rawAssignee = assignedTo || nodeData?.assignee;
     const display = assignedToDisplay || nodeData?.assigneeDisplay;
     
-    // 既存のUser/Role/Group解決ロジックも UserDisplay へ委譲できる形に正規化したいが、
-    // UserDisplayは現状 user オブジェクトを期待するため、簡易的なオブジェクトを作成する
-    
     if (display && rawAssignee && rawAssignee.startsWith('user:')) {
         const username = rawAssignee.substring(5);
         return <UserDisplay user={{ username, lastName: display, type: 'user' }} fallback={display} />;
@@ -130,12 +153,6 @@ const getAssigneeDisplay = (
          if (rawAssignee.startsWith('group:')) type = 'group';
          if (rawAssignee.startsWith('role:')) type = 'role';
          if (rawAssignee === 'applicant_manager') label = '申請者の上長';
-         
-         // Display fallback with icon if UserDisplay doesn't support raw string
-         // But better to use UserDisplay if we can mock the user object?
-         // Actually UserDisplay handles `user` prop.
-         // Let's create a fake user object for display consistency (tooltip etc won't work perfectly but style will match)
-         // Wait, UserDisplay tooltip relies on `username`.
          
          return (
             <div className="flex items-center gap-1.5">
@@ -214,7 +231,7 @@ export default function TaskList({
 
         const steps = displayNodes.map(node => {
             // Find latest related workflow task (sorted by createdAt desc to get the most recent)
-            const relatedTasks = workflowTasks?.filter(t => t.stepId === node.id && t.status !== 'CANCELED') || [];
+            const relatedTasks = workflowTasks?.filter(t => t.stepId === node.id) || [];
             const relatedTask = relatedTasks.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
             
             // Start Node
@@ -257,9 +274,12 @@ export default function TaskList({
                 stepId: node.id,
                 stepName: node.data?.label || getNodeLabel(node.type, node.id),
                 assignedTo: relatedTask?.assignedTo || (['apiCall', 'llmCall'].includes(node.type) ? 'system' : undefined),
+                claimedBy: relatedTask?.claimedBy,
+                claimedByInfo: relatedTask?.claimedByInfo,
                 assignedToInfo: relatedTask?.assignedToInfo,
                 assignedToDisplay: relatedTask?.assignedToDisplay || (['apiCall', 'llmCall'].includes(node.type) ? 'システム' : undefined),
                 status: relatedTask?.status || 'WAITING',
+                result: relatedTask?.result,
                 createdAt: relatedTask?.createdAt || '',
                 updatedAt: relatedTask?.updatedAt,
                 completedAt: relatedTask?.completedAt || (['COMPLETED', 'FAILED', 'REJECTED', 'APPROVED'].includes(relatedTask?.status || '') ? relatedTask?.updatedAt : undefined),
@@ -314,12 +334,15 @@ export default function TaskList({
                                 step.nodeData, 
                                 step.assignedToDisplay, 
                                 step.assignedToInfo,
-                                (step as any).history
+                                (step as any).history,
+                                (step as any).claimedBy,
+                                (step as any).claimedByInfo,
+                                step.status
                             )}
                         </TableCell>
                         <TableCell>
                             {getStatusBadge(
-                                step.status, 
+                                step as unknown as WorkflowTask, 
                                 step.nodeType === 'start', 
                                 applicationInfo?.status
                             )}

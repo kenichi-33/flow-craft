@@ -540,7 +540,10 @@ export default function DynamicFormRenderer({
                                 return (
                                     <div key={i} className="flex items-center gap-2">
                                         {isFieldReadOnly ? (
-                                            <Badge variant={checked ? 'default' : 'outline'}>{label}</Badge>
+                                            <>
+                                                <Checkbox checked={checked} disabled className="cursor-not-allowed opacity-70" />
+                                                <Label className="font-normal text-muted-foreground cursor-not-allowed">{label}</Label>
+                                            </>
                                         ) : (
                                             <Controller name={field.id} control={control} rules={commonRules} render={({ field: f }) => (
                                                 <>

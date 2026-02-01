@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateApplicationDto } from './dto/create-application.dto';
 import { Prisma } from '@prisma/client';
@@ -72,11 +76,39 @@ export class ApplicationsService {
             // Ignore errors, default to false
           }
         }
-        return { ...task, isExecutable };
+        const claimedByInfo = task.claimedBy
+          ? await this.usersService.getUserSnapshotByUsername(task.claimedBy)
+          : undefined;
+        return { ...task, isExecutable, claimedByInfo };
       }),
     );
 
     return { ...application, workflowTasks: enrichedTasks };
+  }
+
+  async cancel(id: string, requestUserId: string) {
+    const application = await this.prisma.application.findUnique({
+      where: { id },
+    });
+
+    if (!application) {
+      throw new NotFoundException(`Application with ID ${id} not found`);
+    }
+
+    if (application.applicantId !== requestUserId) {
+      throw new BadRequestException(
+        'Only the applicant can cancel the application',
+      );
+    }
+
+    if (application.status !== 'IN_PROGRESS') {
+      throw new BadRequestException(
+        'Only IN_PROGRESS applications can be canceled',
+      );
+    }
+
+    await this.workflowEngineService.cancelApplication(id, requestUserId);
+    return { success: true };
   }
 
   async create(createApplicationDto: CreateApplicationDto) {

@@ -47,7 +47,10 @@ export class ApprovalNodeProcessor implements INodeProcessor {
     // Calculate display name (same logic as userInput-node.processor)
     let assignedToDisplay = node.data?.assigneeDisplay || resolvedAssignee;
     if (assignedToInfo) {
-      const nameParts = [assignedToInfo.lastName, assignedToInfo.firstName].filter(Boolean);
+      const nameParts = [
+        assignedToInfo.lastName,
+        assignedToInfo.firstName,
+      ].filter(Boolean);
       if (nameParts.length > 0) {
         assignedToDisplay = nameParts.join(' ');
       } else if (assignedToInfo.username) {

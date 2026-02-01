@@ -79,6 +79,11 @@ export default function StartNode({ id, data }: { id: string, data: any }) {
                     position={Position.Right}
                     className="!bg-green-700 !w-2.5 !h-2.5 !border-2 !border-white"
                 />
+                {data.statCount?.breakdown?.draft > 0 && (
+                    <div className="absolute -top-4 left-1/2 transform -translate-x-1/2 bg-slate-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow border border-white whitespace-nowrap z-20">
+                        下書き: {data.statCount.breakdown.draft}
+                    </div>
+                )}
             </div>
 
             <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>

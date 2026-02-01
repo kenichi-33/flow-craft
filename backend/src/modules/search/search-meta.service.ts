@@ -1,4 +1,3 @@
-
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { Application } from '@prisma/client';
@@ -17,13 +16,13 @@ export class SearchMetaService {
     // 2. Applicant Name from Snapshot
     // app.applicantInfo contains { username, firstName, lastName, email, department }
     if (app.applicantInfo) {
-        const info = app.applicantInfo as any;
-        if (info.lastName || info.firstName) {
-            parts.push([info.lastName, info.firstName].filter(Boolean).join(' '));
-        }
-        if (info.username) parts.push(info.username);
-        // Also add department if available in snapshot
-        if (info.department) parts.push(info.department);
+      const info = app.applicantInfo as any;
+      if (info.lastName || info.firstName) {
+        parts.push([info.lastName, info.firstName].filter(Boolean).join(' '));
+      }
+      if (info.username) parts.push(info.username);
+      // Also add department if available in snapshot
+      if (info.department) parts.push(info.department);
     }
 
     // 3. Form Data Resolution
@@ -36,7 +35,7 @@ export class SearchMetaService {
       if (appDef && appDef.formDefinition) {
         const schema = appDef.formDefinition.schema as any;
         const inputData = app.inputData as any;
-        
+
         this.resolveFormLabels(inputData, schema, parts);
       }
     }
@@ -102,7 +101,7 @@ export class SearchMetaService {
       // For now, we only index the ID which is already in inputData.
       // TODO: If User/Dept names are critical, we need a service to fetch them from Keycloak/External
       // OR store them in inputData as { id, name } objects instead of just IDs.
-      
+
       // Note: For now, we skip User/Dept name resolution as tables don't exist in Prisma.
     }
   }
