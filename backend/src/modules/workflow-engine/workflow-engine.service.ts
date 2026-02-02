@@ -608,6 +608,70 @@ export class WorkflowEngineService {
   }
 
   /**
+   * Withdraw an application (Revert to DRAFT)
+   */
+  async withdrawApplication(applicationId: string, actorId: string) {
+    const actorInfo = await this.usersService.getUserSnapshotByUsername(actorId);
+
+    return this.prisma.$transaction(async (tx) => {
+      const app = await tx.application.findUnique({
+        where: { id: applicationId },
+      });
+
+      if (!app) {
+        throw new NotFoundException('Application not found');
+      }
+
+      // 1. Update Application Status to DRAFT
+      await tx.application.update({
+        where: { id: applicationId },
+        data: {
+          status: 'DRAFT',
+          currentNodeId: null, // Reset progress
+        },
+      });
+
+      // 2. Update Pending/Running Tasks to CANCELED
+      await tx.workflowTask.updateMany({
+        where: {
+          applicationId: applicationId,
+          status: { in: ['PENDING', 'QUEUED', 'RUNNING'] },
+        },
+        data: {
+          status: 'CANCELED',
+        },
+      });
+
+      // 3. Update Completed Tasks to INVALIDATED (Similar to REMAND)
+      await tx.workflowTask.updateMany({
+        where: {
+          applicationId: applicationId,
+          status: 'COMPLETED',
+        },
+        data: {
+          status: 'INVALIDATED',
+        },
+      });
+
+      // 4. Record History
+      await tx.approvalHistory.create({
+        data: {
+          applicationId,
+          actorId,
+          actorInfo: actorInfo as any,
+          action: 'WITHDRAW',
+          comment: '申請者による引き戻し',
+          stepId: app.currentNodeId || 'withdrawal',
+        },
+      });
+
+      this.logger.log(
+        `Application ${applicationId} has been withdrawn by ${actorId}.`,
+      );
+    });
+  }
+
+  /**
    * Retry Multiple Tasks
    */
   async retryServiceTasks(taskIds: string[]) {

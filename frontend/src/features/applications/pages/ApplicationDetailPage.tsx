@@ -113,6 +113,7 @@ export default function ApplicationDetailPage() {
     const [retryDialogOpen, setRetryDialogOpen] = useState(false);
     const [retryTargetId, setRetryTargetId] = useState<string | null>(null);
     const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
+    const [withdrawDialogOpen, setWithdrawDialogOpen] = useState(false);
 
     const { data: application, isLoading, error } = useQuery<ApplicationDetail>({
         queryKey: ['application', id],
@@ -181,6 +182,21 @@ export default function ApplicationDetailPage() {
         }
     };
 
+
+
+    const confirmWithdraw = async () => {
+        try {
+            await api.post(`/applications/${id}/withdraw`, {});
+            queryClient.invalidateQueries({ queryKey: ['application', id] });
+            toast.success('申請を引き戻しました');
+        } catch (e) {
+            console.error(e);
+            toast.error('引き戻しに失敗しました');
+        } finally {
+            setWithdrawDialogOpen(false);
+        }
+    };
+
     return (
         <div className="max-w-4xl mx-auto space-y-6">
             {/* Header */}
@@ -202,9 +218,21 @@ export default function ApplicationDetailPage() {
                     <h1 className="text-2xl font-bold">{application.title}</h1>
                 </div>
                 {user?.username === application.applicantId && application.status === 'IN_PROGRESS' && (
-                    <Button variant="destructive" size="sm" onClick={() => setCancelDialogOpen(true)}>
-                        <FileX className="mr-2 h-4 w-4" />
-                        申請取下げ
+                    <div className="flex gap-2">
+                         <Button variant="outline" size="sm" onClick={() => setWithdrawDialogOpen(true)}>
+                            <RotateCcw className="mr-2 h-4 w-4" />
+                            引き戻し
+                        </Button>
+                        <Button variant="destructive" size="sm" onClick={() => setCancelDialogOpen(true)}>
+                            <FileX className="mr-2 h-4 w-4" />
+                            取下げ
+                        </Button>
+                    </div>
+                )}
+                {user?.username === application.applicantId && application.status === 'DRAFT' && (
+                    <Button variant="default" size="sm" onClick={() => navigate(`/applications/${id}/edit`)}>
+                        <Edit className="mr-2 h-4 w-4" />
+                        編集する
                     </Button>
                 )}
             </div>
@@ -378,7 +406,20 @@ export default function ApplicationDetailPage() {
                                     return application.currentNodeId ? [application.currentNodeId] : [];
                                 })()
                             }
-                            completedStepIds={application.history?.filter((h: any) => h.action !== 'REMAND' && h.action !== 'ASSIGN_INPUT').map((h: any) => h.stepId) || []}
+                            completedStepIds={(() => {
+                                const completedTasks = application.workflowTasks?.filter(t => t.status === 'COMPLETED').map(t => t.stepId) || [];
+                                const startNode = (application.flowNodes || application.flowDefinition?.nodes || []).find((n: any) => n.type === 'start');
+                                
+                                if (application.status === 'DRAFT') {
+                                    return [];
+                                }
+                                
+                                // Include start node if not draft
+                                if (startNode && !completedTasks.includes(startNode.id)) {
+                                    return [startNode.id, ...completedTasks];
+                                }
+                                return completedTasks;
+                            })()}
                             failedStepIds={
                                 (() => {
                                     const latestTasks = new Map<string, any>();
@@ -569,6 +610,27 @@ export default function ApplicationDetailPage() {
                     <AlertDialogFooter>
                         <AlertDialogCancel>キャンセル</AlertDialogCancel>
                         <AlertDialogAction onClick={confirmCancel} className="bg-destructive hover:bg-destructive/90">取り下げる</AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+
+            {/* Withdraw Confirmation Dialog */}
+            <AlertDialog open={withdrawDialogOpen} onOpenChange={setWithdrawDialogOpen}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>申請の引き戻し</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            申請を下書きに戻しますか？
+                            <br />
+                            <span className="text-xs text-muted-foreground">
+                                ※ 進行中のタスクはキャンセルされ、既存の承認履歴は無効になります。<br/>
+                                ※ 下書きに戻り、再編集・再申請が可能になります。
+                            </span>
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>キャンセル</AlertDialogCancel>
+                        <AlertDialogAction onClick={confirmWithdraw}>引き戻す</AlertDialogAction>
                     </AlertDialogFooter>
                 </AlertDialogContent>
             </AlertDialog>

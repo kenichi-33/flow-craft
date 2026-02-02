@@ -111,6 +111,31 @@ export class ApplicationsService {
     return { success: true };
   }
 
+  async withdraw(id: string, requestUserId: string) {
+    const application = await this.prisma.application.findUnique({
+      where: { id },
+    });
+
+    if (!application) {
+      throw new NotFoundException(`Application with ID ${id} not found`);
+    }
+
+    if (application.applicantId !== requestUserId) {
+      throw new BadRequestException(
+        'Only the applicant can withdraw the application',
+      );
+    }
+
+    if (application.status !== 'IN_PROGRESS') {
+      throw new BadRequestException(
+        'Only IN_PROGRESS applications can be withdrawn',
+      );
+    }
+
+    await this.workflowEngineService.withdrawApplication(id, requestUserId);
+    return { success: true };
+  }
+
   async create(createApplicationDto: CreateApplicationDto) {
     const applicantInfo = await this.usersService.getUserSnapshotByUsername(
       createApplicationDto.applicantId,

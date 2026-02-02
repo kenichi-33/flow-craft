@@ -62,4 +62,9 @@ export class ApplicationsController {
   cancel(@Param('id') id: string, @CurrentUser() user: AuthUser) {
     return this.applicationsService.cancel(id, user.username);
   }
+
+  @Post(':id/withdraw')
+  withdraw(@Param('id') id: string, @CurrentUser() user: AuthUser) {
+    return this.applicationsService.withdraw(id, user.username);
+  }
 }

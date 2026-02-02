@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import { useMemo } from 'react';
 import {
     Table,
     TableBody,
@@ -70,7 +70,7 @@ const getStatusBadge = (task: WorkflowTask, isStartNode: boolean, applicationSta
             }
             return <Badge variant="default" className="bg-green-600 hover:bg-green-700">完了</Badge>;
         case 'INVALIDATED':
-            return <Badge variant="outline" className="text-muted-foreground bg-gray-100">無効(差戻)</Badge>;
+            return <Badge variant="outline" className="text-muted-foreground bg-gray-100">無効</Badge>;
         case 'REJECTED':
             if (applicationStatus === 'REJECTED') {
                 return <Badge variant="destructive">却下</Badge>;
@@ -81,7 +81,10 @@ const getStatusBadge = (task: WorkflowTask, isStartNode: boolean, applicationSta
         case 'WAITING':
             return <Badge variant="outline" className="text-muted-foreground">待機中</Badge>;
         case 'CANCELED':
-            return <Badge variant="outline" className="text-muted-foreground">取下げ</Badge>;
+            if (applicationStatus === 'CANCELED') {
+                return <Badge variant="outline" className="text-muted-foreground">取下げ</Badge>;
+            }
+            return <Badge variant="outline" className="text-muted-foreground">キャンセル</Badge>;
         case 'DRAFT':
             return <Badge variant="outline" className="text-muted-foreground bg-gray-100">下書き</Badge>;
         default:
@@ -112,7 +115,6 @@ const getAssigneeDisplay = (
 
     // 完了済みで履歴がある場合は履歴の実行者を表示する (ただし、システムによる自動割り当てログは除外 && タスクがPENDINGでないこと)
     // PENDINGの場合は現在の担当者を表示するため、履歴（割り当てログなど）は無視する
-    const isPending = nodeData && nodeData.status === 'PENDING'; 
     
     if (history && history.length > 0) {
         const latestHistory = history[history.length - 1];
