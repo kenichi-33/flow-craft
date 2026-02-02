@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/unbound-method */
 import { Test, TestingModule } from '@nestjs/testing';
 import { StatisticsController } from './statistics.controller';
 import { StatisticsService } from './statistics.service';
@@ -18,9 +19,7 @@ describe('StatisticsController', () => {
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [StatisticsController],
-      providers: [
-        { provide: StatisticsService, useValue: mockService },
-      ],
+      providers: [{ provide: StatisticsService, useValue: mockService }],
     }).compile();
 
     controller = module.get<StatisticsController>(StatisticsController);

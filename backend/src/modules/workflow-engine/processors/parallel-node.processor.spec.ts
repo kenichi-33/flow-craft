@@ -1,4 +1,4 @@
-
+/* eslint-disable @typescript-eslint/unbound-method */
 import { Test, TestingModule } from '@nestjs/testing';
 import { ParallelGatewayProcessor } from './parallel-node.processor';
 import { WorkflowHelperService } from '../workflow-helper.service';
@@ -8,7 +8,6 @@ import { Prisma } from '@prisma/client';
 
 describe('ParallelGatewayProcessor', () => {
   let processor: ParallelGatewayProcessor;
-  let queueService: QueueService;
 
   const mockHelper = {}; // Not used directly in process, but needed for DI
 
@@ -31,7 +30,6 @@ describe('ParallelGatewayProcessor', () => {
     }).compile();
 
     processor = module.get<ParallelGatewayProcessor>(ParallelGatewayProcessor);
-    queueService = module.get<QueueService>(QueueService);
 
     jest.clearAllMocks();
   });

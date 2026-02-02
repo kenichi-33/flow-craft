@@ -1,4 +1,4 @@
-
+/* eslint-disable @typescript-eslint/unbound-method */
 import { Test, TestingModule } from '@nestjs/testing';
 import { ApprovalNodeProcessor } from './approval-node.processor';
 import { WorkflowHelperService } from '../workflow-helper.service';
@@ -7,7 +7,6 @@ import { Prisma } from '@prisma/client';
 
 describe('ApprovalNodeProcessor', () => {
   let processor: ApprovalNodeProcessor;
-  let helper: WorkflowHelperService;
 
   const mockHelper = {
     findEnclosingSwimLane: jest.fn(),
@@ -31,7 +30,6 @@ describe('ApprovalNodeProcessor', () => {
     }).compile();
 
     processor = module.get<ApprovalNodeProcessor>(ApprovalNodeProcessor);
-    helper = module.get<WorkflowHelperService>(WorkflowHelperService);
 
     jest.clearAllMocks();
   });

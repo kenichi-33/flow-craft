@@ -1,4 +1,4 @@
-
+/* eslint-disable @typescript-eslint/unbound-method */
 import { Test, TestingModule } from '@nestjs/testing';
 import { BranchNodeProcessor } from './branch-node.processor';
 import { WorkflowHelperService } from '../workflow-helper.service';
@@ -7,7 +7,6 @@ import { Prisma } from '@prisma/client';
 
 describe('BranchNodeProcessor', () => {
   let processor: BranchNodeProcessor;
-  let helper: WorkflowHelperService;
 
   const mockHelper = {
     evaluateCondition: jest.fn(),
@@ -28,7 +27,6 @@ describe('BranchNodeProcessor', () => {
     }).compile();
 
     processor = module.get<BranchNodeProcessor>(BranchNodeProcessor);
-    helper = module.get<WorkflowHelperService>(WorkflowHelperService);
 
     jest.clearAllMocks();
   });

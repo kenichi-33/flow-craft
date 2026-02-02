@@ -1,4 +1,4 @@
-
+/* eslint-disable @typescript-eslint/unbound-method */
 import { Test, TestingModule } from '@nestjs/testing';
 import { WorkflowEngineController } from './workflow-engine.controller';
 import { WorkflowEngineService } from './workflow-engine.service';
@@ -24,9 +24,7 @@ describe('WorkflowEngineController', () => {
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [WorkflowEngineController],
-      providers: [
-        { provide: WorkflowEngineService, useValue: mockService },
-      ],
+      providers: [{ provide: WorkflowEngineService, useValue: mockService }],
     }).compile();
 
     controller = module.get<WorkflowEngineController>(WorkflowEngineController);
@@ -44,7 +42,7 @@ describe('WorkflowEngineController', () => {
       const dto = {
         applicationDefinitionId: 'def-1',
         title: 'Title',
-        inputData: {}
+        inputData: {},
       };
       await controller.startWorkflow(dto, mockUser);
       expect(service.startWorkflow).toHaveBeenCalledWith({
@@ -56,16 +54,16 @@ describe('WorkflowEngineController', () => {
 
   describe('saveDraft', () => {
     it('should call service.saveDraft with applicantId', async () => {
-        const dto = {
-            applicationDefinitionId: 'def-1',
-            title: 'Title',
-            inputData: {}
-        };
-        await controller.saveDraft(dto, mockUser);
-        expect(service.saveDraft).toHaveBeenCalledWith({
-            ...dto,
-            applicantId: mockUser.username,
-        });
+      const dto = {
+        applicationDefinitionId: 'def-1',
+        title: 'Title',
+        inputData: {},
+      };
+      await controller.saveDraft(dto, mockUser);
+      expect(service.saveDraft).toHaveBeenCalledWith({
+        ...dto,
+        applicantId: mockUser.username,
+      });
     });
   });
 
@@ -74,7 +72,7 @@ describe('WorkflowEngineController', () => {
       const dto: any = {
         action: 'APPROVE',
         comment: 'LGTM',
-        inputData: { f: 1 }
+        inputData: { f: 1 },
       };
       await controller.completeTask('task-1', dto, mockUser);
       expect(service.completeTask).toHaveBeenCalledWith({
@@ -96,9 +94,9 @@ describe('WorkflowEngineController', () => {
   });
 
   describe('retryTasks', () => {
-      it('should call service.retryServiceTasks', async () => {
-          await controller.retryTasks(['t1', 't2']);
-          expect(service.retryServiceTasks).toHaveBeenCalledWith(['t1', 't2']);
-      });
+    it('should call service.retryServiceTasks', async () => {
+      await controller.retryTasks(['t1', 't2']);
+      expect(service.retryServiceTasks).toHaveBeenCalledWith(['t1', 't2']);
+    });
   });
 });

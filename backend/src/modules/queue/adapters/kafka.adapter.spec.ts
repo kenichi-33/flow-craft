@@ -1,4 +1,3 @@
-
 import { Test, TestingModule } from '@nestjs/testing';
 import { KafkaAdapter } from './kafka.adapter';
 import { ConfigService } from '@nestjs/config';
@@ -25,8 +24,8 @@ const mockKafka = {
 jest.mock('@confluentinc/kafka-javascript', () => {
   return {
     KafkaJS: {
-        Kafka: jest.fn(() => mockKafka)
-    }
+      Kafka: jest.fn(() => mockKafka),
+    },
   };
 });
 
@@ -84,7 +83,9 @@ describe('KafkaAdapter', () => {
     const handler = jest.fn();
     await adapter.subscribe('test-topic', handler);
 
-    expect(mockConsumer.subscribe).toHaveBeenCalledWith({ topics: ['test-topic'] });
+    expect(mockConsumer.subscribe).toHaveBeenCalledWith({
+      topics: ['test-topic'],
+    });
     expect(mockConsumer.run).toHaveBeenCalled();
   });
 });

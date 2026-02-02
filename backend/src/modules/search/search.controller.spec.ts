@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/unbound-method */
 import { Test, TestingModule } from '@nestjs/testing';
 import { SearchController } from './search.controller';
 import { SearchService } from './search.service';
@@ -41,7 +42,7 @@ describe('SearchController', () => {
 
   describe('searchApplications', () => {
     it('should call searchService.search', async () => {
-      const dto = { query: 'test' };
+      const dto = { keyword: 'test' };
       await controller.searchApplications(dto);
       expect(searchService.search).toHaveBeenCalledWith(dto);
     });
@@ -54,7 +55,9 @@ describe('SearchController', () => {
       expect(prisma.application.findUnique).toHaveBeenCalledWith({
         where: { id: 'app-1' },
       });
-      expect(searchService.indexApplication).toHaveBeenCalledWith({ id: 'app-1' });
+      expect(searchService.indexApplication).toHaveBeenCalledWith({
+        id: 'app-1',
+      });
     });
 
     it('should not index if application not found', async () => {

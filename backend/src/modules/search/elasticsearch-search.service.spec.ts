@@ -1,4 +1,3 @@
-
 import { Test, TestingModule } from '@nestjs/testing';
 import { ElasticsearchSearchService } from './elasticsearch-search.service';
 import { ConfigService } from '@nestjs/config';
@@ -27,7 +26,6 @@ jest.mock('@elastic/elasticsearch', () => {
 
 describe('ElasticsearchSearchService', () => {
   let service: ElasticsearchSearchService;
-  let configService: ConfigService;
 
   const mockQueueService = {
     registerHandler: jest.fn(),
@@ -59,8 +57,9 @@ describe('ElasticsearchSearchService', () => {
       ],
     }).compile();
 
-    service = module.get<ElasticsearchSearchService>(ElasticsearchSearchService);
-    configService = module.get<ConfigService>(ConfigService);
+    service = module.get<ElasticsearchSearchService>(
+      ElasticsearchSearchService,
+    );
 
     jest.clearAllMocks();
     // Re-instantiate mock client in service if needed,
@@ -99,9 +98,7 @@ describe('ElasticsearchSearchService', () => {
     });
 
     it('should execute search query', async () => {
-      const hits = [
-        { _id: 'app-1', _source: { title: 'Test App' } },
-      ];
+      const hits = [{ _id: 'app-1', _source: { title: 'Test App' } }];
       mockClient.search.mockResolvedValue({
         hits: {
           total: { value: 1 },
@@ -114,15 +111,17 @@ describe('ElasticsearchSearchService', () => {
 
       const result = await service.search({ keyword: 'Test' });
 
-      expect(mockClient.search).toHaveBeenCalledWith(expect.objectContaining({
-            query: expect.objectContaining({
-                bool: expect.objectContaining({
-                    must: expect.arrayContaining([
-                        expect.objectContaining({ multi_match: expect.anything() })
-                    ])
-                })
-            })
-      }));
+      expect(mockClient.search).toHaveBeenCalledWith(
+        expect.objectContaining({
+          query: expect.objectContaining({
+            bool: expect.objectContaining({
+              must: expect.arrayContaining([
+                expect.objectContaining({ multi_match: expect.anything() }),
+              ]),
+            }),
+          }),
+        }),
+      );
       expect(result.items).toHaveLength(1);
       expect(result.items[0].id).toBe('app-1');
     });
@@ -154,13 +153,15 @@ describe('ElasticsearchSearchService', () => {
       await service.indexApplication(app);
 
       expect(mockSearchMeta.generateSearchMeta).toHaveBeenCalledWith(app);
-      expect(mockClient.index).toHaveBeenCalledWith(expect.objectContaining({
-        id: 'app-1',
-        document: expect.objectContaining({
+      expect(mockClient.index).toHaveBeenCalledWith(
+        expect.objectContaining({
+          id: 'app-1',
+          document: expect.objectContaining({
             title: 'Title',
             full_text: 'meta text',
-        })
-      }));
+          }),
+        }),
+      );
     });
   });
 });

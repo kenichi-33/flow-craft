@@ -3,7 +3,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { v4 as uuidv4 } from 'uuid';
 import { CreateApplicationDefinitionDto } from './dto/create-application-definition.dto';
 import { UpdateApplicationDefinitionDto } from './dto/update-application-definition.dto';
-import { Prisma, AppDefStatus } from '@prisma/client';
+import { Prisma, AppDefStatus, ApplicationDefinition } from '@prisma/client';
 
 export interface FindAllOptions {
   page?: number;
@@ -14,6 +14,11 @@ export interface FindAllOptions {
   tags?: string[];
 }
 
+export interface ApplicationDefinitionWithUser extends ApplicationDefinition {
+  createdByInfo?: any;
+  updatedByInfo?: any;
+  adminInfo?: any[];
+}
 import { UsersService } from '../users/users.service';
 import { SchedulerService } from '../scheduler/scheduler.service';
 import { AuthUser } from '../../auth/types/user.interface';
@@ -33,7 +38,9 @@ export class ApplicationDefinitionsService {
         version: 1,
         status: AppDefStatus.DRAFT,
         createdBy: user.username,
+
         updatedBy: user.username,
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-assignment
         webhookToken: createDto.webhookToken || uuidv4(),
         adminIds: [user.username], // Auto-assign creator as admin (using username)
       },
@@ -123,12 +130,13 @@ export class ApplicationDefinitionsService {
       orderBy.createdAt = sortOrder;
     }
 
-    let resultData: any[];
+    let resultData: ApplicationDefinition[];
+
     let paginationToken: any = null;
 
     // ページネーションなしの場合は単純な配列を返す（後方互換性）
     if (!page && !limit) {
-      resultData = await this.prisma.applicationDefinition.findMany({
+      resultData = (await this.prisma.applicationDefinition.findMany({
         where,
         orderBy,
         select: {
@@ -149,7 +157,7 @@ export class ApplicationDefinitionsService {
           formDefinition: { select: { id: true, name: true } },
           flowDefinition: { select: { id: true, name: true } },
         },
-      });
+      })) as unknown as ApplicationDefinition[];
     } else {
       // ページネーションありの場合
       const pageNum = page || 1;
@@ -184,7 +192,7 @@ export class ApplicationDefinitionsService {
         this.prisma.applicationDefinition.count({ where }),
       ]);
 
-      resultData = data;
+      resultData = data as unknown as ApplicationDefinition[];
       paginationToken = {
         page: pageNum,
         limit: limitNum,
@@ -197,6 +205,7 @@ export class ApplicationDefinitionsService {
     const enrichedData = await Promise.all(
       resultData.map(async (app) => {
         let createdByInfo: any = null;
+
         let updatedByInfo: any = null;
 
         if (app.createdBy) {
@@ -229,14 +238,16 @@ export class ApplicationDefinitionsService {
   }
 
   async findOne(id: string) {
-    // Cast to any to access adminIds until Prisma Client types are fully synced in IDE
-    const appDef = (await this.prisma.applicationDefinition.findUnique({
+    const rawAppDef = await this.prisma.applicationDefinition.findUnique({
       where: { id },
       include: {
         formDefinition: true,
         flowDefinition: true,
       },
-    })) as any;
+    });
+
+    const appDef: ApplicationDefinition & { adminIds?: string[] } =
+      rawAppDef as any;
 
     if (!appDef) {
       throw new NotFoundException(
@@ -282,7 +293,7 @@ export class ApplicationDefinitionsService {
     username: string,
   ) {
     // Retrieve current to check if cron changed
-    const current = await this.findOne(id);
+    const current: ApplicationDefinition = (await this.findOne(id)) as any;
 
     let newScheduleCron = updateDto.scheduleCron;
 
@@ -302,10 +313,17 @@ export class ApplicationDefinitionsService {
         where: { id: flowDefId },
       });
       if (flowDef && flowDef.nodes) {
-        const nodes = flowDef.nodes as any[];
-        const startNode = nodes.find((n) => n.type === 'start');
-        if (startNode && startNode.data && startNode.data.cron) {
-          newScheduleCron = startNode.data.cron; // Sync from Start Node
+        const nodes = flowDef.nodes as Prisma.JsonArray;
+        const startNode = nodes.find(
+          (n: any) => n.type === 'start',
+        ) as Prisma.JsonObject;
+        if (
+          startNode &&
+          startNode.data &&
+          (startNode.data as Prisma.JsonObject).cron
+        ) {
+          newScheduleCron = (startNode.data as Prisma.JsonObject)
+            .cron as string; // Sync from Start Node
         } else if (startNode) {
           // If start node exists but no cron, validation? Or valid to have no cron.
           // If we strictly sync, we should unset it if missing in Start Node?
@@ -499,11 +517,17 @@ export class ApplicationDefinitionsService {
       });
 
       // Extract Cron from Flow Definition (Draft) to update AppDef
-      const flowNodes = (appDef.flowDefinition?.nodes as any[]) || [];
-      const startNode = flowNodes.find((n: any) => n.type === 'start');
+      const flowNodes =
+        (appDef.flowDefinition?.nodes as Prisma.JsonArray) || [];
+      const startNode = flowNodes.find(
+        (n: any) => n.type === 'start',
+      ) as Prisma.JsonObject;
       // Fix: Property name is scheduleCron, not cron
+      const startNodeData = startNode?.data as Prisma.JsonObject;
       const newCron =
-        startNode?.data?.scheduleCron || startNode?.data?.cron || null;
+        (startNodeData?.scheduleCron as string) ||
+        (startNodeData?.cron as string) ||
+        null;
 
       // Update app definition with new version, status, and cron
       const updated = await prisma.applicationDefinition.update({
@@ -537,11 +561,13 @@ export class ApplicationDefinitionsService {
       return updated;
     };
 
-    let result: any;
+    let result: ApplicationDefinition | null;
     if (tx) {
-      result = await execute(tx);
+      result = (await execute(tx)) as ApplicationDefinition;
     } else {
-      result = await this.prisma.$transaction(execute);
+      result = (await this.prisma.$transaction(
+        execute,
+      )) as ApplicationDefinition;
     }
 
     // Trigger Scheduler (After Transaction)

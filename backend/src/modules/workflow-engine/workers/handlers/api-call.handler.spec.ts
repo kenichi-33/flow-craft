@@ -140,7 +140,7 @@ describe('ApiCallHandler', () => {
   });
 
   it('should map response data to output', async () => {
-     mockFetch.mockResolvedValue({
+    mockFetch.mockResolvedValue({
       status: 200,
       statusText: 'OK',
       text: jest.fn().mockResolvedValue('{"data": {"id": 123}}'),

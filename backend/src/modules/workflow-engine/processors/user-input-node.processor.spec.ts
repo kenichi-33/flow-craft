@@ -1,4 +1,3 @@
-
 import { Test, TestingModule } from '@nestjs/testing';
 import { UserInputNodeProcessor } from './user-input-node.processor';
 import { WorkflowHelperService } from '../workflow-helper.service';
@@ -7,7 +6,6 @@ import { Prisma } from '@prisma/client';
 
 describe('UserInputNodeProcessor', () => {
   let processor: UserInputNodeProcessor;
-  let helper: WorkflowHelperService;
 
   const mockHelper = {
     findEnclosingSwimLane: jest.fn(),
@@ -31,7 +29,6 @@ describe('UserInputNodeProcessor', () => {
     }).compile();
 
     processor = module.get<UserInputNodeProcessor>(UserInputNodeProcessor);
-    helper = module.get<WorkflowHelperService>(WorkflowHelperService);
 
     jest.clearAllMocks();
   });
@@ -108,8 +105,8 @@ describe('UserInputNodeProcessor', () => {
 
     mockHelper.resolveAssignedTo.mockResolvedValue('user-specific');
     mockHelper.resolveAssignedToSnapshot.mockResolvedValue({
-        firstName: 'Specific',
-        lastName: 'User',
+      firstName: 'Specific',
+      lastName: 'User',
     });
 
     await processor.process(context, mockTx);
@@ -124,17 +121,17 @@ describe('UserInputNodeProcessor', () => {
       'user:specific',
       'applicant-1',
     );
-    
+
     // Name Formatting
     expect(mockHelper.enqueueTask).toHaveBeenCalledWith(
-        expect.anything(),
-        expect.anything(),
-        expect.anything(),
-        expect.anything(),
-        'user-specific',
-        'User Specific',
-        expect.anything(),
-        mockTx
+      expect.anything(),
+      expect.anything(),
+      expect.anything(),
+      expect.anything(),
+      'user-specific',
+      'User Specific',
+      expect.anything(),
+      mockTx,
     );
   });
 });

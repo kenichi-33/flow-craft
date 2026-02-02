@@ -1,4 +1,4 @@
-
+/* eslint-disable @typescript-eslint/unbound-method */
 import { Test, TestingModule } from '@nestjs/testing';
 import { JoinGatewayProcessor } from './join-node.processor';
 import { WorkflowHelperService } from '../workflow-helper.service';
@@ -8,7 +8,6 @@ import { Prisma } from '@prisma/client';
 
 describe('JoinGatewayProcessor', () => {
   let processor: JoinGatewayProcessor;
-  let helper: WorkflowHelperService;
 
   const mockHelper = {
     advanceToNextNode: jest.fn(),
@@ -30,7 +29,6 @@ describe('JoinGatewayProcessor', () => {
     }).compile();
 
     processor = module.get<JoinGatewayProcessor>(JoinGatewayProcessor);
-    helper = module.get<WorkflowHelperService>(WorkflowHelperService);
 
     jest.clearAllMocks();
   });
@@ -92,7 +90,8 @@ describe('JoinGatewayProcessor', () => {
 
       // Verify db update (saving state)
       expect(mockTx.application.update).toHaveBeenCalled();
-      const updateArg = (mockTx.application.update as jest.Mock).mock.calls[0][0];
+      const updateArg = (mockTx.application.update as jest.Mock).mock
+        .calls[0][0];
       const savedState = updateArg.data.inputData._system.joins['node-join'];
 
       expect(savedState.arrivedFrom).toContain('node-A');
@@ -117,7 +116,8 @@ describe('JoinGatewayProcessor', () => {
 
       // Verify state reset and advance
       expect(mockTx.application.update).toHaveBeenCalled();
-      const updateArg = (mockTx.application.update as jest.Mock).mock.calls[0][0];
+      const updateArg = (mockTx.application.update as jest.Mock).mock
+        .calls[0][0];
       const savedState = updateArg.data.inputData._system.joins['node-join'];
 
       expect(savedState.arrivedFrom).toHaveLength(0); // Reset

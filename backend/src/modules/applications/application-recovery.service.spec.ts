@@ -1,4 +1,3 @@
-
 import { Test, TestingModule } from '@nestjs/testing';
 import { ApplicationRecoveryService } from './application-recovery.service';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -6,8 +5,6 @@ import { QueueService } from '../queue/queue.service';
 
 describe('ApplicationRecoveryService', () => {
   let service: ApplicationRecoveryService;
-  let prisma: PrismaService;
-  let queueService: QueueService;
 
   const mockPrisma = {
     application: {
@@ -34,13 +31,13 @@ describe('ApplicationRecoveryService', () => {
       ],
     }).compile();
 
-    service = module.get<ApplicationRecoveryService>(ApplicationRecoveryService);
-    prisma = module.get<PrismaService>(PrismaService);
-    queueService = module.get<QueueService>(QueueService);
+    service = module.get<ApplicationRecoveryService>(
+      ApplicationRecoveryService,
+    );
 
     jest.clearAllMocks();
-    (mockPrisma.application.findMany as jest.Mock).mockResolvedValue([]);
-    (mockPrisma.workflowTask.findMany as jest.Mock).mockResolvedValue([]);
+    mockPrisma.application.findMany.mockResolvedValue([]);
+    mockPrisma.workflowTask.findMany.mockResolvedValue([]);
   });
 
   it('should be defined', () => {
@@ -50,7 +47,7 @@ describe('ApplicationRecoveryService', () => {
   describe('handleRecovery', () => {
     it('should recover stuck RUNNING tasks (timeout)', async () => {
       // Mock stuck running tasks
-      (mockPrisma.workflowTask.findMany as jest.Mock)
+      mockPrisma.workflowTask.findMany
         .mockResolvedValueOnce([
           { id: 't1', status: 'RUNNING', workerId: 'w1' },
         ]) // stuckRunningTasks
@@ -65,13 +62,13 @@ describe('ApplicationRecoveryService', () => {
     });
 
     it('should recover stuck QUEUED tasks (message lost)', async () => {
-      (mockPrisma.workflowTask.findMany as jest.Mock)
+      mockPrisma.workflowTask.findMany
         .mockResolvedValueOnce([]) // stuckRunningTasks
         .mockResolvedValueOnce([
           { id: 't2', status: 'QUEUED', retries: 0, applicationId: 'app1' },
         ]); // stuckQueuedTasks
 
-      (mockPrisma.application.findUnique as jest.Mock).mockResolvedValue({
+      mockPrisma.application.findUnique.mockResolvedValue({
         id: 'app1',
         inputData: {},
         applicantId: 'u1',
@@ -94,7 +91,7 @@ describe('ApplicationRecoveryService', () => {
     });
 
     it('should FAIL stuck QUEUED tasks if max retries exceeded', async () => {
-      (mockPrisma.workflowTask.findMany as jest.Mock)
+      mockPrisma.workflowTask.findMany
         .mockResolvedValueOnce([])
         .mockResolvedValueOnce([
           { id: 't3', status: 'QUEUED', retries: 5 }, // Max retries
@@ -110,7 +107,23 @@ describe('ApplicationRecoveryService', () => {
       expect(mockQueueService.enqueue).not.toHaveBeenCalled();
     });
 
-    it('should recover stuck Applications', async () => {
+    it('should ignore stuck QUEUED tasks if Application not found', async () => {
+      mockPrisma.workflowTask.findMany
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([
+          { id: 't4', status: 'QUEUED', applicationId: 'missing-app' },
+        ]);
+
+      mockPrisma.application.findUnique.mockResolvedValue(null);
+
+      await service.handleRecovery();
+
+      // No update, just skip/log
+      expect(mockPrisma.workflowTask.update).not.toHaveBeenCalled();
+    });
+
+    it('should recover stuck IN_PROGRESS applications', async () => {
+      // Mock stuck app
       const stuckApp = {
         id: 'app-stuck',
         status: 'IN_PROGRESS',
@@ -118,8 +131,8 @@ describe('ApplicationRecoveryService', () => {
         workflowTasks: [], // No tasks active or failed
       };
 
-      (mockPrisma.application.findMany as jest.Mock).mockResolvedValue([stuckApp]);
-      (mockPrisma.workflowTask.findMany as jest.Mock)
+      mockPrisma.application.findMany.mockResolvedValue([stuckApp]);
+      mockPrisma.workflowTask.findMany
         .mockResolvedValueOnce([])
         .mockResolvedValueOnce([]);
 
@@ -140,18 +153,39 @@ describe('ApplicationRecoveryService', () => {
       });
     });
 
-    it('should SKIP recovery if Application has exceeded max retries on failed tasks', async () => {
-       const failedApp = {
-        id: 'app-failed',
+    it('should SKIP recovery if Application has FAILED tasks (retrying)', async () => {
+      const wTask = { id: 't-fail', status: 'FAILED', stepId: 'node-1' };
+      const stuckApp = {
+        id: 'app-skip',
         status: 'IN_PROGRESS',
         currentNodeId: 'node-1',
-        workflowTasks: [
-            { stepId: 'node-1', status: 'FAILED', retries: 5 }
-        ],
+        workflowTasks: [wTask], // Has a failed task in current Step
       };
 
-      (mockPrisma.application.findMany as jest.Mock).mockResolvedValue([failedApp]);
-      (mockPrisma.workflowTask.findMany as jest.Mock)
+      mockPrisma.application.findMany.mockResolvedValue([stuckApp]);
+      mockPrisma.workflowTask.findMany
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([]);
+
+      await service.handleRecovery();
+
+      expect(mockQueueService.enqueue).not.toHaveBeenCalledWith(
+        'WORKFLOW_NODE_PROCESS',
+        expect.anything(),
+      );
+    });
+
+    it('should SKIP recovery if Application has exceeded max retries on failed tasks', async () => {
+      // Unused variable failedApp removed
+      mockPrisma.application.findMany.mockResolvedValue([
+        {
+          id: 'app-failed',
+          status: 'IN_PROGRESS',
+          currentNodeId: 'node-1',
+          workflowTasks: [{ stepId: 'node-1', status: 'FAILED', retries: 5 }],
+        },
+      ]);
+      mockPrisma.workflowTask.findMany
         .mockResolvedValueOnce([])
         .mockResolvedValueOnce([]);
 

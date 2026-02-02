@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/unbound-method */
 import { Test, TestingModule } from '@nestjs/testing';
 import { WebhookController } from './webhook.controller';
 import { WorkflowEngineService } from './workflow-engine.service';

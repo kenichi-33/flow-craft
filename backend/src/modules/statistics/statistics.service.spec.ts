@@ -73,7 +73,7 @@ describe('StatisticsService', () => {
         { status: 'APPROVED', _count: { _all: 5 } },
       ]);
       mockPrisma.workflowTask.findMany.mockResolvedValue([
-          { stepId: 'step1', assignedTo: 'user:1', claimedBy: null }
+        { stepId: 'step1', assignedTo: 'user:1', claimedBy: null },
       ]);
       mockPrisma.$queryRaw.mockResolvedValue([]);
 

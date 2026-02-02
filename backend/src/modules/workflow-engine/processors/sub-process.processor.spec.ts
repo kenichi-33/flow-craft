@@ -1,4 +1,4 @@
-
+/* eslint-disable @typescript-eslint/unbound-method */
 import { Test, TestingModule } from '@nestjs/testing';
 import { SubProcessProcessor } from './sub-process.processor';
 import { WorkflowHelperService } from '../workflow-helper.service';
@@ -8,7 +8,6 @@ import { Prisma } from '@prisma/client';
 
 describe('SubProcessProcessor', () => {
   let processor: SubProcessProcessor;
-  let helper: WorkflowHelperService;
 
   const mockHelper = {
     substituteVariables: jest.fn(),
@@ -34,7 +33,6 @@ describe('SubProcessProcessor', () => {
     }).compile();
 
     processor = module.get<SubProcessProcessor>(SubProcessProcessor);
-    helper = module.get<WorkflowHelperService>(WorkflowHelperService);
 
     jest.clearAllMocks();
   });
@@ -72,16 +70,14 @@ describe('SubProcessProcessor', () => {
       formDefinitionId: 'form-def-1',
       name: 'Child App',
       flowDefinition: {
-          nodes: [],
-          edges: [],
+        nodes: [],
+        edges: [],
       },
     });
 
     // 2. Mock finding published version
     (mockTx.appVersion.findUnique as jest.Mock).mockResolvedValue({
-      flowNodes: [
-        { id: 'start-node', type: 'start' },
-      ],
+      flowNodes: [{ id: 'start-node', type: 'start' }],
       flowEdges: [],
       formSchema: {},
     });
@@ -115,18 +111,18 @@ describe('SubProcessProcessor', () => {
 
     // Verify History (Parent)
     expect(mockTx.approvalHistory.create).toHaveBeenCalledWith({
-        data: expect.objectContaining({
-            applicationId: 'parent-app-1',
-            action: 'SUB_PROCESS_START',
-        })
+      data: expect.objectContaining({
+        applicationId: 'parent-app-1',
+        action: 'SUB_PROCESS_START',
+      }),
     });
-    
+
     // Verify History (Child Start)
     expect(mockTx.approvalHistory.create).toHaveBeenCalledWith({
-        data: expect.objectContaining({
-            applicationId: 'child-app-new-1',
-            action: 'START',
-        })
+      data: expect.objectContaining({
+        applicationId: 'child-app-new-1',
+        action: 'START',
+      }),
     });
 
     // Verify Advance Child (Kickstart)
@@ -138,46 +134,48 @@ describe('SubProcessProcessor', () => {
 
   it('should handle input mapping', async () => {
     const context = {
-        ...baseContext,
-        node: {
-            ...baseContext.node,
-            data: {
-                applicationDefinitionId: 'child-def-1',
-                inputMapping: { targetField: '{{parentVar}}' }
-            }
-        }
+      ...baseContext,
+      node: {
+        ...baseContext.node,
+        data: {
+          applicationDefinitionId: 'child-def-1',
+          inputMapping: { targetField: '{{parentVar}}' },
+        },
+      },
     };
 
     (mockTx.applicationDefinition.findUnique as jest.Mock).mockResolvedValue({
-        id: 'child-def-1',
-        version: 1,
-        flowDefinitionId: 'f1',
-        formDefinitionId: 'fm1',
-        flowDefinition: { nodes: [] }
+      id: 'child-def-1',
+      version: 1,
+      flowDefinitionId: 'f1',
+      formDefinitionId: 'fm1',
+      flowDefinition: { nodes: [] },
     });
     (mockTx.appVersion.findUnique as jest.Mock).mockResolvedValue({
-        flowNodes: [{ id: 'start', type: 'start' }]
+      flowNodes: [{ id: 'start', type: 'start' }],
     });
     (mockTx.application.create as jest.Mock).mockResolvedValue({ id: 'c1' });
-    
+
     // Variable substitution
     mockHelper.substituteVariables.mockImplementation((tmpl) => {
-        if (tmpl === '{{parentVar}}') return 'val';
-        return tmpl;
+      if (tmpl === '{{parentVar}}') return 'val';
+      return tmpl;
     });
 
     await processor.process(context, mockTx);
 
     expect(mockTx.application.create).toHaveBeenCalledWith({
-        data: expect.objectContaining({
-            inputData: { targetField: 'val' }
-        })
+      data: expect.objectContaining({
+        inputData: { targetField: 'val' },
+      }),
     });
   });
 
   it('should FAIL if child definition not found', async () => {
-     (mockTx.applicationDefinition.findUnique as jest.Mock).mockResolvedValue(null);
-     
-     await expect(processor.process(baseContext, mockTx)).rejects.toThrow();
+    (mockTx.applicationDefinition.findUnique as jest.Mock).mockResolvedValue(
+      null,
+    );
+
+    await expect(processor.process(baseContext, mockTx)).rejects.toThrow();
   });
 });

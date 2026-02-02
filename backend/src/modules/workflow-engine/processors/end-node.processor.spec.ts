@@ -1,4 +1,4 @@
-
+/* eslint-disable @typescript-eslint/unbound-method */
 import { Test, TestingModule } from '@nestjs/testing';
 import { EndNodeProcessor } from './end-node.processor';
 import { WorkflowHelperService } from '../workflow-helper.service';
@@ -7,7 +7,6 @@ import { Prisma } from '@prisma/client';
 
 describe('EndNodeProcessor', () => {
   let processor: EndNodeProcessor;
-  let helper: WorkflowHelperService;
 
   const mockHelper = {
     substituteVariables: jest.fn(),
@@ -31,7 +30,6 @@ describe('EndNodeProcessor', () => {
     }).compile();
 
     processor = module.get<EndNodeProcessor>(EndNodeProcessor);
-    helper = module.get<WorkflowHelperService>(WorkflowHelperService);
 
     jest.clearAllMocks();
   });
@@ -91,7 +89,9 @@ describe('EndNodeProcessor', () => {
               id: 'node-subprocess',
               type: 'subProcess',
               data: {
-                outputMapping: { parentTarget: '{{child.inputData.childResult}}' },
+                outputMapping: {
+                  parentTarget: '{{child.inputData.childResult}}',
+                },
               },
             },
           ],
@@ -120,10 +120,10 @@ describe('EndNodeProcessor', () => {
 
     // Verify Log in Parent
     expect(mockTx.approvalHistory.create).toHaveBeenCalledWith({
-        data: expect.objectContaining({
-            applicationId: 'parent-app-1',
-            action: 'SUB_PROCESS_END',
-        })
+      data: expect.objectContaining({
+        applicationId: 'parent-app-1',
+        action: 'SUB_PROCESS_END',
+      }),
     });
 
     // Verify Parent Resumption

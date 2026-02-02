@@ -6,8 +6,6 @@ import { TaskContext } from '../task-handler.interface';
 
 describe('UpdateRecordHandler', () => {
   let handler: UpdateRecordHandler;
-  let helper: WorkflowHelperService;
-  let prisma: PrismaService;
 
   const mockHelper = {
     substituteVariables: jest.fn(),
@@ -30,8 +28,7 @@ describe('UpdateRecordHandler', () => {
     }).compile();
 
     handler = module.get<UpdateRecordHandler>(UpdateRecordHandler);
-    helper = module.get<WorkflowHelperService>(WorkflowHelperService);
-    prisma = module.get<PrismaService>(PrismaService);
+    handler = module.get<UpdateRecordHandler>(UpdateRecordHandler);
 
     jest.clearAllMocks();
   });
@@ -39,6 +36,7 @@ describe('UpdateRecordHandler', () => {
   const baseContext: TaskContext = {
     taskId: 'task-1',
     nodeId: 'node-1',
+    nodeType: 'updateRecord',
     applicationId: 'app-1',
     applicantId: 'user-1',
     nodeData: {
@@ -63,11 +61,11 @@ describe('UpdateRecordHandler', () => {
 
     const result = await handler.execute(baseContext);
 
-    expect(helper.substituteVariables).toHaveBeenCalledWith(
+    expect(mockHelper.substituteVariables).toHaveBeenCalledWith(
       'value1',
       expect.anything(),
     );
-    expect(prisma.application.update).toHaveBeenCalledWith({
+    expect(mockPrisma.application.update).toHaveBeenCalledWith({
       where: { id: 'app-1' },
       data: {
         inputData: {
@@ -97,9 +95,9 @@ describe('UpdateRecordHandler', () => {
       },
     };
 
-    mockHelper.substituteVariables.mockImplementation((val, data) => {
-        if (val === '{{input.status}}') return 'APPROVED';
-        return val;
+    mockHelper.substituteVariables.mockImplementation((val) => {
+      if (val === '{{input.status}}') return 'APPROVED';
+      return val;
     });
     mockPrisma.application.findUnique.mockResolvedValue({
       id: 'app-1',
@@ -108,7 +106,7 @@ describe('UpdateRecordHandler', () => {
 
     await handler.execute(context);
 
-    expect(prisma.application.update).toHaveBeenCalledWith(
+    expect(mockPrisma.application.update).toHaveBeenCalledWith(
       expect.objectContaining({
         data: { inputData: { status: 'APPROVED' } },
       }),

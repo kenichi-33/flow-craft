@@ -1,4 +1,4 @@
-
+/* eslint-disable @typescript-eslint/unbound-method */
 import { Test, TestingModule } from '@nestjs/testing';
 import { ServiceTaskProcessor } from './service-task.processor';
 import { WorkflowHelperService } from '../workflow-helper.service';
@@ -8,8 +8,6 @@ import { Prisma } from '@prisma/client';
 
 describe('ServiceTaskProcessor', () => {
   let processor: ServiceTaskProcessor;
-  let queueService: QueueService;
-  let helper: WorkflowHelperService;
 
   const mockHelper = {
     enqueueTask: jest.fn(),
@@ -38,8 +36,6 @@ describe('ServiceTaskProcessor', () => {
     }).compile();
 
     processor = module.get<ServiceTaskProcessor>(ServiceTaskProcessor);
-    helper = module.get<WorkflowHelperService>(WorkflowHelperService);
-    queueService = module.get<QueueService>(QueueService);
 
     jest.clearAllMocks();
   });
@@ -82,7 +78,10 @@ describe('ServiceTaskProcessor', () => {
     // Should reset failed task
     expect(mockTx.workflowTask.update).toHaveBeenCalledWith({
       where: { id: 'task-1' },
-      data: expect.objectContaining({ status: 'QUEUED', retries: { increment: 1 } }),
+      data: expect.objectContaining({
+        status: 'QUEUED',
+        retries: { increment: 1 },
+      }),
     });
 
     // Should enqueue existing task

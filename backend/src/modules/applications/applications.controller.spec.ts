@@ -1,4 +1,4 @@
-
+/* eslint-disable @typescript-eslint/unbound-method */
 import { Test, TestingModule } from '@nestjs/testing';
 import { ApplicationsController } from './applications.controller';
 import { ApplicationsService } from './applications.service';
@@ -16,14 +16,13 @@ describe('ApplicationsController', () => {
     cancel: jest.fn(),
   };
 
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
   const mockUser = { username: 'testuser', sub: 'u1' } as any;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [ApplicationsController],
-      providers: [
-        { provide: ApplicationsService, useValue: mockService },
-      ],
+      providers: [{ provide: ApplicationsService, useValue: mockService }],
     }).compile();
 
     controller = module.get<ApplicationsController>(ApplicationsController);
@@ -38,6 +37,7 @@ describe('ApplicationsController', () => {
 
   describe('create', () => {
     it('should call service.create', async () => {
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
       const dto: CreateApplicationDto = {
         title: 'New App',
         applicationDefinitionId: 'def-1',
@@ -51,14 +51,18 @@ describe('ApplicationsController', () => {
   describe('findAll', () => {
     it('should call service.findAll with parsed params', async () => {
       await controller.findAll(
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
         mockUser,
-        '1', '10', // page, limit
+        '1',
+        '10', // page, limit
         'query', // search
-        'createdAt', 'desc', // sort
+        'createdAt',
+        'desc', // sort
         'IN_PROGRESS', // status
         undefined, // appNumber
-        undefined, undefined, // dates
-        'true' // myApplications
+        undefined,
+        undefined, // dates
+        'true', // myApplications
       );
 
       expect(service.findAll).toHaveBeenCalledWith({
@@ -79,6 +83,7 @@ describe('ApplicationsController', () => {
 
   describe('findOne', () => {
     it('should call service.findOne with user context', async () => {
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
       await controller.findOne('app-1', mockUser);
       expect(service.findOne).toHaveBeenCalledWith('app-1', 'testuser');
     });
@@ -94,6 +99,7 @@ describe('ApplicationsController', () => {
 
   describe('cancel', () => {
     it('should call service.cancel', async () => {
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
       await controller.cancel('app-1', mockUser);
       expect(service.cancel).toHaveBeenCalledWith('app-1', 'testuser');
     });

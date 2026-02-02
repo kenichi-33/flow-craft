@@ -304,3 +304,49 @@ sequenceDiagram
         deactivate Indexer
     end
 ```
+
+## マスタ参照機能 (Master Connector)
+
+マスタ参照機能では、外部APIやCSVデータを利用して、フォームの選択肢などを動的に生成・参照できます。
+
+```mermaid
+sequenceDiagram
+    actor User as User (Frontend)
+    participant API as Backend API
+    participant Service as MasterConnectorsService
+    participant DB as PostgreSQL
+    participant ExtAPI as External API (REST)
+
+    %% Proxy Request
+    User->>API: GET /master-connectors/{id}/proxy?q=検索語句
+    activate API
+    
+    API->>Service: proxy(id, query)
+    activate Service
+    
+    Service->>DB: コネクタ設定の取得 (findOne)
+    DB-->>Service: 設定情報 (type, url, auth, mapping)
+    
+    alt Type is REST
+        Service->>Service: リクエスト構築 (Headers, Auth, Query)
+        Service->>ExtAPI: HTTPリクエスト実行
+        activate ExtAPI
+        ExtAPI-->>Service: HTTPレスポンス (JSON)
+        deactivate ExtAPI
+        
+        Service->>Service: レスポンスのマッピング (Label, Value, Metadata)
+        
+    else Type is CSV
+        Service->>DB: CSVデータの取得 (MasterDataItems)
+        DB-->>Service: 生データ一覧
+        
+        Service->>Service: クエリによるフィルタリング (メモリ/DB)
+        Service->>Service: レスポンスのマッピング
+    end
+    
+    Service-->>API: 結果リスト [{label, value, metadata}]
+    deactivate Service
+    
+    API-->>User: JSONレスポンス
+    deactivate API
+```

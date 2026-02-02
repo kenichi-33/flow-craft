@@ -24,7 +24,7 @@ describe('ApplicationDefinitionsService', () => {
       findMany: jest.fn(),
       create: jest.fn(),
     },
-    $transaction: jest.fn((cb) => cb(mockPrisma)),
+    $transaction: jest.fn(),
   };
 
   const mockUsersService = {
@@ -60,12 +60,14 @@ describe('ApplicationDefinitionsService', () => {
   describe('create', () => {
     it('should create an application definition', async () => {
       const dto = { name: 'Test App' };
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
       const user = { username: 'user1', id: 'u1' } as any;
       mockPrisma.applicationDefinition.create.mockResolvedValue({
         id: 'app1',
         ...dto,
       });
 
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
       const result = await service.create(dto as any, user);
       expect(result.id).toBe('app1');
     });
@@ -73,6 +75,7 @@ describe('ApplicationDefinitionsService', () => {
 
   describe('findAll', () => {
     it('should return all definitions for admin', async () => {
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
       const user = { username: 'admin', id: 'a1', roles: ['wf_admin'] } as any;
       mockPrisma.applicationDefinition.findMany.mockResolvedValue([
         { id: 'app1' },
@@ -94,8 +97,10 @@ describe('ApplicationDefinitionsService', () => {
         username: 'user1',
       });
 
-      const result = await service.findOne('app1');
+      const result: any = await service.findOne('app1');
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
       expect(result.id).toBe('app1');
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
       expect(result.adminInfo).toHaveLength(1);
     });
   });

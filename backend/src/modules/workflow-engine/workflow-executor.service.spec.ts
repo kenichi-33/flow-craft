@@ -1,4 +1,3 @@
-
 import { Test, TestingModule } from '@nestjs/testing';
 import { WorkflowExecutorService } from './workflow-executor.service';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -71,7 +70,10 @@ describe('WorkflowExecutorService', () => {
         shouldAdvance: true,
         nodeId: 'n1',
       });
-      expect(mockHelper.advanceToNextNode).toHaveBeenCalledWith('a1', undefined);
+      expect(mockHelper.advanceToNextNode).toHaveBeenCalledWith(
+        'a1',
+        undefined,
+      );
     });
 
     it('should not advance on failure', async () => {
@@ -89,32 +91,32 @@ describe('WorkflowExecutorService', () => {
 
   describe('handleSlaBreach', () => {
     it('should send notification via email', async () => {
-        mockPrisma.workflowTask.findUnique.mockResolvedValue({
-            id: 't1',
-            status: 'PENDING',
-            assignedTo: 'user:test',
-            application: { id: 'a1' }
-        });
-        mockUsersService.getUserSnapshotByUsername.mockResolvedValue({
-            email: 'test@example.com'
-        });
+      mockPrisma.workflowTask.findUnique.mockResolvedValue({
+        id: 't1',
+        status: 'PENDING',
+        assignedTo: 'user:test',
+        application: { id: 'a1' },
+      });
+      mockUsersService.getUserSnapshotByUsername.mockResolvedValue({
+        email: 'test@example.com',
+      });
 
-        await service.handleSlaBreach({ taskId: 't1' });
+      await service.handleSlaBreach({ taskId: 't1' });
 
-        expect(mockMailService.sendSlaBreachNotification).toHaveBeenCalledWith(
-            'test@example.com',
-            expect.anything(),
-            expect.anything()
-        );
+      expect(mockMailService.sendSlaBreachNotification).toHaveBeenCalledWith(
+        'test@example.com',
+        expect.anything(),
+        expect.anything(),
+      );
     });
 
     it('should skip if task is not PENDING', async () => {
-        mockPrisma.workflowTask.findUnique.mockResolvedValue({
-            id: 't1',
-            status: 'COMPLETED',
-        });
-        await service.handleSlaBreach({ taskId: 't1' });
-        expect(mockMailService.sendSlaBreachNotification).not.toHaveBeenCalled();
+      mockPrisma.workflowTask.findUnique.mockResolvedValue({
+        id: 't1',
+        status: 'COMPLETED',
+      });
+      await service.handleSlaBreach({ taskId: 't1' });
+      expect(mockMailService.sendSlaBreachNotification).not.toHaveBeenCalled();
     });
   });
 });
