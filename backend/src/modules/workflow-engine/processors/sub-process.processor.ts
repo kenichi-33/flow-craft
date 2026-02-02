@@ -1,4 +1,4 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import {
   INodeProcessor,
   NodeProcessorContext,
@@ -6,7 +6,6 @@ import {
 import { Prisma } from '@prisma/client';
 import { WorkflowHelperService } from '../workflow-helper.service';
 import { PrismaService } from '../../../prisma/prisma.service';
-import { WorkflowEngineService } from '../workflow-engine.service'; // Use service to start workflow
 
 // Note: Circular dependency risk if we inject WorkflowEngineService here?
 // WorkflowEngineService imports WorkflowEngineModule providers?
@@ -126,9 +125,6 @@ export class SubProcessProcessor implements INodeProcessor {
 
     // Determine Applicant (same as parent or system?)
     // Same as parent applicant usually.
-    const applicantInfo =
-      await this.helper.resolveAssignedToSnapshot('applicant'); // or reuse parent's applicantInfo via fetch?
-    // We can query parent application to get applicantInfo if not in context.
     // context doesn't have applicantInfo, only applicantId.
     // We can fetch it or just use applicantId.
 

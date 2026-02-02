@@ -6,7 +6,6 @@ import { UnauthorizedException } from '@nestjs/common';
 
 describe('JwtStrategy', () => {
   let strategy: JwtStrategy;
-  let configService: ConfigService;
   let teamsService: TeamsService;
 
   const mockConfigService = {
@@ -27,7 +26,6 @@ describe('JwtStrategy', () => {
     }).compile();
 
     strategy = module.get<JwtStrategy>(JwtStrategy);
-    configService = module.get<ConfigService>(ConfigService);
     teamsService = module.get<TeamsService>(TeamsService);
   });
 
@@ -62,6 +60,7 @@ describe('JwtStrategy', () => {
         displayName: undefined,
       });
 
+      // eslint-disable-next-line @typescript-eslint/unbound-method
       expect(teamsService.getMyTeams).toHaveBeenCalledWith('testuser');
     });
 

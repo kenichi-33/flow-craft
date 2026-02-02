@@ -126,7 +126,7 @@ export class UsersService {
             );
             const attrs = detailResponse.data.attributes || {};
             deptCode = attrs.deptCode?.[0];
-          } catch (e) {
+          } catch {
             console.warn(`Failed to fetch group detail for ${group.id}`);
           }
 
@@ -144,7 +144,7 @@ export class UsersService {
                 { headers: { Authorization: `Bearer ${parentToken}` } },
               );
               await processGroups(childrenResponse.data, parentToken);
-            } catch (e) {
+            } catch {
               console.warn(`Failed to fetch children for ${group.id}`);
             }
           }
@@ -457,7 +457,7 @@ export class UsersService {
           { headers: { Authorization: `Bearer ${token}` } },
         );
         user = userResponse.data;
-      } catch (e) {
+      } catch {
         // IDで見つからない場合、ユーザー名検索を試みる
         const searchResponse = await axios.get<KeycloakUser[]>(
           `${this.keycloakUrl}/admin/realms/${this.realm}/users`,
@@ -554,7 +554,7 @@ export class UsersService {
           );
           deptCode = detailResponse.data.attributes?.deptCode?.[0];
           // console.log(`[UsersService] User ${userIdOrUsername} belongs to Group: ${group.path}, DeptCode: ${deptCode}`);
-        } catch (e) {
+        } catch {
           console.warn(`Failed to fetch group detail for ${group.id}`);
         }
         results.push({

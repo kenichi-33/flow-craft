@@ -72,7 +72,7 @@ export class ApplicationsService {
               task as any,
               requestUserId,
             );
-          } catch (e) {
+          } catch {
             // Ignore errors, default to false
           }
         }

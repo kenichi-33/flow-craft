@@ -322,7 +322,7 @@ function FlowDesignerContent({ appId, isStatsMode, statsOverlay }: { appId: stri
         };
         window.addEventListener('keydown', handler);
         return () => window.removeEventListener('keydown', handler);
-    }, [selectedNodes, selectedEdges, deleteSelected]);
+    }, [selectedNodes, selectedEdges, deleteSelected, isReadOnly]);
 
     const onDrop = useCallback((event: React.DragEvent) => {
         if (isReadOnly) return;
@@ -345,7 +345,7 @@ function FlowDesignerContent({ appId, isStatsMode, statsOverlay }: { appId: stri
             ...(type === 'swimlane' && { style: { width: 800, height: 200 }, zIndex: -100 }),
         };
         setNodes(nds => nds.concat(newNode));
-    }, [setNodes, screenToFlowPosition, formFields]);
+    }, [setNodes, screenToFlowPosition, formFields, isReadOnly]);
 
     const onDragOver = useCallback((event: React.DragEvent) => { event.preventDefault(); event.dataTransfer.dropEffect = 'move'; }, []);
     const handleDragStart = (event: React.DragEvent, nodeType: string) => { event.dataTransfer.setData('application/reactflow', nodeType); event.dataTransfer.effectAllowed = 'move'; };

@@ -13,9 +13,6 @@ import { TaskStatus } from '@prisma/client';
 
 describe('GenericWorker', () => {
   let worker: GenericWorker;
-  let prisma: PrismaService;
-  let queueService: QueueService;
-  let registry: TaskHandlerRegistry;
 
   const mockPrisma = {
     workflowTask: {
@@ -54,9 +51,6 @@ describe('GenericWorker', () => {
     }).compile();
 
     worker = module.get<GenericWorker>(GenericWorker);
-    prisma = module.get<PrismaService>(PrismaService);
-    queueService = module.get<QueueService>(QueueService);
-    registry = module.get<TaskHandlerRegistry>(TaskHandlerRegistry);
 
     jest.clearAllMocks();
   });
@@ -80,10 +74,11 @@ describe('GenericWorker', () => {
       } as TaskResult),
     };
 
-    (registry.getHandler as jest.Mock).mockReturnValue(mockHandler);
+    mockRegistry.getHandler.mockReturnValue(mockHandler);
 
     await worker.processJob(job);
 
+    // eslint-disable-next-line @typescript-eslint/unbound-method
     expect(mockHandler.execute).toHaveBeenCalled();
 
     // First call is setting RUNNING (updatedAt)
@@ -123,7 +118,7 @@ describe('GenericWorker', () => {
       } as TaskResult),
     };
 
-    (registry.getHandler as jest.Mock).mockReturnValue(mockHandler);
+    mockRegistry.getHandler.mockReturnValue(mockHandler);
 
     await worker.processJob(job);
 

@@ -428,7 +428,7 @@ export class StatisticsService {
           try {
             const info = await this.usersService.getUserSnapshotByUsername(uid);
             if (info) userMap.set(uid, info);
-          } catch (e) {
+          } catch {
             // Ignore
           }
         }

@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { StatisticsService } from './statistics.service';
 import { PrismaService } from '../../prisma/prisma.service';
+import { UsersService } from '../users/users.service';
 
 describe('StatisticsService', () => {
   let service: StatisticsService;
@@ -14,6 +15,10 @@ describe('StatisticsService', () => {
       count: jest.fn(),
       groupBy: jest.fn(),
     },
+    workflowTask: {
+      findMany: jest.fn(),
+      groupBy: jest.fn(), // Also used in getTaskPerformanceStats
+    },
     $queryRaw: jest.fn(),
   };
 
@@ -22,6 +27,12 @@ describe('StatisticsService', () => {
       providers: [
         StatisticsService,
         { provide: PrismaService, useValue: mockPrisma },
+        {
+          provide: UsersService,
+          useValue: {
+            getUserSnapshotByUsername: jest.fn(),
+          },
+        },
       ],
     }).compile();
 
@@ -60,6 +71,9 @@ describe('StatisticsService', () => {
       });
       mockPrisma.application.groupBy.mockResolvedValue([
         { status: 'APPROVED', _count: { _all: 5 } },
+      ]);
+      mockPrisma.workflowTask.findMany.mockResolvedValue([
+          { stepId: 'step1', assignedTo: 'user:1', claimedBy: null }
       ]);
       mockPrisma.$queryRaw.mockResolvedValue([]);
 

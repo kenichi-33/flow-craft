@@ -1,4 +1,4 @@
-import { Injectable, Type } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { INodeProcessor } from './node-processor.interface';
 import { ModuleRef } from '@nestjs/core';
 

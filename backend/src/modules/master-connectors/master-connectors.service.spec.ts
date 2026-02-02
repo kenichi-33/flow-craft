@@ -3,15 +3,12 @@ import { MasterConnectorsService } from './master-connectors.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { UsersService } from '../users/users.service';
 import axios from 'axios';
-import { NotFoundException } from '@nestjs/common';
 
 jest.mock('axios');
 const mockedAxios = axios as jest.Mocked<typeof axios>;
 
 describe('MasterConnectorsService', () => {
   let service: MasterConnectorsService;
-  let prisma: any;
-  let usersService: any;
 
   const mockPrismaService = {
     masterConnector: {
@@ -46,8 +43,6 @@ describe('MasterConnectorsService', () => {
     }).compile();
 
     service = module.get<MasterConnectorsService>(MasterConnectorsService);
-    prisma = module.get<PrismaService>(PrismaService);
-    usersService = module.get<UsersService>(UsersService);
 
     jest.clearAllMocks();
   });

@@ -203,7 +203,7 @@ export class UsersController {
               snapshot.username,
             email: snapshot.email,
           };
-        } catch (e) {
+        } catch {
           return null;
         }
       }),

@@ -18,7 +18,7 @@ export class EndNodeProcessor implements INodeProcessor {
     context: NodeProcessorContext,
     tx: Prisma.TransactionClient,
   ): Promise<void> {
-    const { applicationId, nodeId, node, inputData } = context;
+    const { applicationId, nodeId, node } = context;
     const status = node.data?.status || 'APPROVED';
     const message = node.data?.message || '申請が完了しました';
 

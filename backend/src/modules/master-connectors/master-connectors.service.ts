@@ -213,7 +213,8 @@ export class MasterConnectorsService {
   }
 
   async importCsv(id: string, buffer: Buffer) {
-    const connector = await this.findOne(id);
+    // Validate connector exists
+    await this.findOne(id);
 
     // Parse CSV
     const records = parse(buffer, {
@@ -256,24 +257,8 @@ export class MasterConnectorsService {
       return [];
     }
 
-    // Use Postgres JSONB filtering
-    // We want to find items where data->>labelKey ILIKE %query%
-    // Prisma raw query is best for this specific JSON filtering
-    const items = await this.prisma.masterDataItem.findMany({
-      where: {
-        connectorId: connector.id,
-        // Logic: retrieve all, then filter in memory? OR use raw query.
-        // For simplicity and safety (Prisma doesn't easily support dynamic key path filtering on JSON in where clause type-safely without raw),
-        // we will try a raw query if performance is needed.
-        // But for now, let's fetch all and filter in memory if dataset is small?
-        // No, master data can be large.
-        // Let's use Raw Query.
-      },
-    });
-    // Actually, standard Prisma `path` filtering is:
-    // where: { data: { path: [labelKey], string_contains: query } } -> string_contains is case sensitive?
-    // Let's stick to memory filter for MVP if dataset < 10000,
-    // OR use raw query.
+    // Note: Using memory filtering for now - consider raw query for large datasets
+    // where: { data: { path: [labelKey], string_contains: query } } -> string_contains is case sensitive
 
     // Better approach: Prisma raw query
     // const rawItems = await this.prisma.$queryRaw`
@@ -370,7 +355,7 @@ export class MasterConnectorsService {
         if (!headers['Content-Type']) {
           headers['Content-Type'] = 'application/json';
         }
-      } catch (e) {
+      } catch {
         // Send as string/text if not JSON
         dataPayload = bodyStr;
         if (!headers['Content-Type']) {
@@ -427,7 +412,7 @@ export class MasterConnectorsService {
         };
       });
     } catch (error) {
-      this.logger.error(`Proxy failed: ${error}`);
+      this.logger.error(`Proxy failed: ${String(error)}`);
       throw error;
     }
   }

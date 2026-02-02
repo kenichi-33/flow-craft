@@ -41,7 +41,7 @@ export class LlmCallHandler implements ITaskHandler {
             const value = this.getValueByPath(response, responsePath);
             if (value !== undefined) {
               this.logger.debug(
-                `Mapping response: ${responsePath} -> ${formFieldId}`,
+                `Mapping response: ${responsePath} -> ${String(formFieldId)}`,
               );
               outputData[formFieldId as string] = value;
             }

@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import {
   INodeProcessor,
   NodeProcessorContext,
@@ -22,7 +22,6 @@ export class UserInputNodeProcessor implements INodeProcessor {
 
     // Resolve Assignee (Default to applicant if not set)
     let assignee = node.data?.assignee || 'applicant';
-    let assigneeType = node.data?.assigneeType || null;
 
     // Swimlane fallback (optional, but consistent with ApprovalNode)
     if (!node.data?.assignee) {
@@ -33,7 +32,6 @@ export class UserInputNodeProcessor implements INodeProcessor {
       );
       if (swimlane && swimlane.data?.assignee) {
         assignee = swimlane.data.assignee;
-        assigneeType = swimlane.data.assigneeType;
       }
     }
 

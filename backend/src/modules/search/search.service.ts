@@ -1,15 +1,13 @@
-import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
+import { Injectable, OnModuleInit } from '@nestjs/common';
 import {
   ISearchService,
   SearchResult,
 } from './interfaces/search-service.interface';
 import { SearchApplicationDto } from './dto/search-application.dto';
 import { Application } from '@prisma/client';
-import { PostgresSearchService } from './postgres-search.service';
-import { ElasticsearchSearchService } from './elasticsearch-search.service';
 import { QueueService } from '../queue/queue.service';
 import { PrismaService } from '../../prisma/prisma.service';
+import { Logger } from '@nestjs/common';
 
 @Injectable()
 export abstract class SearchService implements ISearchService, OnModuleInit {

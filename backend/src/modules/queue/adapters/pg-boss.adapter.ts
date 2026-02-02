@@ -13,8 +13,9 @@ export class PgBossQueueAdapter
   private readonly knownQueues = new Set<string>();
 
   constructor(private configService: ConfigService) {
-    const databaseUrl = this.configService.getOrThrow<string>('DATABASE_URL');
-    this.boss = new PgBoss(databaseUrl);
+    this.boss = new PgBoss(
+      this.configService.getOrThrow<string>('DATABASE_URL'),
+    );
 
     this.boss.on('error', (error) => this.logger.error(error));
   }
@@ -158,9 +159,7 @@ export class PgBossQueueAdapter
       // Let's blindly try to unschedule if we knew the ID.
       // But we don't.
       // We might need to `getSchedules()` and find it.
-      const schedules = (await this.configService.get('DATABASE_URL'))
-        ? []
-        : []; // Placeholder logic
+      // TODO: Implement proper schedule lookup by singletonKey
       this.logger.warn(
         `Unschedule requested for ${name} but ID lookup not implemented fully in adapter yet.`,
       );

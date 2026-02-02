@@ -9,8 +9,6 @@ const mockedAxios = axios as jest.Mocked<typeof axios>;
 
 describe('UsersService', () => {
   let service: UsersService;
-  let configService: ConfigService;
-  let prisma: PrismaService;
 
   const mockConfigService = {
     get: jest.fn((key: string) => {
@@ -38,8 +36,6 @@ describe('UsersService', () => {
     }).compile();
 
     service = module.get<UsersService>(UsersService);
-    configService = module.get<ConfigService>(ConfigService);
-    prisma = module.get<PrismaService>(PrismaService);
 
     jest.clearAllMocks();
   });
@@ -60,6 +56,7 @@ describe('UsersService', () => {
       // Access private method via casting
       const token = await (service as any).getAdminToken();
       expect(token).toBe('mock-token');
+      // eslint-disable-next-line @typescript-eslint/unbound-method
       expect(mockedAxios.post).toHaveBeenCalledTimes(1);
     });
 
@@ -74,6 +71,7 @@ describe('UsersService', () => {
       const token2 = await (service as any).getAdminToken();
       expect(token2).toBe('token-1');
       // Should still be called once
+      // eslint-disable-next-line @typescript-eslint/unbound-method
       expect(mockedAxios.post).toHaveBeenCalledTimes(1);
     });
   });

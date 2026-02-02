@@ -6,7 +6,6 @@ import { BadRequestException, NotFoundException } from '@nestjs/common';
 
 describe('StorageService', () => {
   let service: StorageService;
-  let prisma: any;
 
   const mockPrisma = {
     file: {
@@ -39,7 +38,6 @@ describe('StorageService', () => {
     }).compile();
 
     service = module.get<StorageService>(StorageService);
-    prisma = module.get<PrismaService>(PrismaService);
     jest.clearAllMocks();
   });
 

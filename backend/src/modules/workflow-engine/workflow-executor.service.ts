@@ -1,19 +1,9 @@
-import {
-  Injectable,
-  Logger,
-  OnModuleInit,
-  NotFoundException,
-  BadRequestException,
-} from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { QueueService } from '../queue/queue.service';
 import { PrismaService } from '../../prisma/prisma.service';
-import { Prisma } from '@prisma/client';
 import { MailService } from '../notifications/mail.service';
 import { UsersService } from '../users/users.service';
-import {
-  TaskCompleteJob,
-  TaskExecuteJob,
-} from './workers/task-handler.interface';
+import { TaskCompleteJob } from './workers/task-handler.interface';
 import { WorkflowHelperService } from './workflow-helper.service';
 import { NodeProcessorRegistry } from './processors/node-processor.registry';
 import { NodeProcessorContext } from './processors/node-processor.interface';

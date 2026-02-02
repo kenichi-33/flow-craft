@@ -1,9 +1,6 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
-import {
-  ISearchService,
-  SearchResult,
-} from './interfaces/search-service.interface';
+import { SearchResult } from './interfaces/search-service.interface';
 import { SearchQueryDto, SearchOperator } from './dto/search-application.dto';
 import { Application, Prisma } from '@prisma/client';
 

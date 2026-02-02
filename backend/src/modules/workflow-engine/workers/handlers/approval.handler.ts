@@ -83,8 +83,7 @@ export class ApprovalHandler implements ITaskHandler {
 
     if (assignee === 'applicant_manager') {
       // 申請者のマネージャーを取得
-      const applicant = await this.usersService.getUserSnapshot(applicantId);
-      // マネージャー情報はattributesから取得する必要があるが、現在はサポートなし
+      // NOTE: マネージャー情報はattributesから取得する必要があるが、現在はサポートなし
       // TODO: Keycloakからマネージャー情報を取得するロジックを追加
       return null;
     }

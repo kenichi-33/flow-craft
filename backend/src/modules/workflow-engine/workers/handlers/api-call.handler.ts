@@ -57,7 +57,6 @@ export class ApiCallHandler implements ITaskHandler {
       }
     }
 
-    let lastError: any;
     let finalResponse: {
       status: number;
       statusText: string;
@@ -102,6 +101,8 @@ export class ApiCallHandler implements ITaskHandler {
         // 非ASCII文字のエンコード
         const safeHeaders: Record<string, string> = {};
         for (const [key, value] of Object.entries(parsedHeaders)) {
+          // Check if all characters are ASCII (0-127)
+          // eslint-disable-next-line no-control-regex
           const isAscii = /^[\x00-\x7F]*$/.test(value);
           safeHeaders[key] = isAscii ? value : encodeURIComponent(value);
         }
@@ -159,8 +160,7 @@ export class ApiCallHandler implements ITaskHandler {
           throw e;
         }
       } catch (error) {
-        lastError = error;
-        this.logger.warn(`API attempt ${attempt} failed: ${error}`);
+        this.logger.warn(`API attempt ${attempt} failed: ${String(error)}`);
         if (attempt === retryCount) {
           const errorMessage =
             error instanceof Error ? error.message : String(error);

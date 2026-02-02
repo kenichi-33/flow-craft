@@ -8,7 +8,6 @@ import { QueueService } from '../queue/queue.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { Prisma } from '@prisma/client';
 import { UsersService } from '../users/users.service';
-import { TaskCompleteJob } from './workers/task-handler.interface';
 import { WorkflowHelperService } from './workflow-helper.service';
 import { TeamsService } from '../teams/teams.service';
 

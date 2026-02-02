@@ -16,14 +16,12 @@ export class KafkaAdapter implements IQueueAdapter, OnModuleDestroy {
   >();
 
   constructor(private configHelper: ConfigService) {
-    const brokers =
-      this.configHelper.get<string>('KAFKA_BROKERS') || 'localhost:9092';
-
     this.kafka = new KafkaJS.Kafka({
       'client.id':
         this.configHelper.get<string>('KAFKA_CLIENT_ID') ||
         'flow-craft-backend',
-      'bootstrap.servers': brokers,
+      'bootstrap.servers':
+        this.configHelper.get<string>('KAFKA_BROKERS') || 'localhost:9092',
       'retry.backoff.ms': 300,
     });
 
@@ -124,7 +122,7 @@ export class KafkaAdapter implements IQueueAdapter, OnModuleDestroy {
     // If we haven't started running the consumer loop yet, start it now
     // Note: Kafka consumer.run should only be called once
     // We handle the "run only once" check inside startConsumer
-    this.startConsumer();
+    void this.startConsumer();
   }
 
   private consumerRunning = false;
@@ -135,7 +133,7 @@ export class KafkaAdapter implements IQueueAdapter, OnModuleDestroy {
 
     try {
       await this.consumer.run({
-        eachMessage: async ({ topic, partition, message }) => {
+        eachMessage: async ({ topic, message }) => {
           const handler = this.handlers.get(topic);
           if (handler && message.value) {
             try {

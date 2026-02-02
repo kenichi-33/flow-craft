@@ -5,7 +5,6 @@ import { UsersService } from '../users/users.service';
 
 describe('TeamsService', () => {
   let service: TeamsService;
-  let prisma: any;
   let usersService: any;
 
   const mockPrismaService = {
@@ -39,7 +38,6 @@ describe('TeamsService', () => {
     }).compile();
 
     service = module.get<TeamsService>(TeamsService);
-    prisma = module.get<PrismaService>(PrismaService);
     usersService = module.get<UsersService>(UsersService);
 
     jest.clearAllMocks();

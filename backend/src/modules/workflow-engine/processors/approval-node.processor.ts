@@ -21,7 +21,6 @@ export class ApprovalNodeProcessor implements INodeProcessor {
     const { applicationId, nodeId, node, applicantId, inputData } = context;
 
     let assignee = node.data?.assignee || null;
-    let assigneeType = node.data?.assigneeType || null;
 
     // If assignee is not set, try to resolve from enclosing SwimLane
     if (!assignee) {
@@ -31,7 +30,6 @@ export class ApprovalNodeProcessor implements INodeProcessor {
       );
       if (swimlane && swimlane.data?.assignee) {
         assignee = swimlane.data.assignee;
-        assigneeType = swimlane.data.assigneeType; // Inherit type too
       }
     }
 
