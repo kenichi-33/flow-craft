@@ -1,10 +1,10 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
-import { QueueService } from '../queue/queue.service';
-import { PrismaService } from '../../prisma/prisma.service';
-import { MailService } from '../notifications/mail.service';
-import { UsersService } from '../users/users.service';
-import { TaskCompleteJob } from './workers/task-handler.interface';
-import { WorkflowHelperService } from './workflow-helper.service';
+import { QueueService } from '../../queue/queue.service';
+import { PrismaService } from '../../../prisma/prisma.service';
+import { MailService } from '../../notifications/mail.service';
+import { UsersService } from '../../users/users.service';
+import { TaskCompleteJob } from '../workers/task-handler.interface';
+import { WorkflowHelperService } from '../workflow-helper.service';
 import { NodeProcessorRegistry } from './processors/node-processor.registry';
 import { NodeProcessorContext } from './processors/node-processor.interface';
 

@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
-import { PrismaService } from '../../prisma/prisma.service';
-import { WorkflowHelperService } from './workflow-helper.service';
+import { PrismaService } from '../../../prisma/prisma.service';
+import { WorkflowHelperService } from '../workflow-helper.service';
 
 @Injectable()
 export class DelayPollService {

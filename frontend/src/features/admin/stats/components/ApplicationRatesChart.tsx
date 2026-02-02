@@ -5,6 +5,7 @@ import {
   Tooltip,
   ResponsiveContainer,
   Legend,
+  Label,
 } from 'recharts';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
@@ -68,10 +69,17 @@ export const ApplicationRatesChart = ({ data }: ApplicationRatesChartProps) => {
                         outerRadius={80}
                         paddingAngle={2}
                         dataKey="value"
+                        label={({ name, value }) => `${name}: ${value}件`}
                         >
                         {pieData.map((entry, index) => (
                             <Cell key={`cell-${index}`} fill={entry.color} />
                         ))}
+                        <Label
+                          value={`${totalCompleted}件`}
+                          position="center"
+                          className="text-lg font-bold fill-foreground"
+                          style={{ fontSize: '24px', fontWeight: 'bold' }}
+                        />
                         </Pie>
                         <Tooltip />
                         <Legend verticalAlign="middle" align="right" layout="vertical" />

@@ -4,8 +4,8 @@ import {
   NodeProcessorContext,
 } from './node-processor.interface';
 import { Prisma } from '@prisma/client';
-import { WorkflowHelperService } from '../workflow-helper.service';
-import { PrismaService } from '../../../prisma/prisma.service';
+import { WorkflowHelperService } from '../../workflow-helper.service';
+import { PrismaService } from '../../../../prisma/prisma.service';
 
 @Injectable()
 export class JoinGatewayProcessor implements INodeProcessor {

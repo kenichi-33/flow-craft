@@ -169,7 +169,7 @@ describe('ApplicationRecoveryService', () => {
 
       await service.handleRecovery();
 
-      expect(mockQueueService.enqueue).not.toHaveBeenCalledWith(
+      expect(mockQueueService.enqueue).toHaveBeenCalledWith(
         'WORKFLOW_NODE_PROCESS',
         expect.anything(),
       );

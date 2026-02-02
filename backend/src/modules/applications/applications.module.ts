@@ -4,10 +4,10 @@ import { ApplicationsService } from './applications.service';
 import { ApplicationRecoveryService } from './application-recovery.service';
 import { UsersModule } from '../users/users.module';
 
-import { WorkflowEngineModule } from '../workflow-engine/workflow-engine.module';
+import { WorkflowCoreModule } from '../workflow-engine/workflow-core.module';
 
 @Module({
-  imports: [UsersModule, WorkflowEngineModule],
+  imports: [UsersModule, WorkflowCoreModule],
   controllers: [ApplicationsController],
   providers: [ApplicationsService, ApplicationRecoveryService],
 })

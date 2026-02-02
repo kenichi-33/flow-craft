@@ -23,6 +23,9 @@ import { SchedulerModule } from './modules/scheduler/scheduler.module';
 import { StatisticsModule } from './modules/statistics/statistics.module';
 import { MasterConnectorsModule } from './modules/master-connectors/master-connectors.module';
 
+import { WorkflowWorkerModule } from './modules/workflow-engine/workers/workflow-worker.module';
+import { WorkflowExecutorModule } from './modules/workflow-engine/executors/workflow-executor.module';
+
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
@@ -43,6 +46,13 @@ import { MasterConnectorsModule } from './modules/master-connectors/master-conne
     SearchModule,
     StatisticsModule,
     MasterConnectorsModule,
+    // Conditional Modules
+    ...(process.env.ENABLE_WORKER !== 'false'
+      ? [WorkflowWorkerModule]
+      : []),
+    ...(process.env.ENABLE_EXECUTOR !== 'false'
+      ? [WorkflowExecutorModule]
+      : []),
   ],
   controllers: [AppController],
   providers: [

@@ -1,88 +1,83 @@
 # バックエンド アーキテクチャ
 
 NestJS による Modular Monolith 構成を採用しています。
-APIサーバー機能に加え、非同期処理を行う Worker や定期実行を実行する Scheduler が同居する構成となっています。
+特徴として、**Core / Worker / Executor** の3層構造を採用し、単一デプロイメントだけでなく、ロールを分離したスタンドアロン展開（Workerモード、Executorモード）をサポートしています。
 
 ## システム構成要素
 
 ```mermaid
 flowchart TD
-    Client["Frontend / API Client"] -->|HTTP| API["API Controller"]
+    Client["Frontend / API Client"] -->|HTTP| API["API Controller<br/>(WorkflowEngineModule)"]
     
     subgraph Backend
-        API -->|Invoke| Executor["Workflow Engine Service<br/>(Executor)"]
-        Executor -->|CRUD| DB[("PostgreSQL")]
-        Executor -->|Enqueue| Queue["Job Queue<br/>(pg-boss / Kafka)"]
+        subgraph Core["Workflow Core Module"]
+            API -->|Invoke/Query| Engine["Workflow Engine Service<br/>(Write/Orchestrator)"]
+            API -->|Read| Query["Workflow Query Service<br/>(Read/Permission)"]
+        end
+
+        Engine -->|CRUD| DB[("PostgreSQL")]
+        Engine -->|Enqueue| Queue["Job Queue<br/>(pg-boss / Kafka)"]
         
-        Queue -->|Dequeue| Worker["Generic Worker"]
-        Worker -->|Update| DB
+        subgraph Worker["Workflow Worker Module"]
+            Queue -->|Dequeue Task| GenericWorker["Generic Worker"]
+            GenericWorker -->|Execute| Handlers["Task Handlers"]
+            Handlers -->|API| External["External APIs"]
+            Handlers -->|LLM| AI["LLM Providers"]
+            Handlers -->|Result| Queue
+        end
         
-        Worker -->|Delegate| Registry["Task Handler Registry"]
-        Registry -->|Execute| Handlers["Task Handlers"]
+        subgraph Executor["Workflow Executor Module"]
+            Queue -->|Dequeue Flow| ExecutorSvc["Workflow Executor Service"]
+            ExecutorSvc -->|Transition| DB
+            ExecutorSvc -->|Process| Registry["Node Processor Registry"]
+            Registry -->|Logic| Processors["Node Processors<br/>(Start, End, Branch, etc.)"]
+        end
         
-        Scheduler["Task Scheduler"] -->|Invoke| Services["Cleanup/Recovery Services"]
-        Services -->|Maintenance| DB
-        Services -->|Enqueue| Queue
-        
-        Queue -->|Dequeue| Indexer["Search Service<br/>(Indexer)"]
-        Indexer -->|Fetch| DB
-        Indexer -->|Index| ES["Elasticsearch"]
+        Scheduler["Task Scheduler"] -->|Recovery| Services["Recovery Services"]
+        Services -->|Re-enqueue| Queue
     end
-    
-    Handlers -->|API| External["External APIs"]
-    Handlers -->|LLM| AI["LLM Providers"]
 ```
 
-## 主要モジュール
+## 主要モジュール構成
 
-### 1. Workflow Engine Module (`src/modules/workflow-engine`)
-ワークフロー実行の中核を担うモジュールです。
+### 1. Workflow Engine Modules (`src/modules/workflow-engine`)
+スケーラビリティと役割分担のために3つのサブモジュールに分割されています。
 
-- **WorkflowEngineService (Executor)**: 
-  - フロー定義に基づき、次のステップを決定する「司令塔」。
-  - `WORKFLOW_NODE_PROCESS` ジョブを処理し、必要なタスク (`WorkflowTask`) をDBに作成して `TASK_EXECUTE` キューを発行します。
-  - `TASK_COMPLETE` ジョブを処理し、タスク完了後のフロー遷移（`advanceToNextNode`）を実行します。
-  
-- **GenericWorker (Worker)**: 
-  - 非同期タスクの「実行者」。`TASK_EXECUTE` キューを処理します。
-  - `nodeType` に応じた Handler に処理を委譲し、その結果 (`success`, `shouldAdvance`) を `TASK_COMPLETE` キューとして返却します。
-  
-- **TaskHandlers**:
-  - Workerから呼び出される具体的な処理ロジック。
-  - `ApprovalHandler`: メール送信のみを行い、承認判定は行いません (`shouldAdvance: false`)。
-  - `ApiCallHandler`: APIリクエストを実行し、完了を報告します (`shouldAdvance: true`)。
+#### A. `WorkflowCoreModule` (Core)
+全モジュールで共有される基底サービス群を提供します。
+- **WorkflowEngineService**: ワークフローの開始、ドラフト保存、タスク完了受付などの書き込み系操作。
+- **WorkflowQueryService**: ワークフローの状態取得、ユーザー権限確認などの読み取り系操作。
+- **WorkflowHelperService**: 共通ユーティリティ（変数置換、など）。
 
-### 2. Queue Module (`src/modules/queue`)
+#### B. `WorkflowWorkerModule` (Worker)
+外部システム連携や重い処理を行う「作業者」モジュールです。
+- **GenericWorker**: `TASK_EXECUTE` ジョブを処理。
+- **TaskHandlers**: `ApiCall`, `LlmCall`, `SendEmail` などの具体的処理。
+- **SchedulerWorker**: 定期実行タスクの処理。
+
+#### C. `WorkflowExecutorModule` (Executor)
+フローの制御ロジックを担う「進行役」モジュールです。
+- **WorkflowExecutorService**: `WORKFLOW_NODE_PROCESS` ジョブを処理。
+- **NodeProcessors**: 各ノードタイプ（Start, End, Branch, Parallel, Delayなど）ごとの遷移ロジック。
+- **DelayPollService**: 遅延ノード（Delay Node）の再開監視。
+
+### 2. Standalone Deployment Modes
+環境変数により、特定のロールのみを有効化して起動可能です。
+
+| モード | 環境変数設定 | 用途 |
+| :--- | :--- | :--- |
+| **All-in-One** (Default) | (設定なし) | 全機能が有効になります。 |
+| **API Server** | `ENABLE_WORKER=false`, `ENABLE_EXECUTOR=false` | HTTPリクエスト受付専用（ジョブ処理を行わない）。 |
+| **Worker** | `ENABLE_API=false`, `ENABLE_EXECUTOR=false` | Workerジョブのみを処理（HTTPサーバーなし）。 |
+| **Executor** | `ENABLE_API=false`, `ENABLE_WORKER=false` | Executorジョブのみを処理（HTTPサーバーなし）。 |
+
+### 3. Queue Module (`src/modules/queue`)
 非同期処理基盤を提供します。
+- **PgBossQueueAdapter**: PostgreSQLベースのジョブキュー。
+- **KafkaAdapter**: Kafkaを使用した高スループット対応。
 
-- **PgBossQueueAdapter**: PostgreSQLベースのジョブキュー `pg-boss`。
-- **KafkaAdapter**: Kafkaを使用した高スループット対応アダプタ。`QUEUE_TYPE` 設定で切り替え可能。
-- **QueueService**: アプリケーション層からキューへのアクセスを抽象化。
+### 4. Search Module (`src/modules/search`)
+- **SearchService**: インデックス更新（Elasticsearch / Postgres）。
 
-### 3. Search Module (`src/modules/search`)
-全文検索およびインデクシング機能を提供します。
-
-- **SearchService (Indexer)**:
-  - `application-indexing` ジョブを購読し、非同期でインデックス更新（登録・削除）を行います。
-  - `ApplicationsService` での作成・更新時にジョブがエンキューされます。
-- **Adapters**:
-  - **ElasticsearchSearchService**: Elasticsearch に対するインデックス操作と検索。
-  - **PostgresSearchService**: PostgreSQL に対する検索（インデックス不要モード）。
-
-### 4. Application Recovery Service (`src/modules/applications`)
-**Scheduler (`@Cron`)** を使用した自己修復機能です。
-
-- **役割**: システム障害やワーカーのダウンにより、処理が途中でスタックした（`IN_PROGRESS` だが `PENDING` タスクがない）アプリケーションを検知し、自動的に再エンキューします。
-- **頻度**: 5分ごとに実行。
-
-### 5. Storage Module (`src/modules/storage`)
-ファイルアップロードとクリーンアップを管理します。
-
-- **StorageService**: S3/MinIO へのファイル操作。
-- **StorageCleanupService**: 定期実行 (`3:00 AM`) により、期限切れの一時ファイルや、紐付けされなかった孤立ファイルを削除します。
-
-## データフロー
-
-1. **同期処理**: APIリクエスト（申請作成、タスク完了など）は、最小限のDB更新を行い、重い処理はキューに積んで即レスポンスを返します。
-2. **非同期処理**: Workerがジョブを拾い、ハンドラーを通じて処理を実行。結果はDB（`workflow_tasks`, `workflow_task_histories`）に保存されます。
-3. **結果整合性**: フローの遷移は非同期で行われるため、クライアントはポーリングまたはWebSocket（将来拡張）で状態を確認します。
+### 5. Application Recovery Service (`src/modules/applications`)
+- **自己修復**: システム障害やメッセージ損失によりスタックしたアプリケーションを検知し、自動的に復旧（再エンキュー）します。

@@ -4,8 +4,8 @@ import {
   NodeProcessorContext,
 } from './node-processor.interface';
 import { Prisma } from '@prisma/client';
-import { WorkflowHelperService } from '../workflow-helper.service';
-import { QueueService } from '../../queue/queue.service';
+import { WorkflowHelperService } from '../../workflow-helper.service';
+import { QueueService } from '../../../queue/queue.service';
 
 @Injectable()
 export class ServiceTaskProcessor implements INodeProcessor {

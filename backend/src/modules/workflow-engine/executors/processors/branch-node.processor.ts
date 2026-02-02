@@ -4,7 +4,7 @@ import {
   NodeProcessorContext,
 } from './node-processor.interface';
 import { Prisma } from '@prisma/client';
-import { WorkflowHelperService } from '../workflow-helper.service';
+import { WorkflowHelperService } from '../../workflow-helper.service';
 
 @Injectable()
 export class BranchNodeProcessor implements INodeProcessor {

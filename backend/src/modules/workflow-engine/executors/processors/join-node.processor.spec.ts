@@ -1,8 +1,8 @@
 /* eslint-disable @typescript-eslint/unbound-method */
 import { Test, TestingModule } from '@nestjs/testing';
 import { JoinGatewayProcessor } from './join-node.processor';
-import { WorkflowHelperService } from '../workflow-helper.service';
-import { PrismaService } from '../../../prisma/prisma.service';
+import { WorkflowHelperService } from '../../workflow-helper.service';
+import { PrismaService } from '../../../../prisma/prisma.service';
 import { NodeProcessorContext } from './node-processor.interface';
 import { Prisma } from '@prisma/client';
 

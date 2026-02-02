@@ -6,6 +6,7 @@ import { QueueService } from '../queue/queue.service';
 import { WorkflowHelperService } from './workflow-helper.service';
 import { TeamsService } from '../teams/teams.service';
 import { NotFoundException } from '@nestjs/common';
+import { WorkflowQueryService } from './workflow-query.service';
 
 const mockPrisma = {
   applicationDefinition: { findUnique: jest.fn() },
@@ -19,7 +20,8 @@ const mockPrisma = {
     create: jest.fn(),
   },
   approvalHistory: { create: jest.fn() },
-  $transaction: jest.fn(),
+  approvalHistory: { create: jest.fn() },
+  $transaction: jest.fn().mockImplementation((cb) => cb(mockPrisma)),
 };
 const mockUsersService = {
   getUserSnapshotByUsername: jest.fn(),
@@ -46,10 +48,23 @@ describe('WorkflowEngineService', () => {
         { provide: PrismaService, useValue: mockPrisma },
         { provide: UsersService, useValue: mockUsersService },
         { provide: QueueService, useValue: mockQueueService },
+        { provide: QueueService, useValue: mockQueueService },
         { provide: WorkflowHelperService, useValue: mockHelperSchema },
         { provide: TeamsService, useValue: mockTeamsService },
+        {
+          provide: WorkflowQueryService,
+          useValue: {
+            getWorkflowStatus: jest.fn(),
+            canUserExecuteTask: jest.fn(),
+            getRemandableSteps: jest.fn(),
+          },
+        },
       ],
     }).compile();
+
+      const queryService = module.get(WorkflowQueryService);
+          (queryService.canUserExecuteTask as jest.Mock).mockResolvedValue(true);
+          (queryService.getWorkflowStatus as jest.Mock).mockResolvedValue('IN_PROGRESS');
 
     service = module.get<WorkflowEngineService>(WorkflowEngineService);
     jest.clearAllMocks();

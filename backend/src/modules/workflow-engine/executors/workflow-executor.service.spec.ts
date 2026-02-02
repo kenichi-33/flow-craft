@@ -1,11 +1,11 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { WorkflowExecutorService } from './workflow-executor.service';
-import { PrismaService } from '../../prisma/prisma.service';
-import { MailService } from '../notifications/mail.service';
-import { UsersService } from '../users/users.service';
-import { QueueService } from '../queue/queue.service';
+import { PrismaService } from '../../../prisma/prisma.service';
+import { MailService } from '../../notifications/mail.service';
+import { UsersService } from '../../users/users.service';
+import { QueueService } from '../../queue/queue.service';
 import { NodeProcessorRegistry } from './processors/node-processor.registry';
-import { WorkflowHelperService } from './workflow-helper.service';
+import { WorkflowHelperService } from '../workflow-helper.service';
 
 const mockPrisma = {
   workflowTask: { findUnique: jest.fn() },

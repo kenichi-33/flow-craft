@@ -1,6 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { UserInputNodeProcessor } from './user-input-node.processor';
-import { WorkflowHelperService } from '../workflow-helper.service';
+import { WorkflowHelperService } from '../../workflow-helper.service';
 import { NodeProcessorContext } from './node-processor.interface';
 import { Prisma } from '@prisma/client';
 

@@ -1,7 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { DelayPollService } from './delay-poll.service';
-import { WorkflowHelperService } from './workflow-helper.service';
-import { PrismaService } from '../../prisma/prisma.service';
+import { WorkflowHelperService } from '../workflow-helper.service';
+import { PrismaService } from '../../../prisma/prisma.service';
 
 describe('DelayPollService', () => {
   let service: DelayPollService;
