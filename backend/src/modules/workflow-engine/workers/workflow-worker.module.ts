@@ -13,15 +13,13 @@ import { SlackTaskHandler } from './handlers/slack.handler';
 import { UserInputHandler } from './handlers/user-input.handler';
 import { SetVariableHandler } from './handlers/set-variable.handler';
 import { UpdateRecordHandler } from './handlers/update-record.handler';
+import { ScriptTaskHandler } from './handlers/script-task.handler';
+import { GraphQLTaskHandler } from './handlers/graphql-task.handler';
 import { NotificationsModule } from '../../notifications/notifications.module';
 import { UsersModule } from '../../users/users.module';
 
 @Module({
-  imports: [
-    WorkflowCoreModule,
-    NotificationsModule,
-    UsersModule,
-  ],
+  imports: [WorkflowCoreModule, NotificationsModule, UsersModule],
   providers: [
     GenericWorker,
     SchedulerWorker,
@@ -35,6 +33,8 @@ import { UsersModule } from '../../users/users.module';
     UserInputHandler,
     SetVariableHandler,
     UpdateRecordHandler,
+    ScriptTaskHandler,
+    GraphQLTaskHandler,
   ],
   exports: [GenericWorker, SchedulerWorker, TaskHandlerRegistry],
 })
@@ -49,6 +49,8 @@ export class WorkflowWorkerModule implements OnModuleInit {
     private readonly userInputHandler: UserInputHandler,
     private readonly setVariableHandler: SetVariableHandler,
     private readonly updateRecordHandler: UpdateRecordHandler,
+    private readonly scriptTaskHandler: ScriptTaskHandler,
+    private readonly graphqlTaskHandler: GraphQLTaskHandler,
   ) {}
 
   onModuleInit() {
@@ -62,6 +64,8 @@ export class WorkflowWorkerModule implements OnModuleInit {
       this.userInputHandler,
       this.setVariableHandler,
       this.updateRecordHandler,
+      this.scriptTaskHandler,
+      this.graphqlTaskHandler,
     ]);
   }
 }

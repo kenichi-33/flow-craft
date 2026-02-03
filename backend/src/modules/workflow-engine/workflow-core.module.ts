@@ -8,21 +8,12 @@ import { UsersModule } from '../users/users.module';
 import { TeamsModule } from '../teams/teams.module';
 
 @Module({
-  imports: [
-    PrismaModule,
-    UsersModule,
-    QueueModule,
-    TeamsModule,
-  ],
+  imports: [PrismaModule, UsersModule, QueueModule, TeamsModule],
   providers: [
     WorkflowEngineService,
     WorkflowQueryService,
     WorkflowHelperService,
   ],
-  exports: [
-    WorkflowEngineService,
-    WorkflowQueryService,
-    WorkflowHelperService,
-  ],
+  exports: [WorkflowEngineService, WorkflowQueryService, WorkflowHelperService],
 })
 export class WorkflowCoreModule {}

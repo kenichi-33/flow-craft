@@ -102,5 +102,10 @@ export class ServiceTaskProcessor implements INodeProcessor {
       null,
       tx,
     );
+
+    // If Async (Fire and Forget), move to next node immediately
+    if (node.data?.isAsync) {
+      await this.helper.advanceToNextNode(applicationId, nodeId);
+    }
   }
 }

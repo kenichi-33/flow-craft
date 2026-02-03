@@ -62,9 +62,11 @@ describe('WorkflowEngineService', () => {
       ],
     }).compile();
 
-      const queryService = module.get(WorkflowQueryService);
-          (queryService.canUserExecuteTask as jest.Mock).mockResolvedValue(true);
-          (queryService.getWorkflowStatus as jest.Mock).mockResolvedValue('IN_PROGRESS');
+    const queryService = module.get(WorkflowQueryService);
+    (queryService.canUserExecuteTask as jest.Mock).mockResolvedValue(true);
+    (queryService.getWorkflowStatus as jest.Mock).mockResolvedValue(
+      'IN_PROGRESS',
+    );
 
     service = module.get<WorkflowEngineService>(WorkflowEngineService);
     jest.clearAllMocks();

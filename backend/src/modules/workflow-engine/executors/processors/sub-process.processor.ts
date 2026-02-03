@@ -184,5 +184,13 @@ export class SubProcessProcessor implements INodeProcessor {
         comment: `サブプロセスを開始しました: ${childApp.id}`,
       },
     });
+
+    // If NOT waiting for completion (Async), resume parent immediately
+    if (config.waitForCompletion === false) {
+      this.logger.log(
+        `SubProcess ${nodeId} is Async. Resuming parent ${applicationId}.`,
+      );
+      await this.helper.advanceToNextNode(applicationId, nodeId);
+    }
   }
 }

@@ -483,4 +483,54 @@ export class WorkflowHelperService {
       return val !== undefined ? String(val) : `{{${key}}}`;
     });
   }
+
+  /**
+   * Validate Flow Nodes Configuration
+   * Ensures essential fields are set for specific node types
+   */
+  validateFlowNodes(nodes: any[]): void {
+    if (!nodes || !Array.isArray(nodes)) return;
+
+    const errors: string[] = [];
+
+    for (const node of nodes) {
+      if (!node.data) continue;
+
+      switch (node.type) {
+        case 'script':
+          if (
+            !node.data.scriptContent ||
+            node.data.scriptContent.trim() === ''
+          ) {
+            errors.push(
+              `Script Node "${node.data.label || node.id}" requires script content.`,
+            );
+          }
+          break;
+        case 'graphql':
+          if (!node.data.endpoint || node.data.endpoint.trim() === '') {
+            errors.push(
+              `GraphQL Node "${node.data.label || node.id}" requires an Endpoint URL.`,
+            );
+          }
+          if (!node.data.operation || node.data.operation.trim() === '') {
+            errors.push(
+              `GraphQL Node "${node.data.label || node.id}" requires an Operation (Query/Mutation).`,
+            );
+          }
+          break;
+        case 'foreach':
+          if (!node.data.items || node.data.items.trim() === '') {
+            errors.push(
+              `ForEach Node "${node.data.label || node.id}" requires an Items variable (e.g. {{list}}).`,
+            );
+          }
+          break;
+      }
+    }
+
+    if (errors.length > 0) {
+      throw new Error(`Flow Configuration Error:\n${errors.join('\n')}`);
+    }
+  }
 }

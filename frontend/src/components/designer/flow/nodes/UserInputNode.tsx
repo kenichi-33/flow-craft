@@ -1,5 +1,5 @@
 // UserInputNode - Converted from MUI to shadcn/ui
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Handle, Position, useReactFlow } from '@xyflow/react';
 import { Keyboard, Pencil, User, Users, Shield, Mail } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -21,6 +21,7 @@ import {
     SelectTrigger,
     SelectValue 
 } from '@/components/ui/select';
+import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { UserSelector } from '@/components/common/UserSelector';
 import { GroupSelector } from '@/components/common/GroupSelector';
@@ -137,11 +138,23 @@ export default function UserInputNode({ data, id }: { data: any, id: string }) {
     return (
         <>
             <div
-                className="min-w-[140px] min-h-[60px] px-4 py-2 rounded-lg bg-gradient-to-br from-sky-500 to-sky-700 flex flex-col items-center justify-center shadow-lg border-2 border-white/50 relative"
+                className={`min-w-[140px] min-h-[60px] px-4 py-2 rounded-lg flex flex-col items-center justify-center shadow-lg border-2 relative transition-all duration-300
+                    ${data.isFailed ? 'bg-red-50 to-red-100 border-red-500 shadow-red-200' : 
+                      data.isCurrent ? 'bg-gradient-to-br from-sky-500 to-sky-700 border-yellow-400 ring-4 ring-yellow-400/30' : 
+                      'bg-gradient-to-br from-sky-500 to-sky-700 border-white/50'}
+                `}
                 style={{ cursor: readOnly ? 'pointer' : 'default' }}
                 onClick={readOnly ? () => setOpen(true) : undefined}
             >
-                <Handle type="target" position={Position.Left} className="!bg-sky-800 !w-2.5 !h-2.5 !border-2 !border-white" />
+                {data.isCurrent && !data.isFailed && <Badge className="absolute -top-2.5 left-1/2 -translate-x-1/2 h-5 text-[10px] px-2 bg-sky-600 border-white hover:bg-sky-600 z-50 shadow-sm whitespace-nowrap">現在</Badge>}
+                {data.isFailed && <Badge variant="destructive" className="absolute -top-2.5 left-1/2 -translate-x-1/2 h-5 text-[10px] px-2 border-white z-50 shadow-sm whitespace-nowrap">失敗</Badge>}
+                {data.isCompleted && !data.isCurrent && !data.isFailed && <Badge variant="secondary" className="absolute -top-2.5 left-1/2 -translate-x-1/2 h-5 text-[10px] px-2 bg-emerald-100 text-emerald-700 border-emerald-200 border hover:bg-emerald-100 z-50 shadow-sm whitespace-nowrap">完了</Badge>}
+                <Handle 
+                    type="target" 
+                    position={Position.Left} 
+                    isConnectableStart={false}
+                    className="!bg-white !border-2 !border-sky-800 !w-2.5 !h-2.5 !rounded-none" 
+                />
                 <div className="flex items-center gap-1">
                     {notificationEnabled && <Mail className="h-3 w-3 text-white/70" />}
                     <Keyboard className="h-4 w-4 text-white" />
@@ -161,7 +174,11 @@ export default function UserInputNode({ data, id }: { data: any, id: string }) {
                         <span className="text-[10px] text-white/90">{data.assigneeDisplay || getAssigneeDisplay() || '申請者'}</span>
                     </div>
                 )}
-                <Handle type="source" position={Position.Right} className="!bg-sky-800 !w-2.5 !h-2.5 !border-2 !border-white" />
+                <Handle 
+                    type="source" 
+                    position={Position.Right} 
+                    className="!bg-sky-800 !w-2.5 !h-2.5 !border-2 !border-white !rounded-full" 
+                />
                 {data.statCount !== undefined && data.statCount > 0 && (
                     <div className="absolute -top-3 -right-3 bg-red-500 text-white text-xs font-bold px-2 py-1 rounded-full border border-white shadow-sm z-10 animate-pulse">
                         {data.statCount}

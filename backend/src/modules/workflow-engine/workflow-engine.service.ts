@@ -74,6 +74,14 @@ export class WorkflowEngineService {
       publishedVersion?.formSchema ?? appDef.formDefinition?.schema;
 
     const nodesList = (flowNodes as any[]) || [];
+
+    // Validate Flow Configuration
+    try {
+      this.helper.validateFlowNodes(nodesList);
+    } catch (e) {
+      throw new BadRequestException(e.message);
+    }
+
     const startNode = nodesList.find((n) => n.type === 'start');
     if (!startNode) {
       throw new BadRequestException('Flow has no start node');
@@ -611,7 +619,8 @@ export class WorkflowEngineService {
    * Withdraw an application (Revert to DRAFT)
    */
   async withdrawApplication(applicationId: string, actorId: string) {
-    const actorInfo = await this.usersService.getUserSnapshotByUsername(actorId);
+    const actorInfo =
+      await this.usersService.getUserSnapshotByUsername(actorId);
 
     return this.prisma.$transaction(async (tx) => {
       const app = await tx.application.findUnique({

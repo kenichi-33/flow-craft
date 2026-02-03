@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
-import { Pencil, Globe, Plus, Trash2, Key, Timer } from 'lucide-react';
+import { Pencil, Globe, Plus, Trash2 } from 'lucide-react';
 import { Checkbox } from '@/components/ui/checkbox';
 
 // Key-Value Editor Component
@@ -78,6 +78,9 @@ export default function APICallNode({ id, data }: { id: string; data: any }) {
     const [timeout, setTimeout] = useState(data.timeout || '5000');
     const [retryCount, setRetryCount] = useState(data.retryCount || '0');
     const [retryInterval, setRetryInterval] = useState(data.retryInterval || '1000');
+    
+    // Async
+    const [isAsync, setIsAsync] = useState(data.isAsync || false);
 
     const { setNodes } = useReactFlow();
     const isReadOnly = data.readOnly === true;
@@ -95,6 +98,7 @@ export default function APICallNode({ id, data }: { id: string; data: any }) {
             setTimeout(data.timeout || '5000');
             setRetryCount(data.retryCount || '0');
             setRetryInterval(data.retryInterval || '1000');
+            setIsAsync(data.isAsync || false);
         }
     }, [dialogOpen, data]);
 
@@ -107,7 +111,8 @@ export default function APICallNode({ id, data }: { id: string; data: any }) {
                 label, url, method, headers, body, 
                 successCodes, errorBehavior, responseMapping,
                 authType, authUsername, authPassword, authToken, authApiKeyName, authApiKeyValue, authApiKeyIn,
-                timeout, retryCount, retryInterval
+                timeout, retryCount, retryInterval,
+                isAsync
             } 
         } : node));
         setDialogOpen(false);
@@ -116,11 +121,23 @@ export default function APICallNode({ id, data }: { id: string; data: any }) {
     return (
         <>
             <div
-                className="min-w-[140px] min-h-[60px] px-4 py-2 rounded-lg bg-gradient-to-br from-purple-500 to-purple-700 flex flex-col items-center justify-center shadow-lg border-2 border-white/50 relative"
+                className={`min-w-[140px] min-h-[60px] px-4 py-2 rounded-lg flex flex-col items-center justify-center shadow-lg border-2 relative transition-all duration-300
+                    ${data.isFailed ? 'bg-red-50 to-red-100 border-red-500 shadow-red-200' : 
+                      data.isCurrent ? 'bg-gradient-to-br from-purple-500 to-purple-700 border-yellow-400 ring-4 ring-yellow-400/30' : 
+                      'bg-gradient-to-br from-purple-500 to-purple-700 border-white/50'}
+                `}
                 style={{ cursor: isReadOnly ? 'pointer' : 'default' }}
                 onClick={isReadOnly ? () => setDialogOpen(true) : undefined}
             >
-                <Handle type="target" position={Position.Left} className="!bg-purple-800 !w-2.5 !h-2.5 !border-2 !border-white" />
+                {data.isCurrent && !data.isFailed && <Badge className="absolute -top-2.5 left-1/2 -translate-x-1/2 h-5 text-[10px] px-2 bg-purple-600 border-white hover:bg-purple-600 z-50 shadow-sm whitespace-nowrap">現在</Badge>}
+                {data.isFailed && <Badge variant="destructive" className="absolute -top-2.5 left-1/2 -translate-x-1/2 h-5 text-[10px] px-2 border-white z-50 shadow-sm whitespace-nowrap">失敗</Badge>}
+                {data.isCompleted && !data.isCurrent && !data.isFailed && <Badge variant="secondary" className="absolute -top-2.5 left-1/2 -translate-x-1/2 h-5 text-[10px] px-2 bg-emerald-100 text-emerald-700 border-emerald-200 border hover:bg-emerald-100 z-50 shadow-sm whitespace-nowrap">完了</Badge>}
+                <Handle 
+                    type="target" 
+                    position={Position.Left} 
+                    isConnectableStart={false}
+                    className="!bg-white !border-2 !border-purple-800 !w-2.5 !h-2.5 !rounded-none" 
+                />
                 <div className="flex items-center gap-1">
                     <Globe className="h-4 w-4 text-white" />
                     <span className="text-sm text-white font-bold drop-shadow-sm">{data.label || 'API呼び出し'}</span>
@@ -131,7 +148,11 @@ export default function APICallNode({ id, data }: { id: string; data: any }) {
                     )}
                 </div>
                 {data.url && <span className="text-[9px] text-white/80 max-w-[130px] truncate">{data.method} {data.url}</span>}
-                <Handle type="source" position={Position.Right} className="!bg-purple-800 !w-2.5 !h-2.5 !border-2 !border-white" />
+                <Handle 
+                    type="source" 
+                    position={Position.Right} 
+                    className="!bg-purple-800 !w-2.5 !h-2.5 !border-2 !border-white !rounded-full" 
+                />
                 {/* Stats Badge */}
                 {(() => {
                     const stats = data.statCount;
@@ -305,6 +326,24 @@ export default function APICallNode({ id, data }: { id: string; data: any }) {
                                 <div className="space-y-2">
                                     <Label>レスポンスマッピング</Label>
                                     <KeyValueEditor value={responseMapping} onChange={setResponseMapping} placeholderKey="JSONパス (例: data.id)" placeholderValue="保存先変数 (例: outputId)" disabled={isReadOnly} />
+                                </div>
+                                
+                                <Separator />
+
+                                <div className="flex items-center space-x-2">
+                                    <Checkbox 
+                                        id="isAsync" 
+                                        checked={isAsync}
+                                        onCheckedChange={(c) => setIsAsync(!!c)}
+                                        disabled={isReadOnly}
+                                    />
+                                    <div className="grid gap-1.5 leading-none">
+                                        <Label htmlFor="isAsync" className="font-bold">非同期実行 (Fire and Forget)</Label>
+                                        <p className="text-[0.8rem] text-muted-foreground">
+                                            APIの応答を待たずに即座に次のノードへ進みます。<br/>
+                                            <span className="text-yellow-600 font-bold">注意:</span> 失敗時はフローは止まりませんが、管理画面から個別に再試行可能です。レスポンスを利用することはできません。
+                                        </p>
+                                    </div>
                                 </div>
                             </div>
                         </TabsContent>

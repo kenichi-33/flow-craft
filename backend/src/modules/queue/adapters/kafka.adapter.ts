@@ -144,11 +144,16 @@ export class KafkaAdapter implements IQueueAdapter, OnModuleDestroy {
                 `Error processing message from topic ${topic}`,
                 err,
               );
-              // In a real app we might want dead letter queue or retry topics
+              // Recovery is handled by ApplicationRecoveryService, so we just log and skip.
             }
           }
         },
-      });
+        // Enable restart on failure to recover from client/network crashes
+        restartOnFailure: async (err) => {
+          this.logger.error('Kafka Consumer crashed. Restarting...', err);
+          return true; // Always try to restart
+        },
+      } as any);
     } catch (err) {
       this.consumerRunning = false;
       this.logger.error('Consumer run failed', err);

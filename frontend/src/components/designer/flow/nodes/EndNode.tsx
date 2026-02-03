@@ -7,6 +7,7 @@ import { Pencil } from 'lucide-react';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Badge } from '@/components/ui/badge';
 
 export default function EndNode({ id, data }: { id: string, data: any }) {
     const [dialogOpen, setDialogOpen] = useState(false);
@@ -40,10 +41,15 @@ export default function EndNode({ id, data }: { id: string, data: any }) {
     return (
         <>
             <div 
-                className="w-[60px] h-[60px] rounded-full bg-gradient-to-br from-red-400 to-red-700 flex flex-col items-center justify-center shadow-lg border-[3px] border-white relative group"
+                className={`w-[60px] h-[60px] rounded-full flex flex-col items-center justify-center shadow-lg border-[3px] relative group transition-all duration-300
+                    ${data.isCompleted ? 'bg-gradient-to-br from-red-400 to-red-700 border-emerald-400 ring-4 ring-emerald-400/30' : 
+                      data.isCurrent ? 'bg-gradient-to-br from-red-400 to-red-700 border-yellow-400 ring-4 ring-yellow-400/30' :
+                      'bg-gradient-to-br from-red-400 to-red-700 border-white'}
+                `}
                 style={{ cursor: isReadOnly ? 'default' : 'pointer' }}
                 onClick={isReadOnly ? undefined : () => setDialogOpen(true)}
             >
+                {data.isCompleted && <Badge variant="secondary" className="absolute -top-3 left-1/2 -translate-x-1/2 h-5 text-[10px] px-2 bg-emerald-100 text-emerald-700 border-emerald-200 border hover:bg-emerald-100 z-50 shadow-sm whitespace-nowrap">完了</Badge>}
                  <span className="text-xs text-white font-bold drop-shadow-sm select-none">
                     {data.label || '終了'}
                 </span>
@@ -57,7 +63,8 @@ export default function EndNode({ id, data }: { id: string, data: any }) {
                 <Handle
                     type="target"
                     position={Position.Left}
-                    className="!bg-red-700 !w-2.5 !h-2.5 !border-2 !border-white"
+                    isConnectableStart={false}
+                    className="!bg-white !border-2 !border-red-700 !w-2.5 !h-2.5 !rounded-none"
                 />
                 {data.statCount?.breakdown?.completed > 0 && (
                      <div className="absolute -top-4 left-1/2 transform -translate-x-1/2 bg-slate-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow border border-white whitespace-nowrap z-20">

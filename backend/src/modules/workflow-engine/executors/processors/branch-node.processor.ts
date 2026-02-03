@@ -27,8 +27,79 @@ export class BranchNodeProcessor implements INodeProcessor {
 
     let targetEdge: any = null;
 
-    // 1. Check for Node-based Conditions (Advanced Builder)
+    // 0. Check for New Dynamic Rules
     if (
+      node.data?.rules &&
+      Array.isArray(node.data.rules) &&
+      node.data.rules.length > 0
+    ) {
+      const rules = node.data.rules;
+      let matchedRuleId: string | null = null;
+
+      // Evaluator Helper (Reusable)
+      const compare = (a: any, op: string, b: any) => {
+        if (!isNaN(Number(a)) && !isNaN(Number(b)) && a !== '' && b !== '') {
+          a = Number(a);
+          b = Number(b);
+        }
+        const strA = String(a ?? '');
+        const strB = String(b ?? '');
+
+        switch (op) {
+          case '==':
+            return a == b;
+          case '!=':
+            return a != b;
+          case '>':
+            return a > b;
+          case '<':
+            return a < b;
+          case '>=':
+            return a >= b;
+          case '<=':
+            return a <= b;
+          case 'contains':
+            return strA.includes(strB);
+          default:
+            return false;
+        }
+      };
+
+      for (const rule of rules) {
+        const logic = rule.logic || 'and';
+        let isMatch = logic === 'and'; // Default true for AND
+
+        if (logic === 'and') {
+          isMatch = rule.conditions.every((cond: any) => {
+            const fieldVal = inputData?.[cond.field];
+            return compare(fieldVal, cond.operator, cond.value);
+          });
+        } else {
+          isMatch = rule.conditions.some((cond: any) => {
+            const fieldVal = inputData?.[cond.field];
+            return compare(fieldVal, cond.operator, cond.value);
+          });
+        }
+
+        if (isMatch) {
+          matchedRuleId = rule.id;
+          this.logger.log(`Branch Rule Matched: ${rule.label} (${rule.id})`);
+          break; // First match wins
+        }
+      }
+
+      // If no rule matched, use default
+      const targetHandle = matchedRuleId || 'default';
+      targetEdge = outgoingEdges.find((e) => e.sourceHandle === targetHandle);
+
+      if (!targetEdge) {
+        this.logger.warn(
+          `Branch Node ${nodeId}: No edge found for handle '${targetHandle}'`,
+        );
+      }
+    }
+    // 1. Check for Node-based Conditions (Advanced Builder) - LEGACY
+    else if (
       node.data?.conditions &&
       Array.isArray(node.data.conditions) &&
       node.data.conditions.length > 0
@@ -146,7 +217,8 @@ export class BranchNodeProcessor implements INodeProcessor {
     if (
       !targetEdge &&
       !node.data?.conditionField &&
-      (!node.data?.conditions || node.data.conditions.length === 0)
+      (!node.data?.conditions || node.data.conditions.length === 0) &&
+      (!node.data?.rules || node.data.rules.length === 0)
     ) {
       // Find edge with condition that evaluates to true
       for (const edge of outgoingEdges) {

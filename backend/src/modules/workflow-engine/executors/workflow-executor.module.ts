@@ -17,6 +17,7 @@ import { DelayNodeProcessor } from './processors/delay-node.processor';
 import { SubProcessProcessor } from './processors/sub-process.processor';
 import { NotificationsModule } from '../../notifications/notifications.module';
 import { UsersModule } from '../../users/users.module';
+import { ForEachNodeProcessor } from './processors/foreach-node.processor';
 
 @Module({
   imports: [
@@ -39,6 +40,8 @@ import { UsersModule } from '../../users/users.module';
     JoinGatewayProcessor,
     DelayNodeProcessor,
     SubProcessProcessor,
+
+    ForEachNodeProcessor,
   ],
   exports: [WorkflowExecutorService, DelayPollService, NodeProcessorRegistry],
 })
@@ -54,6 +57,7 @@ export class WorkflowExecutorModule implements OnModuleInit {
     private delayProcessor: DelayNodeProcessor,
     private userInputNodeProcessor: UserInputNodeProcessor,
     private subProcessProcessor: SubProcessProcessor,
+    private forEachProcessor: ForEachNodeProcessor,
   ) {}
 
   onModuleInit() {
@@ -74,6 +78,9 @@ export class WorkflowExecutorModule implements OnModuleInit {
     this.registry.register(this.userInputNodeProcessor);
     // Alias for backward compatibility if needed, but native type is now userInput
     this.registry.registerAlias('input', this.userInputNodeProcessor);
+
+    // New Processors
+    this.registry.register(this.forEachProcessor);
   }
 
   private serviceProcessorTypes() {
@@ -84,6 +91,8 @@ export class WorkflowExecutorModule implements OnModuleInit {
       'slack',
       'setVariable',
       'updateRecord',
+      'script',
+      'graphql',
     ];
   }
 }

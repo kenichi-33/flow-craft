@@ -53,6 +53,9 @@ import UpdateRecordNode from './nodes/UpdateRecordNode';
 import SetVariableNode from './nodes/SetVariableNode';
 import SubProcessNode from './nodes/SubProcessNode';
 import SlackNode from './nodes/SlackNode';
+import ScriptNode from './nodes/ScriptNode';
+import GraphQLNode from './nodes/GraphQLNode';
+import ForEachNode from './nodes/ForEachNode';
 
 const nodeTypes = {
     start: StartNode,
@@ -71,19 +74,51 @@ const nodeTypes = {
     setVariable: SetVariableNode,
     subProcess: SubProcessNode,
     slack: SlackNode,
+    script: ScriptNode,
+    graphql: GraphQLNode,
+    foreach: ForEachNode,
 };
 
 // BPMN-style toolbox groups
 const TOOLBOX_GROUPS = [
-    { name: 'スイムレーン', items: [{ type: 'swimlane', label: 'レーン', color: '#90caf9', icon: '═' }] },
-    { name: 'イベント', items: [{ type: 'end', label: '終了', color: '#ef5350', icon: '●' }] },
-    { name: 'アクティビティ', items: [{ type: 'approval', label: '承認タスク', color: '#42a5f5', icon: '□' }, { type: 'userInput', label: '入力タスク', color: '#2196f3', icon: '⌨' }] },
-    { name: '通信', items: [{ type: 'sendEmail', label: 'メール送信', color: '#ff9800', icon: '✉' }, { type: 'slack', label: 'Slack通知', color: '#3f51b5', icon: '#' }] },
-    { name: '制御フロー', items: [{ type: 'delay', label: '待機 (タイマー)', color: '#ffd600', icon: '⏰' }] },
-    { name: 'データ操作', items: [{ type: 'updateRecord', label: 'レコード更新', color: '#ff7043', icon: '💾' }, { type: 'setVariable', label: '変数設定', color: '#5c6bc0', icon: '∑' }] },
-    { name: '高度な制御', items: [{ type: 'subProcess', label: 'サブプロセス', color: '#ab47bc', icon: '⚙' }] },
-    { name: 'サービスタスク', items: [{ type: 'apiCall', label: 'API呼び出し', color: '#7e57c2', icon: '↔' }, { type: 'llmCall', label: 'LLM呼び出し', color: '#26a69a', icon: '🤖' }] },
-    { name: 'ゲートウェイ', items: [{ type: 'branch', label: '分岐 (XOR)', color: '#ffca28', icon: '◇' }, { type: 'parallel', label: '並行 (AND)', color: '#ffeb3b', icon: '+' }, { type: 'join', label: '合流', color: '#ffeb3b', icon: '><' }] },
+    { 
+        name: '基本・イベント', 
+        items: [
+            { type: 'swimlane', label: 'レーン', color: '#90caf9', icon: '═' },
+            { type: 'end', label: '終了', color: '#ef5350', icon: '●' }
+        ] 
+    },
+    { 
+        name: 'ユーザー処理', 
+        items: [
+            { type: 'approval', label: '承認タスク', color: '#42a5f5', icon: '□' }, 
+            { type: 'userInput', label: '入力タスク', color: '#2196f3', icon: '⌨' }
+        ] 
+    },
+    { 
+        name: 'システム処理', 
+        items: [
+            { type: 'script', label: 'スクリプト', color: '#fbc02d', icon: '📜' },
+            { type: 'apiCall', label: 'API呼び出し', color: '#7e57c2', icon: '↔' },
+            { type: 'graphql', label: 'GraphQL', color: '#e91e63', icon: '⚛' },
+            { type: 'llmCall', label: 'LLM呼び出し', color: '#26a69a', icon: '🤖' },
+            { type: 'updateRecord', label: 'レコード更新', color: '#ff7043', icon: '💾' }, 
+            { type: 'setVariable', label: '変数設定', color: '#5c6bc0', icon: '∑' },
+            { type: 'sendEmail', label: 'メール送信', color: '#ff9800', icon: '✉' }, 
+            { type: 'slack', label: 'Slack通知', color: '#3f51b5', icon: '#' }
+        ] 
+    },
+    { 
+        name: '制御フロー', 
+        items: [
+            { type: 'branch', label: '分岐 (XOR)', color: '#ffca28', icon: '◇' }, 
+            { type: 'parallel', label: '並行 (AND)', color: '#ffeb3b', icon: '+' }, 
+            { type: 'join', label: '合流', color: '#ffeb3b', icon: '><' },
+            { type: 'delay', label: '待機 (タイマー)', color: '#ffd600', icon: '⏰' },
+            { type: 'foreach', label: '繰り返し', color: '#3949ab', icon: '🔁' },
+            { type: 'subProcess', label: 'サブプロセス', color: '#ab47bc', icon: '⚙' }
+        ] 
+    },
 ];
 
 // --- Validation Rules ---
@@ -110,6 +145,12 @@ const VALIDATION_RULES: ValidationRule[] = [
                 if (node.type === 'apiCall') {
                     if (!node.data.url) return `API呼び出し "${node.data.label}" のURLが設定されていません`;
                     if (!node.data.method) return `API呼び出し "${node.data.label}" のメソッドが設定されていません`;
+                }
+                if (node.type === 'graphql') {
+                    if (!node.data.endpoint) return `GraphQLノード "${node.data.label}" のエンドポイントが未設定です`;
+                }
+                if (node.type === 'foreach') {
+                     if (!node.data.items) return `繰り返しノード "${node.data.label}" の対象リストが未設定です`;
                 }
             }
             return null;
@@ -167,6 +208,22 @@ const VALIDATION_RULES: ValidationRule[] = [
                 if (edges.filter(e => e.target === n.id).length < 2) {
                     return `合流ゲートウェイ "${n.data?.label || '合流'}" には2つ以上の入力が必要です`;
                 }
+            }
+            return null;
+        }
+    },
+    {
+        id: 'foreach-edges',
+        name: '繰り返し接続',
+        description: '繰り返しノードの接続設定を確認してください',
+        category: 'connectivity',
+        check: (nodes, edges) => {
+            for (const n of nodes.filter(nd => nd.type === 'foreach')) {
+                const loopEdge = edges.find(e => e.source === n.id && e.sourceHandle === 'loop');
+                const completedEdge = edges.find(e => e.source === n.id && e.sourceHandle === 'completed');
+                
+                if (!loopEdge) return `繰り返しノード "${n.data?.label || '繰り返し'}" のLoop接続がありません`;
+                if (!completedEdge) return `繰り返しノード "${n.data?.label || '繰り返し'}" のEnd(完了)接続がありません`;
             }
             return null;
         }
@@ -266,7 +323,7 @@ function FlowDesignerContent({ appId, isStatsMode, statsOverlay }: { appId: stri
                 }
                 
                 // For other nodes
-                if (['branch', 'apiCall', 'llmCall', 'approval', 'userInput'].includes(n.type || '')) {
+                if (['branch', 'apiCall', 'llmCall', 'approval', 'userInput', 'script', 'graphql', 'foreach'].includes(n.type || '')) {
                    return { ...n, ...swimlaneProps, data: newData };
                 }
                 // Even simpler default (includes swimlane)
@@ -331,7 +388,7 @@ function FlowDesignerContent({ appId, isStatsMode, statsOverlay }: { appId: stri
         if (!type) return;
         const position = screenToFlowPosition({ x: event.clientX, y: event.clientY });
         const id = `${type}_${Date.now()}`;
-        const labelMap: Record<string, string> = { approval: '承認', branch: '条件分岐', end: '終了', swimlane: 'レーン' };
+        const labelMap: Record<string, string> = { approval: '承認', branch: '条件分岐', end: '終了', swimlane: 'レーン', script: 'スクリプト', graphql: 'GraphQL', foreach: '繰り返し' };
         const newNode: Node = {
             id, type, position,
             data: { 
@@ -339,7 +396,7 @@ function FlowDesignerContent({ appId, isStatsMode, statsOverlay }: { appId: stri
                 assignee: type === 'approval' ? 'role:wf_approver' : undefined,
                 assigneeType: type === 'approval' ? 'role' : undefined,
                 assigneeRole: type === 'approval' ? 'wf_approver' : undefined,
-                formFields: ['branch', 'apiCall', 'llmCall', 'approval', 'start', 'userInput'].includes(type) ? formFields : undefined, 
+                formFields: ['branch', 'apiCall', 'llmCall', 'approval', 'start', 'userInput', 'script', 'graphql'].includes(type) ? formFields : undefined, 
                 ...(type === 'swimlane' && { width: 800, height: 200, color: '#e3f2fd' }) 
             },
             ...(type === 'swimlane' && { style: { width: 800, height: 200 }, zIndex: -100 }),
@@ -378,7 +435,7 @@ function FlowDesignerContent({ appId, isStatsMode, statsOverlay }: { appId: stri
                 <Card className="w-48 p-3 shrink-0 overflow-y-auto">
                     <p className="text-sm font-semibold mb-1">ツールボックス</p>
                     <p className="text-xs text-muted-foreground mb-3">ドラッグしてキャンバスにドロップ</p>
-                    <Accordion type="multiple" defaultValue={['スイムレーン', 'イベント', 'アクティビティ', 'サービスタスク', 'ゲートウェイ']} className="w-full">
+                    <Accordion type="multiple" defaultValue={['基本・イベント', 'ユーザー処理', 'システム処理', '制御フロー']} className="w-full">
                         {TOOLBOX_GROUPS.map((group) => (
                             <AccordionItem key={group.name} value={group.name} className="border-0">
                                 <AccordionTrigger className="py-2 text-xs font-bold text-muted-foreground uppercase hover:no-underline">{group.name}</AccordionTrigger>

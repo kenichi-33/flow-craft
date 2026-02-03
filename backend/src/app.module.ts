@@ -47,9 +47,7 @@ import { WorkflowExecutorModule } from './modules/workflow-engine/executors/work
     StatisticsModule,
     MasterConnectorsModule,
     // Conditional Modules
-    ...(process.env.ENABLE_WORKER !== 'false'
-      ? [WorkflowWorkerModule]
-      : []),
+    ...(process.env.ENABLE_WORKER !== 'false' ? [WorkflowWorkerModule] : []),
     ...(process.env.ENABLE_EXECUTOR !== 'false'
       ? [WorkflowExecutorModule]
       : []),

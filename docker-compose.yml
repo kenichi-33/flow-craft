@@ -142,6 +142,19 @@ services:
         kafka-topics --bootstrap-server kafka:29092 --list
       "
 
+  mock-server:
+    profiles: ["app"]
+    build:
+      context: ./tools/mock-server
+    environment:
+      PORT: 3001
+    ports:
+      - "3001:3001"
+    volumes:
+      - ./tools/mock-server:/usr/src/app
+      - /usr/src/app/node_modules
+    command: npm run dev
+
   backend:
     profiles: ["app"]
     build:

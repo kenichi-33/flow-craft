@@ -104,14 +104,16 @@ export class EndNodeProcessor implements INodeProcessor {
             },
           });
 
-          // Resume Parent
-          // We must call this AFTER the transaction involves the parent?
-          // helper.advanceToNextNode is internal but uses QueueService.
-          // Ideally we enqueue the job.
-          await this.helper.advanceToNextNode(
-            parentId,
-            parentNodeId || undefined,
-          );
+          // Resume Parent ONLY if it was waiting
+          if (config.waitForCompletion !== false) {
+            await this.helper.advanceToNextNode(
+              parentId,
+              parentNodeId || undefined,
+            );
+          } else {
+            // For async sub-processes, we might want to notify or log, but NOT resume flow as it already moved on.
+            // We can optionally trigger a "SubProcess Completed" event here if we support event listeners later.
+          }
         }
       }
     }

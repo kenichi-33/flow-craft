@@ -8,6 +8,7 @@ import { Pencil, Clock, Globe, MousePointerClick } from 'lucide-react';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Badge } from '@/components/ui/badge';
 
 export default function StartNode({ id, data }: { id: string, data: any }) {
     const [dialogOpen, setDialogOpen] = useState(false);
@@ -58,10 +59,16 @@ export default function StartNode({ id, data }: { id: string, data: any }) {
     return (
         <>
             <div 
-                className="w-[60px] h-[60px] rounded-full bg-gradient-to-br from-green-500 to-green-700 flex flex-col items-center justify-center shadow-lg border-[3px] border-white relative group"
+                className={`w-[60px] h-[60px] rounded-full flex flex-col items-center justify-center shadow-lg border-[3px] relative group transition-all duration-300
+                    ${data.isFailed ? 'bg-red-50 border-red-500' :
+                      data.isCurrent ? 'bg-gradient-to-br from-green-500 to-green-700 border-yellow-400 ring-4 ring-yellow-400/30' :
+                      'bg-gradient-to-br from-green-500 to-green-700 border-white'}
+                `}
                 style={{ cursor: 'pointer' }}
                 onClick={() => setDialogOpen(true)}
             >
+                {data.isCurrent && !data.isFailed && <Badge className="absolute -top-3 left-1/2 -translate-x-1/2 h-5 text-[10px] px-2 bg-green-600 border-white hover:bg-green-600 z-50 shadow-sm whitespace-nowrap">現在</Badge>}
+                {data.isCompleted && !data.isCurrent && !data.isFailed && <Badge variant="secondary" className="absolute -top-3 left-1/2 -translate-x-1/2 h-5 text-[10px] px-2 bg-emerald-100 text-emerald-700 border-emerald-200 border hover:bg-emerald-100 z-50 shadow-sm whitespace-nowrap">完了</Badge>}
                 {getIcon() || (
                     <span className="text-xs text-white font-bold drop-shadow-sm select-none">
                         {data.label || '開始'}
@@ -77,7 +84,7 @@ export default function StartNode({ id, data }: { id: string, data: any }) {
                 <Handle
                     type="source"
                     position={Position.Right}
-                    className="!bg-green-700 !w-2.5 !h-2.5 !border-2 !border-white"
+                    className="!bg-green-700 !w-2.5 !h-2.5 !border-2 !border-white !rounded-full"
                 />
                 {data.statCount?.breakdown?.draft > 0 && (
                     <div className="absolute -top-4 left-1/2 transform -translate-x-1/2 bg-slate-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow border border-white whitespace-nowrap z-20">

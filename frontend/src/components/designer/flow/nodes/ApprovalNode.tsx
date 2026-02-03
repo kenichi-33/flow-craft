@@ -12,6 +12,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { UserSelector } from '@/components/common/UserSelector';
 import { GroupSelector } from '@/components/common/GroupSelector';
 import { Pencil, User, Users, Shield, Mail } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
 
 type AssigneeType = 'role' | 'group' | 'specific' | 'applicant_manager';
 
@@ -114,11 +115,23 @@ export default function ApprovalNode({ id, data }: { id: string; data: any }) {
     return (
         <>
             <div
-                className="min-w-[140px] min-h-[60px] px-4 py-2 rounded-lg bg-gradient-to-br from-blue-400 to-blue-600 flex flex-col items-center justify-center shadow-lg border-2 border-white/50 relative"
+                className={`min-w-[140px] min-h-[60px] px-4 py-2 rounded-lg flex flex-col items-center justify-center shadow-lg border-2 relative transition-all duration-300
+                    ${data.isFailed ? 'bg-red-50 to-red-100 border-red-500 shadow-red-200' : 
+                      data.isCurrent ? 'bg-gradient-to-br from-blue-400 to-blue-600 border-yellow-400 ring-4 ring-yellow-400/30' : 
+                      'bg-gradient-to-br from-blue-400 to-blue-600 border-white/50'}
+                `}
                 style={{ cursor: isReadOnly ? 'pointer' : 'default' }}
                 onClick={isReadOnly ? () => setDialogOpen(true) : undefined}
             >
-                <Handle type="target" position={Position.Left} className="!bg-blue-700 !w-2.5 !h-2.5 !border-2 !border-white" />
+                {data.isCurrent && !data.isFailed && <Badge className="absolute -top-2.5 left-1/2 -translate-x-1/2 h-5 text-[10px] px-2 bg-blue-600 border-white hover:bg-blue-600 z-50 shadow-sm whitespace-nowrap">現在</Badge>}
+                {data.isFailed && <Badge variant="destructive" className="absolute -top-2.5 left-1/2 -translate-x-1/2 h-5 text-[10px] px-2 border-white z-50 shadow-sm whitespace-nowrap">失敗</Badge>}
+                {data.isCompleted && !data.isCurrent && !data.isFailed && <Badge variant="secondary" className="absolute -top-2.5 left-1/2 -translate-x-1/2 h-5 text-[10px] px-2 bg-emerald-100 text-emerald-700 border-emerald-200 border hover:bg-emerald-100 z-50 shadow-sm whitespace-nowrap">完了</Badge>}
+                <Handle 
+                    type="target" 
+                    position={Position.Left} 
+                    isConnectableStart={false}
+                    className="!bg-white !border-2 !border-blue-700 !w-2.5 !h-2.5 !rounded-none" 
+                />
                 <div className="flex items-center gap-1">
                     {notificationEnabled && <Mail className="h-3 w-3 text-white/70" />}
                     <span className="text-sm text-white font-bold drop-shadow-sm">{data.label || '承認'}</span>
@@ -134,7 +147,11 @@ export default function ApprovalNode({ id, data }: { id: string; data: any }) {
                         <span className="text-[10px] text-white/90">{data.assigneeDisplay || getAssigneeDisplay()}</span>
                     </div>
                 )}
-                <Handle type="source" position={Position.Right} className="!bg-blue-700 !w-2.5 !h-2.5 !border-2 !border-white" />
+                <Handle 
+                    type="source" 
+                    position={Position.Right} 
+                    className="!bg-blue-700 !w-2.5 !h-2.5 !border-2 !border-white !rounded-full" 
+                />
                 {/* Stats Badge */}
                 {(() => {
                     const stats = data.statCount;
