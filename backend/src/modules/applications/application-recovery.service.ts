@@ -64,6 +64,23 @@ export class ApplicationRecoveryService {
     });
 
     for (const task of stuckRunningTasks) {
+      // Check for custom timeout
+      const config = (task.config as any) || {};
+      const configuredTimeout = Number(config.timeout);
+
+      // If configured, ensure we wait at least that long + buffer (e.g., 5 mins)
+      if (configuredTimeout && configuredTimeout > 0) {
+        const elapsed = Date.now() - task.updatedAt.getTime();
+        const threshold = configuredTimeout + 5 * 60 * 1000; // Timeout + 5m buffer
+
+        if (elapsed < threshold) {
+          this.logger.debug(
+            `Skipping recovery for task ${task.id}: Within timeout window (${elapsed}ms < ${threshold}ms)`,
+          );
+          continue;
+        }
+      }
+
       this.logger.warn(
         `Found stuck RUNNING task ${task.id} (Worker: ${task.workerId}). Marking as FAILED.`,
       );

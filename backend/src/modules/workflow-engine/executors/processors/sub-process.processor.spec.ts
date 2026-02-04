@@ -5,6 +5,7 @@ import { WorkflowHelperService } from '../../workflow-helper.service';
 import { PrismaService } from '../../../../prisma/prisma.service';
 import { NodeProcessorContext } from './node-processor.interface';
 import { Prisma } from '@prisma/client';
+import { UsersService } from '../../../users/users.service';
 
 describe('SubProcessProcessor', () => {
   let processor: SubProcessProcessor;
@@ -19,7 +20,7 @@ describe('SubProcessProcessor', () => {
   const mockTx = {
     applicationDefinition: { findUnique: jest.fn() },
     appVersion: { findUnique: jest.fn() },
-    application: { create: jest.fn() },
+    application: { create: jest.fn(), update: jest.fn() },
     approvalHistory: { create: jest.fn() },
   } as unknown as Prisma.TransactionClient;
 
@@ -29,6 +30,10 @@ describe('SubProcessProcessor', () => {
         SubProcessProcessor,
         { provide: WorkflowHelperService, useValue: mockHelper },
         { provide: PrismaService, useValue: mockPrismaService },
+        {
+          provide: UsersService,
+          useValue: { getUserSnapshotByUsername: jest.fn() },
+        },
       ],
     }).compile();
 
@@ -51,6 +56,7 @@ describe('SubProcessProcessor', () => {
     applicantId: 'user-1',
     nodes: [],
     edges: [],
+    postCommitActions: [],
   };
 
   it('should be defined', () => {
@@ -125,7 +131,24 @@ describe('SubProcessProcessor', () => {
       }),
     });
 
-    // Verify Advance Child (Kickstart)
+    // Verify Advance Child (Kickstart) - Deferred
+    // expect(mockHelper.advanceToNextNode).toHaveBeenCalledWith(
+    //   'child-app-new-1',
+    //   'start-node',
+    // );
+    expect(mockHelper.advanceToNextNode).not.toHaveBeenCalled();
+    expect(baseContext.postCommitActions).toHaveLength(1);
+
+    // Run actions
+    for (const action of baseContext.postCommitActions!) {
+      await action();
+    }
+    // Verify Parent currentNodeId update
+    expect(mockTx.application.update).toHaveBeenCalledWith({
+      where: { id: 'parent-app-1' },
+      data: { currentNodeId: 'node-subprocess' },
+    });
+
     expect(mockHelper.advanceToNextNode).toHaveBeenCalledWith(
       'child-app-new-1',
       'start-node',

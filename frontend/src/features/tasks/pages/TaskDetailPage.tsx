@@ -165,7 +165,7 @@ export default function TaskDetailPage() {
     });
 
     const claimMutation = useMutation({
-        mutationFn: () => api.post(`/tasks/${id}/claim`),
+        mutationFn: () => api.post(`/tasks/${id}/claim`, {}),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['task', id] });
             toast.success('タスクを着手しました');
@@ -176,7 +176,7 @@ export default function TaskDetailPage() {
     });
 
     const releaseMutation = useMutation({
-        mutationFn: () => api.post(`/tasks/${id}/release`),
+        mutationFn: () => api.post(`/tasks/${id}/release`, {}),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['task', id] });
             toast.success('着手を解除しました');
@@ -469,7 +469,11 @@ export default function TaskDetailPage() {
                             })()}
                             edges={application.flowDefinition.edges || []}
                             currentNodeId={task.status === 'PENDING' ? task.stepId : application.currentNodeId}
-                            completedStepIds={application.history?.filter((h: any) => h.action !== 'REMAND').map((h: any) => h.stepId) || []}
+                            completedStepIds={(() => {
+                                const historySteps = application.history?.filter((h: any) => h.action !== 'REMAND' && h.stepId).map((h: any) => h.stepId) || [];
+                                const completedTasks = application.workflowTasks?.filter(t => t.status === 'COMPLETED').map(t => t.stepId) || [];
+                                return Array.from(new Set([...historySteps, ...completedTasks]));
+                            })()}
                             height={250}
                         />
                     </CardContent>

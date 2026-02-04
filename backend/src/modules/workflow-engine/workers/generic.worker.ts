@@ -101,7 +101,7 @@ export class GenericWorker implements OnModuleInit {
         // トランザクションで一括更新
         const txnResult = await this.prisma.$transaction(async (tx) => {
           const updateData: any = {
-            result: result.outputData || {},
+            result: { ...(result.outputData || {}), _logs: result.logs },
           };
 
           this.logger.debug(
@@ -145,7 +145,7 @@ export class GenericWorker implements OnModuleInit {
               stepId: nodeId,
               type: nodeType,
               status: updateData.status || TaskStatus.PENDING, // 完了していない場合はPENDINGとして記録(または直前の状態)
-              result: result.outputData || {},
+              result: { ...(result.outputData || {}), _logs: result.logs }, // Log history with logs
               executedAt: new Date(),
             },
           });
@@ -165,6 +165,7 @@ export class GenericWorker implements OnModuleInit {
             data: {
               status: TaskStatus.FAILED,
               error: result.error,
+              result: { _logs: result.logs }, // Save logs in task too
             },
           });
 
@@ -177,6 +178,8 @@ export class GenericWorker implements OnModuleInit {
               type: nodeType,
               status: TaskStatus.FAILED,
               error: result.error,
+              // Save logs even if failed
+              result: { _logs: result.logs },
               executedAt: new Date(),
             },
           });
@@ -192,6 +195,7 @@ export class GenericWorker implements OnModuleInit {
         outputData: result.outputData,
         error: result.error,
         shouldAdvance: result.shouldAdvance ?? result.success,
+        logs: result.logs,
       };
 
       await this.queueService.enqueue('TASK_COMPLETE', completeJob);

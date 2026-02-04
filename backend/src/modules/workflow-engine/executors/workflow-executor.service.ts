@@ -284,17 +284,44 @@ export class WorkflowExecutorService implements OnModuleInit {
       edges,
       nodes,
       fromNodeId: fromNodeId,
+      postCommitActions: [],
     };
 
     try {
       await this.prisma.$transaction(async (tx) => {
         await processor.process(context, tx);
       });
+
+      // Execute Post-Commit Actions
+      if (context.postCommitActions && context.postCommitActions.length > 0) {
+        this.logger.log(
+          `Executing ${context.postCommitActions.length} post-commit actions for node ${nextNodeId}`,
+        );
+        await Promise.all(context.postCommitActions.map((action) => action()));
+      }
     } catch (e) {
+      const errorMessage = e instanceof Error ? e.message : String(e);
       this.logger.error(
-        `Error processing node ${nextNodeId} (${nextNode.type})`,
+        `Error processing node ${nextNodeId} (${nextNode.type}): ${errorMessage}`,
         e,
       );
+
+      // Log Error to History (Outside Transaction)
+      // This ensures the error is visible to the user even if the node logic rolled back.
+      try {
+        await this.prisma.approvalHistory.create({
+          data: {
+            applicationId,
+            actorId: 'SYSTEM',
+            action: 'ERROR',
+            stepId: nextNodeId || '',
+            comment: `システムエラー: ${errorMessage}`,
+          },
+        });
+      } catch (logError) {
+        this.logger.error('Failed to log error to history', logError);
+      }
+
       throw e;
     }
   }

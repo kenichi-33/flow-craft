@@ -119,4 +119,37 @@ describe('WorkflowExecutorService', () => {
       expect(mockMailService.sendSlaBreachNotification).not.toHaveBeenCalled();
     });
   });
+
+  describe('handleNodeProcessingJob', () => {
+    it('should log error to history if processor fails', async () => {
+      mockPrisma.application.findUnique.mockResolvedValue({
+        id: 'app-error',
+        currentNodeId: 'node-error',
+        flowDefinition: {
+          nodes: [{ id: 'node-error', type: 'test-error' }],
+          edges: [],
+        },
+      });
+      mockRegistry.getProcessor.mockReturnValue({
+        getType: () => 'test-error',
+        process: jest.fn().mockRejectedValue(new Error('Processing Failed')),
+      });
+      mockPrisma.approvalHistory = { create: jest.fn() };
+
+      await expect(
+        service.handleNodeProcessingJob({
+          applicationId: 'app-error',
+          targetNodeId: 'node-error',
+        }),
+      ).rejects.toThrow('Processing Failed');
+
+      expect(mockPrisma.approvalHistory.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          applicationId: 'app-error',
+          action: 'ERROR',
+          comment: expect.stringContaining('Processing Failed'),
+        }),
+      });
+    });
+  });
 });

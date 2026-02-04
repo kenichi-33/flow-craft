@@ -9,6 +9,7 @@ export interface NodeProcessorContext {
   edges: any[];
   nodes: any[];
   fromNodeId?: string;
+  postCommitActions?: (() => Promise<void>)[];
 }
 
 export interface INodeProcessor {

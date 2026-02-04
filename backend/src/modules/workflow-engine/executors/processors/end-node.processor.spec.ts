@@ -42,6 +42,7 @@ describe('EndNodeProcessor', () => {
     applicantId: 'user-1',
     nodes: [],
     edges: [],
+    postCommitActions: [],
   };
 
   it('should be defined', () => {
@@ -127,6 +128,14 @@ describe('EndNodeProcessor', () => {
     });
 
     // Verify Parent Resumption
+    // Verify Parent Resumption (Deferred)
+    expect(mockHelper.advanceToNextNode).not.toHaveBeenCalled();
+    expect(context.postCommitActions).toHaveLength(1);
+
+    // Execute actions
+    for (const action of context.postCommitActions!) {
+      await action();
+    }
     expect(mockHelper.advanceToNextNode).toHaveBeenCalledWith(
       'parent-app-1',
       'node-subprocess',

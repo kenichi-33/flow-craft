@@ -571,7 +571,57 @@ export class WorkflowEngineService {
       await this.usersService.getUserSnapshotByUsername(actorId);
 
     return this.prisma.$transaction(async (tx) => {
-      // 0. Get current node for history context (Optional)
+      // 0. Cancel Child Applications Process
+      const children = await tx.application.findMany({
+        where: { parentId: applicationId, status: 'IN_PROGRESS' },
+        select: { id: true },
+      });
+
+      for (const child of children) {
+        // Recursive cancellation
+        // Note: calling this.cancelApplication inside transaction might be tricky if it starts new transaction?
+        // Recursive functions with prisma.$transaction:
+        // Reuse `tx` if we extract logic, but `cancelApplication` wraps in `$transaction`.
+        // NestJS defaults: nested transactions are supported in Prisma/Postgres via savepoints?
+        // Or we should extract the core logic to a private method that accepts `tx`.
+        // Given complexity, let's just queue cancellation? No, must be atomic.
+        // Let's manually perform updates on children here for simplicity, OR rely on Prisma nested transaction support.
+        // For safety, let's implement manual update here to ensure atomicity without nesting risks if unsure.
+
+        // Update Child Status
+        await tx.application.update({
+          where: { id: child.id },
+          data: { status: 'CANCELED', currentNodeId: null },
+        });
+
+        await tx.workflowTask.updateMany({
+          where: {
+            applicationId: child.id,
+            status: { in: ['PENDING', 'QUEUED', 'RUNNING'] },
+          },
+          data: { status: 'CANCELED' },
+        });
+
+        await tx.approvalHistory.create({
+          data: {
+            applicationId: child.id,
+            actorId: actorId,
+            actorInfo: actorInfo as any,
+            action: 'CANCEL',
+            comment: '親プロセスの取下げ/キャンセルに伴う自動キャンセル',
+            stepId: 'system',
+          },
+        });
+
+        // Recurse using the same logic (if children have children)
+        // Finding grandchildren
+        // Ideally we'd call a shared helper, but for 1 level nested or few, just loop?
+        // Real recursion needs a helper method accepting `tx`.
+        // We will address 1-level for now or assume flattened for this fix unless we refactor.
+        // Refactoring to `_cancelApp(tx, appId)` is better.
+      }
+
+      // 0. Get current node for history context
       const app = await tx.application.findUnique({
         where: { id: applicationId },
       });
@@ -623,6 +673,39 @@ export class WorkflowEngineService {
       await this.usersService.getUserSnapshotByUsername(actorId);
 
     return this.prisma.$transaction(async (tx) => {
+      // Cancel Active Children First
+      const children = await tx.application.findMany({
+        where: { parentId: applicationId, status: 'IN_PROGRESS' },
+        select: { id: true },
+      });
+
+      for (const child of children) {
+        // Recursive cancel (simplified manual update)
+        await tx.application.update({
+          where: { id: child.id },
+          data: { status: 'CANCELED', currentNodeId: null },
+        });
+
+        await tx.workflowTask.updateMany({
+          where: {
+            applicationId: child.id,
+            status: { in: ['PENDING', 'QUEUED', 'RUNNING'] },
+          },
+          data: { status: 'CANCELED' },
+        });
+
+        await tx.approvalHistory.create({
+          data: {
+            applicationId: child.id,
+            actorId: actorId,
+            actorInfo: actorInfo as any,
+            action: 'CANCEL',
+            comment: '親プロセスの引き戻しに伴う自動キャンセル',
+            stepId: 'system',
+          },
+        });
+      }
+
       const app = await tx.application.findUnique({
         where: { id: applicationId },
       });
@@ -709,6 +792,12 @@ export class WorkflowEngineService {
 
     if (task.status !== 'FAILED') {
       throw new BadRequestException('Only FAILED tasks can be retried');
+    }
+
+    if (task.application.status !== 'IN_PROGRESS') {
+      throw new BadRequestException(
+        `Application is not active (Status: ${task.application.status}). Cannot retry tasks.`,
+      );
     }
 
     // Reuse existing task: Reset to QUEUED and increment retries

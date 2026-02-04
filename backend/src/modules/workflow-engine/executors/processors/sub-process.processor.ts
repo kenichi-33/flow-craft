@@ -6,6 +6,7 @@ import {
 import { Prisma } from '@prisma/client';
 import { WorkflowHelperService } from '../../workflow-helper.service';
 import { PrismaService } from '../../../../prisma/prisma.service';
+import { UsersService } from '../../../users/users.service';
 
 // Note: Circular dependency risk if we inject WorkflowEngineService here?
 // WorkflowEngineService imports WorkflowEngineModule providers?
@@ -41,6 +42,7 @@ export class SubProcessProcessor implements INodeProcessor {
   constructor(
     private helper: WorkflowHelperService,
     private prisma: PrismaService,
+    private usersService: UsersService,
     // private workflowService: WorkflowEngineService // Avoid circular dep just in case, assume we might need it.
   ) {}
 
@@ -136,7 +138,9 @@ export class SubProcessProcessor implements INodeProcessor {
         formDefinitionId: appDef.formDefinitionId!,
         flowDefinitionId: appDef.flowDefinitionId,
         applicantId: applicantId, // Inherit applicant
-        // applicantInfo: ... (Fetch if needed, or null)
+        applicantInfo: (await this.usersService.getUserSnapshotByUsername(
+          applicantId,
+        )) as any,
         status: 'IN_PROGRESS',
         inputData: childInputData,
         currentNodeId: startNode.id,
@@ -159,6 +163,14 @@ export class SubProcessProcessor implements INodeProcessor {
       },
     });
 
+    // 2.5 Update Parent Application Current Node
+    // Important: We must update currentNodeId to the SubProcessNode ID so that
+    // when the Child completes, the resumption logic knows where to continue from.
+    await tx.application.update({
+      where: { id: applicationId },
+      data: { currentNodeId: nodeId },
+    });
+
     // 3. Suspend Parent
     // We simply do NOT call `advanceToNextNode` for the Parent.
     // The Parent remains at `currentNodeId` = `nodeId` (SubProcessNode).
@@ -172,7 +184,9 @@ export class SubProcessProcessor implements INodeProcessor {
     // Job queue is outside transaction (usually).
 
     // So we can enlist the child app for processing.
-    await this.helper.advanceToNextNode(childApp.id, startNode.id); // Child starts from StartNode
+    context.postCommitActions?.push(async () => {
+      await this.helper.advanceToNextNode(childApp.id, startNode.id); // Child starts from StartNode
+    });
 
     // Log in parent
     await tx.approvalHistory.create({
@@ -187,10 +201,12 @@ export class SubProcessProcessor implements INodeProcessor {
 
     // If NOT waiting for completion (Async), resume parent immediately
     if (config.waitForCompletion === false) {
-      this.logger.log(
-        `SubProcess ${nodeId} is Async. Resuming parent ${applicationId}.`,
-      );
-      await this.helper.advanceToNextNode(applicationId, nodeId);
+      context.postCommitActions?.push(async () => {
+        this.logger.log(
+          `SubProcess ${nodeId} is Async. Resuming parent ${applicationId}.`,
+        );
+        await this.helper.advanceToNextNode(applicationId, nodeId);
+      });
     }
   }
 }

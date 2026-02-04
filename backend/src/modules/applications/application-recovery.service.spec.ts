@@ -61,6 +61,43 @@ describe('ApplicationRecoveryService', () => {
       });
     });
 
+    it('should respect custom task timeout configuration', async () => {
+      // Task with 1 hour timeout, running for 20 mins (should be skipped)
+      const longRunningTask = {
+        id: 't-long',
+        status: 'RUNNING',
+        workerId: 'w1',
+        updatedAt: new Date(Date.now() - 20 * 60 * 1000), // 20 mins ago
+        config: { timeout: 3600000 }, // 1 hour
+      };
+
+      // Task with 1 minute timeout, running for 10 mins (should be killed)
+      const timedOutTask = {
+        id: 't-timedout',
+        status: 'RUNNING',
+        workerId: 'w2',
+        updatedAt: new Date(Date.now() - 10 * 60 * 1000), // 10 mins ago
+        config: { timeout: 60000 }, // 1 min (threshold ~6 mins with buffer)
+      };
+
+      mockPrisma.workflowTask.findMany
+        .mockResolvedValueOnce([longRunningTask, timedOutTask])
+        .mockResolvedValueOnce([]);
+
+      await service.handleRecovery();
+
+      // Long running task should NOT be updated
+      expect(mockPrisma.workflowTask.update).not.toHaveBeenCalledWith(
+        expect.objectContaining({ where: { id: 't-long' } }),
+      );
+
+      // Timed out task SHOULD be updated
+      expect(mockPrisma.workflowTask.update).toHaveBeenCalledWith({
+        where: { id: 't-timedout' },
+        data: expect.objectContaining({ status: 'FAILED' }),
+      });
+    });
+
     it('should recover stuck QUEUED tasks (message lost)', async () => {
       mockPrisma.workflowTask.findMany
         .mockResolvedValueOnce([]) // stuckRunningTasks

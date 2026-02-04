@@ -36,6 +36,8 @@ export interface TaskResult {
   error?: string;
   /** 次のノードへ自動的に進むか（デフォルト: true） */
   shouldAdvance?: boolean;
+  /** 実行ログ (console.log収集) */
+  logs?: string[];
 }
 
 /**
@@ -79,4 +81,5 @@ export interface TaskCompleteJob {
   outputData?: Record<string, any>;
   error?: string;
   shouldAdvance: boolean;
+  logs?: string[];
 }

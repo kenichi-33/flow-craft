@@ -408,17 +408,22 @@ export default function ApplicationDetailPage() {
                             }
                             completedStepIds={(() => {
                                 const completedTasks = application.workflowTasks?.filter(t => t.status === 'COMPLETED').map(t => t.stepId) || [];
+                                const historySteps = application.history?.filter(h => h.stepId).map(h => h.stepId!) || [];
+                                
                                 const startNode = (application.flowNodes || application.flowDefinition?.nodes || []).find((n: any) => n.type === 'start');
                                 
                                 if (application.status === 'DRAFT') {
                                     return [];
                                 }
                                 
+                                // Merge tasks and history (Branch/Parallel use history)
+                                const allCompleted = new Set([...completedTasks, ...historySteps]);
+
                                 // Include start node if not draft
-                                if (startNode && !completedTasks.includes(startNode.id)) {
-                                    return [startNode.id, ...completedTasks];
+                                if (startNode) {
+                                  allCompleted.add(startNode.id);
                                 }
-                                return completedTasks;
+                                return Array.from(allCompleted);
                             })()}
                             failedStepIds={
                                 (() => {

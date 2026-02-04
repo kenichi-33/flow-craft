@@ -106,10 +106,12 @@ export class EndNodeProcessor implements INodeProcessor {
 
           // Resume Parent ONLY if it was waiting
           if (config.waitForCompletion !== false) {
-            await this.helper.advanceToNextNode(
-              parentId,
-              parentNodeId || undefined,
-            );
+            context.postCommitActions?.push(async () => {
+              await this.helper.advanceToNextNode(
+                parentId,
+                parentNodeId || undefined,
+              );
+            });
           } else {
             // For async sub-processes, we might want to notify or log, but NOT resume flow as it already moved on.
             // We can optionally trigger a "SubProcess Completed" event here if we support event listeners later.

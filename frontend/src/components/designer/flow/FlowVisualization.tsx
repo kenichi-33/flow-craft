@@ -112,10 +112,12 @@ export default function FlowVisualization({
 
         const processedEdges = rawEdges.map((edge: any) => ({
              ...edge,
-             animated: currentStepIds.has(edge.source) && !completedStepIds.has(edge.target), // Animate active paths
+             // Animate only the active path (from completed node to current node)
+             animated: completedStepIds.has(edge.source) && currentStepIds.has(edge.target),
              style: { 
                  ...edge.style, 
-                 stroke: completedStepIds.has(edge.source) || currentStepIds.has(edge.source) ? '#2563eb' : '#94a3b8',
+                 // Color edges that have been traversed (source is completed)
+                 stroke: completedStepIds.has(edge.source) ? '#2563eb' : '#94a3b8',
                  strokeWidth: 2 
              },
         }));

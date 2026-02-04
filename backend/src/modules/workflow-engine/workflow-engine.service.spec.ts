@@ -11,7 +11,12 @@ import { WorkflowQueryService } from './workflow-query.service';
 const mockPrisma = {
   applicationDefinition: { findUnique: jest.fn() },
   appVersion: { findUnique: jest.fn() },
-  application: { findUnique: jest.fn(), create: jest.fn(), update: jest.fn() },
+  application: {
+    findUnique: jest.fn(),
+    create: jest.fn(),
+    update: jest.fn(),
+    findMany: jest.fn(),
+  },
   workflowTask: {
     findUnique: jest.fn(),
     update: jest.fn(),
@@ -19,7 +24,6 @@ const mockPrisma = {
     findFirst: jest.fn(),
     create: jest.fn(),
   },
-  approvalHistory: { create: jest.fn() },
   approvalHistory: { create: jest.fn() },
   $transaction: jest.fn().mockImplementation((cb) => cb(mockPrisma)),
 };
@@ -33,6 +37,7 @@ const mockQueueService = {
 const mockHelperSchema = {
   validateTaskInput: jest.fn(),
   advanceToNextNode: jest.fn(),
+  validateFlowNodes: jest.fn(),
 };
 const mockTeamsService = {
   getMyTeams: jest.fn(),
@@ -62,6 +67,7 @@ describe('WorkflowEngineService', () => {
       ],
     }).compile();
 
+    mockPrisma.application.findMany.mockResolvedValue([]);
     const queryService = module.get(WorkflowQueryService);
     (queryService.canUserExecuteTask as jest.Mock).mockResolvedValue(true);
     (queryService.getWorkflowStatus as jest.Mock).mockResolvedValue(
@@ -278,6 +284,35 @@ describe('WorkflowEngineService', () => {
           },
 
           data: { status: 'CANCELED' },
+        }),
+      );
+    });
+    it('should recursively cancel child applications', async () => {
+      mockPrisma.application.findUnique.mockResolvedValue({ id: 'app-parent' });
+      mockUsersService.getUserSnapshotByUsername.mockResolvedValue({});
+      mockPrisma.application.findMany.mockResolvedValue([{ id: 'app-child' }]);
+
+      await service.cancelApplication('app-parent', 'user-1');
+
+      // Check Child Cancellation
+      expect(mockPrisma.application.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'app-child' },
+          data: expect.objectContaining({ status: 'CANCELED' }),
+        }),
+      );
+      expect(mockPrisma.workflowTask.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ applicationId: 'app-child' }),
+          data: { status: 'CANCELED' },
+        }),
+      );
+
+      // Check Parent Cancellation
+      expect(mockPrisma.application.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'app-parent' },
+          data: expect.objectContaining({ status: 'CANCELED' }),
         }),
       );
     });

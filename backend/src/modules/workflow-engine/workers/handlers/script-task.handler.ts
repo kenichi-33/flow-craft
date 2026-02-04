@@ -90,6 +90,8 @@ export class ScriptTaskHandler implements ITaskHandler {
       })();
     `;
 
+    const logs: string[] = [];
+
     try {
       const result = await new Promise<any>((resolve, reject) => {
         const worker = new Worker(workerCode, {
@@ -114,6 +116,7 @@ export class ScriptTaskHandler implements ITaskHandler {
         worker.on('message', (message) => {
           if (message.log) {
             this.logger.log(`[Script Log] ${JSON.stringify(message.log)}`);
+            logs.push(String(message.log));
             return;
           }
 
@@ -148,12 +151,14 @@ export class ScriptTaskHandler implements ITaskHandler {
         success: true,
         shouldAdvance: true,
         outputData,
+        logs,
       };
     } catch (error) {
       this.logger.error(`Script execution failed`, error);
       return {
         success: false,
         error: error.message,
+        logs,
       };
     }
   }
