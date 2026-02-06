@@ -230,7 +230,7 @@ export default function BranchNode({ id, data }: { id: string; data: any }) {
                                     </div>
 
                                     <div className="space-y-2 pl-4 border-l-2 border-orange-200">
-                                        {rule.conditions.map((cond, condIndex) => (
+                                        {(rule.conditions || []).map((cond, condIndex) => (
                                             <div key={condIndex} className="flex gap-2 items-center">
                                                 <Select value={cond.field} onValueChange={(v) => updateRuleCondition(ruleIndex, condIndex, 'field', v)} disabled={isReadOnly}>
                                                     <SelectTrigger className="w-[150px]"><SelectValue placeholder="フィールド" /></SelectTrigger>

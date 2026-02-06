@@ -79,12 +79,12 @@ Generate a workflow definition based on the user's description.
 ${commonRules}
 
 "data" Content Rules:
-1. "nodes": Array of nodes.
-2. "edges": Array of edges.
+1. "nodes": Array of objects. Each MUST have "id", "type", "position": { "x": number, "y": number }, and "data".
+2. "edges": Array of objects. Each MUST have "id", "source" (node id), and "target" (node id).
 3. Always start with a 'start' node.
 4. Always end paths with an 'end' node.
-5. Ensure all nodes are connected via edges.
-6. Auto-layout nodes with reasonable x, y coordinates (e.g. left to right flow).
+5. CRITICAL: Ensure every "source" and "target" in edges matches a valid "id" in nodes.
+6. Auto-layout nodes with reasonable x, y coordinates (e.g. left to right flow, x += 200).
 
 Available Node Types:
 - start, end
@@ -93,8 +93,13 @@ Available Node Types:
       - assignee: string (specific user ID)
 - userInput
 - branch (Standard Logic Branch)
-      - rules: { id: string, label: string, condition: string }[]
-      - condition: JS expression using formData (e.g., "formData.amount > 1000")
+      - rules: { 
+                      id: string, 
+                      label: string, 
+                      conditions: { field: string, operator: "=="|"!="|">"|"<"|">="|"<="|"contains", value: string|number }[],
+                      logic: "and" | "or"
+                  }[]
+      - IMPORTANT: For Branch/AiBranch, edges must use the rule 'id' as 'sourceHandle' property in the edge object.
 - aiBranch (AI-driven Branch)
       - rules: { id: string, label: string, aiCondition: string }[] (Natural language condition)
       - provider: "ollama" | "openai"
@@ -116,8 +121,15 @@ Example Output Structure:
 {
   "reasoning": "I created a linear approval flow...",
   "data": {
-    "nodes": [ ... ],
-    "edges": [ ... ]
+    "nodes": [
+      { "id": "1", "type": "start", "position": { "x": 0, "y": 100 }, "data": { "label": "Start" } },
+      { "id": "2", "type": "approval", "position": { "x": 200, "y": 100 }, "data": { "label": "Manager Approval", "assigneeRole": "manager" } },
+      { "id": "3", "type": "end", "position": { "x": 400, "y": 100 }, "data": { "label": "End" } }
+    ],
+    "edges": [
+      { "id": "e1-2", "source": "1", "target": "2" },
+      { "id": "e2-3", "source": "2", "target": "3" }
+    ]
   }
 }
 `;
