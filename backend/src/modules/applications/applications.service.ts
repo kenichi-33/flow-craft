@@ -22,6 +22,7 @@ export interface FindAllOptions {
   dateTo?: string;
   applicantId?: string;
   requestUserId?: string; // アクセス制御用
+  isTestMode?: boolean;
 }
 
 import { WorkflowEngineService } from '../workflow-engine/workflow-engine.service';
@@ -271,6 +272,7 @@ export class ApplicationsService {
       dateTo,
       applicantId,
       requestUserId,
+      isTestMode,
     } = params;
 
     // 基本検索条件
@@ -344,6 +346,15 @@ export class ApplicationsService {
       }
     }
 
+    // Test Mode Filter
+    // If isTestMode is true, select ONLY test mode.
+    // If isTestMode is false or undefined, select ONLY valid mode (isTestMode=false).
+    if (isTestMode === true) {
+      where.isTestMode = true;
+    } else {
+      where.isTestMode = false;
+    }
+
     // ソート条件
     const orderBy: Prisma.ApplicationOrderByWithRelationInput = {};
     if (sortBy === 'applicationDefinition') {
@@ -371,6 +382,7 @@ export class ApplicationsService {
           applicationNumber: true,
           title: true,
           status: true,
+          isTestMode: true,
           applicantId: true,
           applicantInfo: true,
           currentNodeId: true, // Needed for list view
@@ -407,6 +419,7 @@ export class ApplicationsService {
           applicationNumber: true,
           title: true,
           status: true,
+          isTestMode: true,
           applicantId: true,
           applicantInfo: true,
           currentNodeId: true,

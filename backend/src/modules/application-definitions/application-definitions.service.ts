@@ -281,9 +281,43 @@ export class ApplicationDefinitionsService {
       );
     }
 
+    // Enrich with createdBy/updatedBy info
+    let createdByInfo: any = null;
+    let updatedByInfo: any = null;
+
+    if (appDef.createdBy) {
+      const isUuid =
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+          appDef.createdBy,
+        );
+      if (isUuid) {
+        createdByInfo = await this.usersService.getUserSnapshot(appDef.createdBy);
+      } else {
+        createdByInfo = await this.usersService.getUserSnapshotByUsername(
+          appDef.createdBy,
+        );
+      }
+    }
+
+    if (appDef.updatedBy) {
+        const isUuid =
+          /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+            appDef.updatedBy,
+          );
+        if (isUuid) {
+          updatedByInfo = await this.usersService.getUserSnapshot(appDef.updatedBy);
+        } else {
+          updatedByInfo = await this.usersService.getUserSnapshotByUsername(
+            appDef.updatedBy,
+          );
+        }
+      }
+
     return {
       ...appDef,
       adminInfo,
+      createdByInfo,
+      updatedByInfo,
     };
   }
 
@@ -421,19 +455,39 @@ export class ApplicationDefinitionsService {
    * Find the latest published version of an application definition.
    * Used for starting new applications to ensure draft changes don't leak.
    */
-  async findPublished(id: string) {
-    // Find the latest published version
-    const latestVersion = await this.prisma.appVersion.findFirst({
-      where: { applicationDefinitionId: id },
-      orderBy: { version: 'desc' },
-      include: {
-        applicationDefinition: true,
-      },
-    });
+  /**
+   * Find the latest published version or specific version of an application definition.
+   * Used for starting new applications.
+   */
+  async findPublished(id: string, version?: number) {
+    let appVersion;
+    
+    if (version) {
+        appVersion = await this.prisma.appVersion.findUnique({
+            where: {
+                applicationDefinitionId_version: {
+                    applicationDefinitionId: id,
+                    version: version
+                }
+            },
+            include: { applicationDefinition: true }
+        });
+        if (!appVersion) {
+            throw new NotFoundException(`Version ${version} of ApplicationDefinition ${id} not found`);
+        }
+    } else {
+        // Find the latest published version
+        appVersion = await this.prisma.appVersion.findFirst({
+          where: { applicationDefinitionId: id },
+          orderBy: { version: 'desc' },
+          include: {
+            applicationDefinition: true,
+          },
+        });
+    }
 
-    if (!latestVersion) {
-      // Fallback: If the app is marked ACTIVE but has no versions (legacy data?), return the current definition.
-      // Otherwise, throw NotFound.
+    if (!appVersion) {
+      // Fallback: If no versions, return current definition (Draft/Active)
       const appDef = await this.prisma.applicationDefinition.findUnique({
         where: { id },
         include: { formDefinition: true, flowDefinition: true },
@@ -442,7 +496,8 @@ export class ApplicationDefinitionsService {
       if (appDef && appDef.status === AppDefStatus.ACTIVE) {
         return appDef;
       }
-
+      
+      // If version was not specified and no versions exist, throw
       throw new NotFoundException(
         `Published version for ApplicationDefinition ${id} not found`,
       );
@@ -450,21 +505,21 @@ export class ApplicationDefinitionsService {
 
     // Return a structure compatible with the ApplicationDefinition interface expected by the frontend
     return {
-      id: latestVersion.applicationDefinitionId,
-      name: latestVersion.applicationDefinition.name,
-      description: latestVersion.applicationDefinition.description,
+      id: appVersion.applicationDefinitionId,
+      name: appVersion.applicationDefinition.name,
+      description: appVersion.applicationDefinition.description,
       status: 'ACTIVE',
-      version: latestVersion.version,
+      version: appVersion.version,
       formDefinition: {
         id: 'version-snapshot', // Dummy ID
         name: 'Version Snapshot',
-        schema: latestVersion.formSchema,
+        schema: appVersion.formSchema,
       },
       flowDefinition: {
         id: 'version-snapshot', // Dummy ID
         name: 'Version Snapshot',
-        nodes: latestVersion.flowNodes,
-        edges: latestVersion.flowEdges,
+        nodes: appVersion.flowNodes,
+        edges: appVersion.flowEdges,
       },
     };
   }
@@ -676,6 +731,97 @@ export class ApplicationDefinitionsService {
 
       // Publish as new version (backup current + restore)
       return this.publish(id, restoredBy, tx, comment);
+    });
+  }
+  async export(id: string, version: number) {
+    const appDef = await this.prisma.applicationDefinition.findUnique({
+      where: { id },
+      select: { name: true },
+    });
+    if (!appDef) throw new NotFoundException('Application Definition not found');
+
+    const appVersion = await this.prisma.appVersion.findUnique({
+      where: {
+        applicationDefinitionId_version: {
+          applicationDefinitionId: id,
+          version: version,
+        },
+      },
+    });
+
+    if (!appVersion) throw new NotFoundException('Version not found');
+
+    return {
+      appName: appDef.name,
+      version: appVersion.version,
+      formSchema: appVersion.formSchema,
+      flowNodes: appVersion.flowNodes,
+      flowEdges: appVersion.flowEdges,
+      exportedAt: new Date().toISOString(),
+    };
+  }
+
+  async importVersion(id: string, data: any, user: string) {
+    // Basic validation
+    if (!data.formSchema || !data.flowNodes) {
+      throw new Error('Invalid definition file format');
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+        const appDef = await tx.applicationDefinition.findUnique({
+             where: { id },
+             include: { formDefinition: true, flowDefinition: true }
+        });
+        if (!appDef) throw new NotFoundException('Application Definition not found');
+
+        // Update or Create FormDefinition
+        let formDefId = appDef.formDefinitionId;
+        if (formDefId) {
+             await tx.formDefinition.update({
+                 where: { id: formDefId },
+                 data: { schema: data.formSchema },
+             });
+        } else {
+             const newForm = await tx.formDefinition.create({
+                 data: {
+                     name: `${appDef.name} Form`,
+                     schema: data.formSchema,
+                 }
+             });
+             formDefId = newForm.id;
+        }
+
+        // Update or Create FlowDefinition
+        let flowDefId = appDef.flowDefinitionId;
+        if (flowDefId) {
+             await tx.flowDefinition.update({
+                 where: { id: flowDefId },
+                 data: { 
+                     nodes: data.flowNodes,
+                     edges: data.flowEdges || [],
+                 },
+             });
+        } else {
+             const newFlow = await tx.flowDefinition.create({
+                 data: {
+                     name: `${appDef.name} Flow`,
+                     nodes: data.flowNodes,
+                     edges: data.flowEdges || [],
+                 }
+             });
+             flowDefId = newFlow.id;
+        }
+
+        // Update AppDef with new IDs (if created)
+        // Also update updatedAt
+        return tx.applicationDefinition.update({
+            where: { id },
+            data: {
+                formDefinitionId: formDefId,
+                flowDefinitionId: flowDefId,
+                updatedBy: user,
+            }
+        });
     });
   }
 }

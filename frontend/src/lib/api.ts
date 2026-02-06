@@ -16,13 +16,15 @@ export class ApiError extends Error {
     }
 }
 
-async function request<T>(endpoint: string, options: RequestInit = {}, retryCount = 0): Promise<T> {
+interface RequestOptions extends RequestInit {
+    responseType?: 'json' | 'blob' | 'text';
+}
+
+async function request<T>(endpoint: string, options: RequestOptions = {}, retryCount = 0): Promise<T> {
     const url = `${API_BASE_URL}${endpoint}`;
     const { refreshToken, logout } = useAuthStore.getState();
 
-    // Refresh if needed before request (e.g. if token is about to expire)
-    // For now, reliance on 401 retry might be sufficient, but we can call refreshToken() if we track expiry.
-    // However, Keycloak-js usually manages this. usage of refreshToken() here checks expiry internal to keycloak-js.
+    // Refresh if needed before request
     await refreshToken(); 
 
     const currentToken = useAuthStore.getState().token;
@@ -66,6 +68,14 @@ async function request<T>(endpoint: string, options: RequestInit = {}, retryCoun
             throw new ApiError(response.status, errorMessage, data);
         }
 
+        if (options.responseType === 'blob') {
+            return await response.blob() as unknown as T;
+        }
+
+        if (options.responseType === 'text') {
+            return await response.text() as unknown as T;
+        }
+
         const text = await response.text();
         return text ? JSON.parse(text) : {} as any;
 
@@ -85,18 +95,18 @@ async function request<T>(endpoint: string, options: RequestInit = {}, retryCoun
 }
 
 export const api = {
-    get: <T>(endpoint: string) => request<T>(endpoint, { method: 'GET' }),
-    post: <T>(endpoint: string, body: any) => {
+    get: <T>(endpoint: string, options?: RequestOptions) => request<T>(endpoint, { ...options, method: 'GET' }),
+    post: <T>(endpoint: string, body: any, options?: RequestOptions) => {
         const isFormData = body instanceof FormData;
-        return request<T>(endpoint, { method: 'POST', body: isFormData ? body : JSON.stringify(body) });
+        return request<T>(endpoint, { ...options, method: 'POST', body: isFormData ? body : JSON.stringify(body) });
     },
-    put: <T>(endpoint: string, body: any) => {
+    put: <T>(endpoint: string, body: any, options?: RequestOptions) => {
         const isFormData = body instanceof FormData;
-        return request<T>(endpoint, { method: 'PUT', body: isFormData ? body : JSON.stringify(body) });
+        return request<T>(endpoint, { ...options, method: 'PUT', body: isFormData ? body : JSON.stringify(body) });
     },
-    patch: <T>(endpoint: string, body: any) => {
+    patch: <T>(endpoint: string, body: any, options?: RequestOptions) => {
         const isFormData = body instanceof FormData;
-        return request<T>(endpoint, { method: 'PATCH', body: isFormData ? body : JSON.stringify(body) });
+        return request<T>(endpoint, { ...options, method: 'PATCH', body: isFormData ? body : JSON.stringify(body) });
     },
-    delete: <T>(endpoint: string) => request<T>(endpoint, { method: 'DELETE' }),
+    delete: <T>(endpoint: string, options?: RequestOptions) => request<T>(endpoint, { ...options, method: 'DELETE' }),
 };

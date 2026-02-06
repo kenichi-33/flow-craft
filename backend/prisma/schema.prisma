@@ -17,6 +17,7 @@ model FormDefinition {
   defaultFlowId String? @map("default_flow_id") // デフォルトフローID
   version   Int      @default(1)
   createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
 
   applications Application[]
   applicationDefinitions ApplicationDefinition[]
@@ -32,6 +33,7 @@ model FlowDefinition {
   swimlanes Json?    // スイムレーン定義 (担当者割当ルール含む)
   version   Int      @default(1)
   createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
 
   applications Application[]
   applicationDefinitions ApplicationDefinition[]
@@ -50,6 +52,7 @@ model Application {
   // スナップショット: 申請者情報 { username, firstName, lastName, email, department }
   applicantInfo           Json?    @map("applicant_info")
   status                  ApplicationStatus @default(DRAFT)
+  isTestMode              Boolean           @default(false) @map("is_test_mode")
   inputData               Json     @map("input_data")
   currentNodeId           String?  @map("current_node_id")
   // スナップショット: 申請時点のフォーム・フロー定義を保存（バージョン互換性のため）

@@ -45,6 +45,7 @@ interface Application {
         nodes: any[];
     };
     flowNodes?: any[];
+    isTestMode?: boolean;
 }
 
 interface ApplicationsResponse {
@@ -80,16 +81,20 @@ export default function ApplicationListPage() {
     const [activeTab, setActiveTab] = useState('all');
 
     const [myApplications, setMyApplications] = useState(true);
+    const [showTestMode, setShowTestMode] = useState(false);
     const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 15 });
     
     // Server-side fetching
     const { data: applicationsResponse, isLoading, error } = useQuery<ApplicationsResponse>({
-        queryKey: ['applications', { myApplications, globalFilter, activeTab, pagination, sorting }],
+        queryKey: ['applications', { myApplications, globalFilter, activeTab, pagination, sorting, showTestMode }],
         queryFn: () => {
              const searchParams = new URLSearchParams();
              searchParams.append('limit', pagination.pageSize.toString());
              searchParams.append('page', (pagination.pageIndex + 1).toString());
              if (myApplications) searchParams.append('myApplications', 'true');
+             if (showTestMode) searchParams.append('isTestMode', 'true');
+             else searchParams.append('isTestMode', 'false');
+
              if (globalFilter) searchParams.append('search', globalFilter); // サーバー側で件名・申請者名等を検索
 
              if (sorting.length > 0) {
@@ -142,7 +147,12 @@ export default function ApplicationListPage() {
                     {column.getIsSorted() === "asc" ? <ArrowUp className="ml-2 h-4 w-4" /> : column.getIsSorted() === "desc" ? <ArrowDown className="ml-2 h-4 w-4" /> : <ArrowUpDown className="ml-2 h-4 w-4" />}
                 </Button>
             ),
-            cell: ({ row }) => <TruncatedCell text={row.original.title} maxWidth="200px" className="font-semibold" />,
+            cell: ({ row }) => (
+                <div className="flex items-center gap-2">
+                    {row.original.isTestMode && <Badge variant="destructive" className="px-1 py-0 text-[10px]">TEST</Badge>}
+                    <TruncatedCell text={row.original.title} maxWidth="200px" className="font-semibold" />
+                </div>
+            ),
         },
         {
             id: 'applicantId',
@@ -242,6 +252,10 @@ export default function ApplicationListPage() {
                      <div className="flex items-center gap-2 border p-2 rounded-md bg-card">
                         <Checkbox id="my-apps" checked={myApplications} onCheckedChange={(c) => setMyApplications(!!c)} />
                         <Label htmlFor="my-apps" className="cursor-pointer text-sm font-medium">自分の申請のみ</Label>
+                    </div>
+                    <div className="flex items-center gap-2 border p-2 rounded-md bg-card">
+                        <Checkbox id="test-mode" checked={showTestMode} onCheckedChange={(c) => setShowTestMode(!!c)} />
+                        <Label htmlFor="test-mode" className="cursor-pointer text-sm font-medium text-destructive">テストモード表示</Label>
                     </div>
                     <Button asChild><Link to="/applications/new"><Plus className="h-4 w-4 mr-2" />新規申請</Link></Button>
                 </div>

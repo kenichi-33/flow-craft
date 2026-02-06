@@ -2,25 +2,40 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { ApiCallHandler } from './api-call.handler';
 import { TaskContext } from '../task-handler.interface';
 
+import { PrismaService } from '../../../../prisma/prisma.service';
+
 // Mock global fetch
 const mockFetch = jest.fn();
 global.fetch = mockFetch;
 
 describe('ApiCallHandler', () => {
   let handler: ApiCallHandler;
+  let prisma: PrismaService;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
-      providers: [ApiCallHandler],
+      providers: [
+        ApiCallHandler,
+        {
+          provide: PrismaService,
+          useValue: {
+            application: {
+              findUnique: jest.fn().mockResolvedValue({ isTestMode: false }),
+            },
+          },
+        },
+      ],
     }).compile();
 
     handler = module.get<ApiCallHandler>(ApiCallHandler);
+    prisma = module.get<PrismaService>(PrismaService);
     mockFetch.mockReset();
   });
 
   const baseContext: TaskContext = {
     taskId: 'task-1',
     nodeId: 'node-1',
+    nodeType: 'api_call',
     applicationId: 'app-1',
     applicantId: 'user-1',
     nodeData: {
@@ -52,8 +67,10 @@ describe('ApiCallHandler', () => {
       }),
     );
     expect(result.success).toBe(true);
-    expect(result.outputData._statusCode).toBe(200);
+    expect(result.outputData?._statusCode).toBe(200);
   });
+// ... (skipping some intermediate unmodified tests for brevity in tool call, but replace tool needs context. I will target specific blocks)
+
 
   it('should handle variable substitution in URL and Body', async () => {
     mockFetch.mockResolvedValue({
@@ -157,6 +174,6 @@ describe('ApiCallHandler', () => {
     const result = await handler.execute(context);
 
     expect(result.success).toBe(true);
-    expect(result.outputData.externalId).toBe(123);
+    expect(result.outputData?.externalId).toBe(123);
   });
 });

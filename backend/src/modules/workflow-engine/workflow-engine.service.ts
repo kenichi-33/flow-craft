@@ -31,6 +31,9 @@ export class WorkflowEngineService {
     applicantId: string;
     title: string;
     inputData: any;
+    isTestMode?: boolean;
+    version?: number;
+    useDraft?: boolean;
   }) {
     const appDef = await this.prisma.applicationDefinition.findUnique({
       where: { id: input.applicationDefinitionId },
@@ -49,8 +52,10 @@ export class WorkflowEngineService {
         'ApplicationDefinition is not fully configured',
       );
     }
-
-    if (appDef.status !== 'ACTIVE') {
+    
+    // Check Active status
+    // Allow if isTestMode OR version specified OR useDraft specified
+    if (appDef.status !== 'ACTIVE' && !input.isTestMode && !input.version && !input.useDraft) {
       throw new BadRequestException('ApplicationDefinition is not active');
     }
 
@@ -59,14 +64,26 @@ export class WorkflowEngineService {
       throw new BadRequestException('Flow definition not found');
     }
 
-    const publishedVersion = await this.prisma.appVersion.findUnique({
-      where: {
-        applicationDefinitionId_version: {
-          applicationDefinitionId: appDef.id,
-          version: appDef.version,
-        },
-      },
-    });
+    let publishedVersion: any = null;
+
+    if (!input.useDraft) {
+        // Determine Version to Use (if not using draft)
+        const targetVersion = input.version || appDef.version;
+
+        publishedVersion = await this.prisma.appVersion.findUnique({
+          where: {
+            applicationDefinitionId_version: {
+              applicationDefinitionId: appDef.id,
+              version: targetVersion,
+            },
+          },
+        });
+
+        // If explicit version requested but not found, error
+        if (input.version && !publishedVersion) {
+            throw new NotFoundException(`Version ${input.version} not found`);
+        }
+    }
 
     const flowNodes = publishedVersion?.flowNodes ?? flowDef.nodes;
     const flowEdges = publishedVersion?.flowEdges ?? flowDef.edges;
@@ -103,6 +120,17 @@ export class WorkflowEngineService {
       throw new BadRequestException(e.message);
     }
 
+    if (input.isTestMode) {
+      const isAdmin =
+        appDef.adminIds?.includes(input.applicantId) ||
+        (applicantInfo as any).roles?.includes('admin') ||
+        (applicantInfo as any).roles?.includes('sys_admin'); // Assuming role names
+      
+      if (!isAdmin) {
+         throw new BadRequestException('Only application administrators can start in Test Mode');
+      }
+    }
+
     const application = await this.prisma.$transaction(async (tx) => {
       const app = await tx.application.create({
         data: {
@@ -113,6 +141,7 @@ export class WorkflowEngineService {
           applicantId: input.applicantId,
           applicantInfo: applicantInfo as any,
           status: 'IN_PROGRESS',
+          isTestMode: !!input.isTestMode,
           inputData: input.inputData,
           currentNodeId: startNode.id,
           formSchema: (formSchema ?? undefined) as
@@ -165,6 +194,7 @@ export class WorkflowEngineService {
     applicantId: string;
     title: string;
     inputData: any;
+    isTestMode?: boolean;
   }) {
     const appDef = await this.prisma.applicationDefinition.findUnique({
       where: { id: input.applicationDefinitionId },
@@ -200,6 +230,7 @@ export class WorkflowEngineService {
         applicantId: input.applicantId,
         applicantInfo: applicantInfo as any,
         status: 'DRAFT',
+        isTestMode: !!input.isTestMode,
         inputData: input.inputData,
         currentNodeId: startNode?.id || null,
         formSchema: (appDef.formDefinition?.schema ?? undefined) as
@@ -319,6 +350,14 @@ export class WorkflowEngineService {
 
     if (task.status !== 'PENDING') {
       throw new BadRequestException('Task is already completed');
+    }
+
+    // Claim Requirement Check
+    if (!task.claimedBy) {
+        throw new BadRequestException('You must start (claim) the task before completing it');
+    }
+    if (task.claimedBy !== input.actorId) {
+        throw new BadRequestException(`Task is claimed by ${task.claimedBy}, not you`);
     }
 
     // Allow approval and input tasks

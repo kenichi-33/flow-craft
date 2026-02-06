@@ -376,6 +376,7 @@ export class TasksService {
               applicationDefinition: { select: { id: true, name: true } },
               formDefinition: { select: { id: true, name: true } },
               flowDefinition: { select: { id: true, name: true, nodes: true } },
+              isTestMode: true,
             },
           },
         },

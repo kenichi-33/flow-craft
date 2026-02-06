@@ -52,11 +52,24 @@ export default function ApplicationFormPage() {
     const isEditMode = location.pathname.endsWith('/edit');
     const definitionId = isEditMode ? undefined : id;
     const applicationId = isEditMode ? id : undefined;
+    
+    // Parse Query Params
+    const searchParams = new URLSearchParams(location.search);
+    const versionParam = searchParams.get('version');
+    const isTestMode = searchParams.get('mode') === 'test';
+    const isDraft = searchParams.get('draft') === 'true';
 
     // Fetch published definition from API (New Mode)
+    // If isDraft, fetch raw definition (which is the draft)
+    // If version param exists, backend supports ?version=X
     const { data: defFromId, isLoading: isDefLoading } = useQuery<AppDefinition>({
-        queryKey: ['application-definition-published', definitionId],
-        queryFn: () => api.get<AppDefinition>(`/application-definitions/${definitionId}/published`),
+        queryKey: ['application-definition-published', definitionId, versionParam, isDraft],
+        queryFn: () => {
+            if (isDraft) {
+                return api.get<AppDefinition>(`/application-definitions/${definitionId}`);
+            }
+            return api.get<AppDefinition>(`/application-definitions/${definitionId}/published${versionParam ? `?version=${versionParam}` : ''}`);
+        },
         enabled: !!definitionId,
     });
 
@@ -118,10 +131,13 @@ export default function ApplicationFormPage() {
                      });
                 }
             } else {
-                return api.post('/workflow/start', {
+                return api.post<{id: string}>('/workflow/start', {
                     applicationDefinitionId: data.definitionId,
                     title: data.title,
-                    inputData: data.inputData
+                    inputData: data.inputData,
+                    isTestMode: isTestMode,
+                    version: versionParam ? parseInt(versionParam) : undefined,
+                    useDraft: isDraft
                 });
             }
         },
@@ -259,7 +275,10 @@ export default function ApplicationFormPage() {
                     <ArrowLeft className="h-4 w-4" />
                 </Button>
                 <div>
-                    <h2 className="text-2xl font-bold">新規申請</h2>
+                    <h2 className="text-2xl font-bold flex items-center gap-2">
+                        新規申請
+                        {isTestMode && <span className="bg-red-100 text-red-600 text-xs px-2 py-1 rounded border border-red-200">TEST MODE</span>}
+                    </h2>
                     <p className="text-muted-foreground">{definition.name}</p>
                 </div>
             </div>

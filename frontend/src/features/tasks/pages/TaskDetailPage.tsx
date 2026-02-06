@@ -56,6 +56,7 @@ interface TaskDetail {
         createdAt: string;
         applicantId: string;
         applicantInfo?: any;
+        isTestMode?: boolean;
         currentNodeId?: string;
         completedStepIds?: string[];
         workflowTasks?: {
@@ -317,11 +318,12 @@ export default function TaskDetailPage() {
     const fieldPermissions = currentNode?.data?.fieldPermissions;
 
     // Claim Status Logic
+    // Read-only if claimed by other OR not pending
     const isClaimedByMe = task.claimedBy === user?.username;
     const isClaimedByOther = task.claimedBy && !isClaimedByMe;
     const isUnclaimed = !task.claimedBy;
-    
-    // Read-only if claimed by other OR not pending
+    const isTestMode = application.isTestMode;
+
     const isReadOnly = !isPending || !!isClaimedByOther;
 
     return (
@@ -341,7 +343,14 @@ export default function TaskDetailPage() {
                         </Badge>
                         <span className="text-muted-foreground">#{application.applicationNumber}</span>
                     </div>
-                    <h1 className="text-2xl font-bold">{application.title}</h1>
+                    <h1 className="text-2xl font-bold flex items-center gap-2">
+                        {isTestMode && (
+                            <Badge variant="destructive" className="animate-pulse">
+                                TEST MODE
+                            </Badge>
+                        )}
+                        {application.title}
+                    </h1>
                     <p className="text-muted-foreground">{application.applicationDefinition?.appName}</p>
                 </div>
                 {/* Claim Actions */}
@@ -537,13 +546,14 @@ export default function TaskDetailPage() {
             </Card>
 
             {/* Action Area */}
-            {isPending && !isClaimedByOther && (
+            {isPending && (isClaimedByMe || isUnclaimed) && (
                 <ApprovalAction
                     taskType={task.type}
                     allowRemand={(task as any).config?.allowRemand === true}
                     actionInProgress={actionInProgress}
                     onAction={handleAction}
                     onRemand={openRemandDialog}
+                    disabled={isUnclaimed}
                 />
             )}
 

@@ -24,14 +24,24 @@ export class WorkflowQueryService {
   }
 
   async canUserExecuteTask(task: any, userId: string): Promise<boolean> {
+    // God Mode for Test Execution
+    let application = task.application;
+    if (!application && task.applicationId) {
+       application = await this.prisma.application.findUnique({ where: { id: task.applicationId } });
+    }
+
+    if (application?.isTestMode && application.applicantId === userId) {
+      return true;
+    }
+
     const assignedTo = task.assignedTo;
     if (!assignedTo) return true;
 
     if (assignedTo === 'applicant') {
-      const app = await this.prisma.application.findUnique({
-        where: { id: task.applicationId },
-      });
-      return app?.applicantId === userId;
+      if (!application && task.applicationId) {
+         application = await this.prisma.application.findUnique({ where: { id: task.applicationId } });
+      }
+      return application?.applicantId === userId;
     }
 
     if (assignedTo.startsWith('user:')) {

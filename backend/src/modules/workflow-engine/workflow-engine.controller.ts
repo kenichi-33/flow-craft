@@ -14,6 +14,15 @@ class StartWorkflowDto {
 
   @IsOptional()
   inputData: any;
+
+  @IsOptional()
+  isTestMode?: boolean;
+
+  @IsOptional()
+  version?: number;
+
+  @IsOptional()
+  useDraft?: boolean;
 }
 
 class CompleteTaskDto {
@@ -41,6 +50,9 @@ export class WorkflowEngineController {
     return this.workflowService.startWorkflow({
       ...dto,
       applicantId: user.username, // ログインユーザーを申請者に設定
+      isTestMode: dto.isTestMode,
+      version: dto.version,
+      useDraft: dto.useDraft,
     });
   }
 

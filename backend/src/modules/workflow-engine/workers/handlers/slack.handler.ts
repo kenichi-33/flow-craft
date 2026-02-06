@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { PrismaService } from '../../../../prisma/prisma.service';
 import {
   ITaskHandler,
   TaskContext,
@@ -13,15 +14,33 @@ import {
 export class SlackTaskHandler implements ITaskHandler {
   private readonly logger = new Logger(SlackTaskHandler.name);
 
-  constructor() {}
+  constructor(private readonly prisma: PrismaService) {}
 
   get taskType(): string {
     return 'slack';
   }
 
   async execute(context: TaskContext): Promise<TaskResult> {
-    const { taskId, nodeId, nodeData, inputData, applicantId } = context;
+    const { taskId, nodeId, nodeData, inputData, applicantId, applicationId } = context;
     this.logger.log(`Executing Slack/Webhook Task ${taskId} (Node: ${nodeId})`);
+
+    // Check Test Mode
+    const application = await this.prisma.application.findUnique({
+      where: { id: applicationId },
+      select: { isTestMode: true },
+    });
+
+    if (application?.isTestMode) {
+      this.logger.log(`[TEST MODE] Skipping Slack/Webhook Task ${taskId}`);
+      return {
+        success: true,
+        shouldAdvance: true,
+        outputData: {
+          [`slack_sent_${nodeId}`]: true,
+          [`slack_skipped_${nodeId}`]: true,
+        },
+      };
+    }
 
     try {
       const config = nodeData || {};

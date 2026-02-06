@@ -9,8 +9,10 @@ import {
   Query,
   UseGuards,
   Req,
+  Res as orgRes,
   ForbiddenException,
 } from '@nestjs/common';
+import type { Response } from 'express';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { ApplicationDefinitionsService } from './application-definitions.service';
 import { CreateApplicationDefinitionDto } from './dto/create-application-definition.dto';
@@ -75,8 +77,9 @@ export class ApplicationDefinitionsController {
   }
 
   @Get(':id/published')
-  findPublished(@Param('id') id: string) {
-    return this.appDefsService.findPublished(id);
+  findPublished(@Param('id') id: string, @Query('version') version?: string) {
+    const versionNum = version ? parseInt(version, 10) : undefined;
+    return this.appDefsService.findPublished(id, versionNum);
   }
 
   @Get(':id')
@@ -144,5 +147,31 @@ export class ApplicationDefinitionsController {
   @UseGuards(JwtAuthGuard, AppDefinitionGuard)
   remove(@Param('id') id: string) {
     return this.appDefsService.remove(id);
+  }
+  @Get(':id/versions/:version/export')
+  @UseGuards(JwtAuthGuard)
+  async export(
+    @Param('id') id: string,
+    @Param('version') version: string,
+    @Req() req: any,
+    @orgRes() res: Response,
+  ) {
+    const data = await this.appDefsService.export(id, parseInt(version, 10));
+    const filename = `${data.appName}_v${data.version}_${new Date().toISOString().split('T')[0]}.json`;
+    
+    res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(filename)}"`);
+    res.setHeader('Content-Type', 'application/json');
+    res.send(JSON.stringify(data, null, 2));
+  }
+
+  @Post(':id/import-version')
+  @UseGuards(JwtAuthGuard, AppDefinitionGuard)
+  async importVersion(
+    @Param('id') id: string,
+    @Body() body: any,
+    @Req() req: any,
+  ) {
+    const username = req.user?.username || 'Unknown';
+    return this.appDefsService.importVersion(id, body, username);
   }
 }

@@ -11,6 +11,7 @@ export interface ApprovalActionProps {
     actionInProgress?: string | null; // 'APPROVE' | 'REJECT' | 'REMAND' | 'SUBMIT' | null
     onAction: (action: string, comment: string) => void;
     onRemand?: () => void; // Opens remand dialog
+    disabled?: boolean;
 }
 
 export default function ApprovalAction({ 
@@ -18,42 +19,46 @@ export default function ApprovalAction({
     allowRemand, 
     actionInProgress, 
     onAction,
-    onRemand 
+    onRemand,
+    disabled = false
 }: ApprovalActionProps) {
     const [comment, setComment] = useState('');
 
     const isInputType = ['input', 'userInput'].includes(taskType);
-    const isPending = !!actionInProgress;
+    const isPending = !!actionInProgress || disabled;
 
     const handleApproveOrSubmit = () => {
+        if (disabled) return;
         onAction(isInputType ? 'SUBMIT' : 'APPROVE', comment);
     };
 
     const handleReject = () => {
+        if (disabled) return;
         onAction('REJECT', comment);
     };
 
     const handleRemand = () => {
-        if (onRemand) {
+        if (onRemand && !disabled) {
             onRemand();
         }
     };
 
     return (
-        <Card className="border-0 shadow-md bg-muted/30">
+        <Card className={`border-0 shadow-md ${disabled ? 'bg-muted/50 opacity-80' : 'bg-muted/30'}`}>
             <CardHeader>
-                <CardTitle className="text-lg">アクション</CardTitle>
+                <CardTitle className="text-lg">アクション {disabled && <span className="text-sm font-normal text-muted-foreground ml-2">(着手が必要です)</span>}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
                 <div>
                     <Label htmlFor="approval-comment">コメント</Label>
                     <Textarea
                         id="approval-comment"
-                        placeholder={isInputType ? "コメントを入力（任意）" : "コメントを入力（却下の場合は必須）"}
+                        placeholder={disabled ? "タスクを着手すると入力できます" : (isInputType ? "コメントを入力（任意）" : "コメントを入力（却下の場合は必須）")}
                         value={comment}
                         onChange={(e) => setComment(e.target.value)}
                         className="mt-2"
                         rows={3}
+                        disabled={disabled || !!actionInProgress}
                     />
                 </div>
                 <div className="flex gap-3 justify-center pt-4">

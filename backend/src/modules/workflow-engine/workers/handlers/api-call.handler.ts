@@ -4,6 +4,7 @@ import {
   TaskContext,
   TaskResult,
 } from '../task-handler.interface';
+import { PrismaService } from '../../../../prisma/prisma.service';
 
 /**
  * API呼び出しハンドラー
@@ -14,8 +15,29 @@ export class ApiCallHandler implements ITaskHandler {
   private readonly logger = new Logger('[Worker] ApiCallHandler');
   readonly taskType = 'apiCall';
 
+  constructor(private readonly prisma: PrismaService) {}
+
   async execute(context: TaskContext): Promise<TaskResult> {
-    const { nodeData, inputData } = context;
+    const { nodeData, inputData, applicationId, taskId, nodeId } = context;
+
+    // Check Test Mode
+    const application = await this.prisma.application.findUnique({
+        where: { id: applicationId },
+        select: { isTestMode: true },
+    });
+
+    if (application?.isTestMode) {
+        this.logger.log(`[TEST MODE] Skipping API Call Task ${taskId}`);
+        return {
+        success: true,
+        shouldAdvance: true,
+        outputData: {
+            [`api_skipped_${nodeId}`]: true,
+            _statusCode: 200,
+            _response: { message: 'Skipped in Test Mode' },
+        },
+        };
+    }
 
     const retryCount = parseInt(nodeData.retryCount || '0', 10);
     const retryInterval = parseInt(nodeData.retryInterval || '1000', 10);

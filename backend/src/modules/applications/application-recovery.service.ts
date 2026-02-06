@@ -32,6 +32,14 @@ export class ApplicationRecoveryService {
             },
           },
         },
+        // Exclude applications waiting for sub-processes (child applications)
+        childApplications: {
+          none: {
+            status: {
+              in: ['IN_PROGRESS', 'DRAFT'],  // Also exclude DRAFT if it's being created? Mainly IN_PROGRESS.
+            },
+          },
+        },
         // Additional check: Ensure we don't pick up apps that have a FAILED task for the current node
         // effectively meaning they reached max retries.
         // We do this by checking if ANY task matches 'FAILED' for current node.

@@ -128,7 +128,7 @@ export class EmailTaskHandler implements ITaskHandler {
         config.to,
         substitutionData,
       );
-      const subject = this.helper.substituteVariables(
+      let subject = this.helper.substituteVariables(
         rawSubject,
         substitutionData,
       );
@@ -136,7 +136,21 @@ export class EmailTaskHandler implements ITaskHandler {
 
       // Resolve Recipients
       // config.to can be "user:A, group:B, applicant"
-      const toList = await this.helper.resolveEmails(toStr, applicantId);
+      let toList = await this.helper.resolveEmails(toStr, applicantId);
+
+      // TEST MODE: Divert to Applicant
+      if (application?.isTestMode) {
+        this.logger.warn(`[TEST MODE] Original recipients for Task ${taskId}: ${toList.join(', ')}`);
+        const applicantEmail = applicantUser?.email;
+        if (applicantEmail) {
+          toList = [applicantEmail];
+          subject = `[TEST MODE] ${subject}`;
+          this.logger.log(`[TEST MODE] Diverting email to applicant: ${applicantEmail}`);
+        } else {
+          this.logger.warn(`[TEST MODE] Applicant email not found, suppressing email.`);
+          toList = [];
+        }
+      }
 
       if (toList.length === 0) {
         // If "to" was specified but resolved to nothing (e.g. empty group), validation failed?

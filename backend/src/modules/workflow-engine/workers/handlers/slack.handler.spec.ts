@@ -2,19 +2,33 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { SlackTaskHandler } from './slack.handler';
 import { TaskContext } from '../task-handler.interface';
 
+import { PrismaService } from '../../../../prisma/prisma.service';
+
 // Mock global fetch
 const mockFetch = jest.fn();
 global.fetch = mockFetch;
 
 describe('SlackHandler', () => {
   let handler: SlackTaskHandler;
+  let prisma: PrismaService;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
-      providers: [SlackTaskHandler],
+      providers: [
+        SlackTaskHandler,
+        {
+          provide: PrismaService,
+          useValue: {
+            application: {
+              findUnique: jest.fn().mockResolvedValue({ isTestMode: false }),
+            },
+          },
+        },
+      ],
     }).compile();
 
     handler = module.get<SlackTaskHandler>(SlackTaskHandler);
+    prisma = module.get<PrismaService>(PrismaService);
     mockFetch.mockReset();
   });
 
