@@ -4,6 +4,7 @@ import { WorkflowExecutorService } from './workflow-executor.service';
 import { DelayPollService } from './delay-poll.service';
 import { NodeProcessorRegistry } from './processors/node-processor.registry';
 import { ScheduleModule } from '@nestjs/schedule';
+import { QueueModule } from '../../queue/queue.module';
 
 // Processors
 import { EndNodeProcessor } from './processors/end-node.processor';
@@ -18,13 +19,16 @@ import { SubProcessProcessor } from './processors/sub-process.processor';
 import { NotificationsModule } from '../../notifications/notifications.module';
 import { UsersModule } from '../../users/users.module';
 import { ForEachNodeProcessor } from './processors/foreach-node.processor';
+import { AiBranchNodeProcessor } from './processors/ai-branch-node.processor';
 
 @Module({
   imports: [
     WorkflowCoreModule,
     ScheduleModule, // For DelayPollService cron
     NotificationsModule,
+    NotificationsModule,
     UsersModule,
+    QueueModule,
   ],
   providers: [
     WorkflowExecutorService,
@@ -42,6 +46,7 @@ import { ForEachNodeProcessor } from './processors/foreach-node.processor';
     SubProcessProcessor,
 
     ForEachNodeProcessor,
+    AiBranchNodeProcessor,
   ],
   exports: [WorkflowExecutorService, DelayPollService, NodeProcessorRegistry],
 })
@@ -58,6 +63,7 @@ export class WorkflowExecutorModule implements OnModuleInit {
     private userInputNodeProcessor: UserInputNodeProcessor,
     private subProcessProcessor: SubProcessProcessor,
     private forEachProcessor: ForEachNodeProcessor,
+    private aiBranchProcessor: AiBranchNodeProcessor,
   ) {}
 
   onModuleInit() {
@@ -81,6 +87,7 @@ export class WorkflowExecutorModule implements OnModuleInit {
 
     // New Processors
     this.registry.register(this.forEachProcessor);
+    this.registry.register(this.aiBranchProcessor);
   }
 
   private serviceProcessorTypes() {

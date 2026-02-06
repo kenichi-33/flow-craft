@@ -19,6 +19,9 @@ backend/
 │   │   └── strategies/         # Passport認証ストラテジー (JwtStrategy)
 │   ├── modules/                # 機能モジュール
 │   │   ├── applications/       # [申請管理] 申請データのCRUD
+│   │   ├── ai-core/            # [AI基盤] LLM連携機能
+│   │   │   ├── llm-gateway/    # LLMプロバイダー抽象化 (Ollama, OpenAI)
+│   │   │   └── services/       # AIサービス (Generator, Branch)
 │   │   ├── workflow-engine/    # [WFエンジン] フロー実行、状態遷移、Worker
 │   │   │   ├── workflow-engine.module.ts    # APIコントローラー定義
 │   │   │   ├── workflow-core.module.ts      # 共通サービス定義

@@ -14,7 +14,7 @@ import {
 } from '@dnd-kit/core';
 import { arrayMove } from '@dnd-kit/sortable';
 import { toast } from 'sonner';
-import { Eye, Edit3, Save, Loader2, AlertCircle } from 'lucide-react';
+import { Eye, Edit3, Save, Loader2, AlertCircle, Sparkles } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
@@ -26,6 +26,7 @@ import FormEditorCanvas, { FieldPreview } from './FormEditorCanvas';
 import FormEditorProperties from './FormEditorProperties';
 import DynamicFormRenderer from '@/components/model/form/renderer/DynamicFormRenderer';
 import GlobalValidationRulesDialog from './GlobalValidationRulesDialog';
+import AiGenericDialog from '@/features/designer/components/AiGenericDialog';
 import type { FormField, ValidationRule } from './types';
 import { generateId, findFieldRecursive, updateFieldRecursive, deleteFieldRecursive, getAllFieldsFlattened, findParentId } from './utils';
 
@@ -36,6 +37,7 @@ export default function FormDesigner({ appId }: { appId: string }) {
     const [fields, setFields] = useState<FormField[]>([]);
     const [validationRules, setValidationRules] = useState<ValidationRule[]>([]);
     const [isValidationRulesOpen, setIsValidationRulesOpen] = useState(false);
+    const [aiDialogOpen, setAiDialogOpen] = useState(false);
     const [selectedFieldId, setSelectedFieldId] = useState<string | null>(null);
     const [activeDragItem, setActiveDragItem] = useState<any | null>(null);
     const [isPreviewMode, setIsPreviewMode] = useState(false);
@@ -105,6 +107,26 @@ export default function FormDesigner({ appId }: { appId: string }) {
              toast.error('保存に失敗しました');
         }
     });
+
+    const handleAiGenerated = (data: any) => {
+        if (!data || !data.properties) return;
+        const schema = data;
+        const properties = schema.properties || {};
+        
+        const allFields: FormField[] = Object.entries(properties).map(([fieldId, config]: [string, any]) => ({
+            id: fieldId,
+            type: config.type === 'string' ? 'text' : config.type === 'number' || config.type === 'integer' ? 'number' : config.type === 'boolean' ? 'checkbox' : config.type === 'array' ? 'array' : 'text',
+            label: config.title || fieldId,
+            required: (schema.required || []).includes(fieldId),
+            options: config.enum ? config.enum.map((e: string) => ({ label: e, value: e })) : [],
+            description: config.description,
+            width: 12,
+            children: [],
+        }));
+
+        setFields(allFields);
+        toast.success('AIによりフォームを生成しました');
+    };
 
     useEffect(() => {
         let targetSchema = null;
@@ -496,6 +518,12 @@ export default function FormDesigner({ appId }: { appId: string }) {
                             バリデーションルール
                             {validationRules.length > 0 && <Badge variant="secondary" className="px-1 h-5 text-[10px]">{validationRules.length}</Badge>}
                         </Button>
+                        {!isReadOnly && (
+                            <Button variant="outline" size="sm" onClick={() => setAiDialogOpen(true)} className="gap-2 border-purple-200 bg-purple-50 text-purple-700 hover:bg-purple-100">
+                                <Sparkles className="h-4 w-4" />
+                                AI生成
+                            </Button>
+                        )}
                         <Button variant={isPreviewMode ? "outline" : "default"} size="sm" onClick={() => setIsPreviewMode(!isPreviewMode)} className="gap-2">
                             {isPreviewMode ? <Edit3 className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                             {isPreviewMode ? '編集に戻る' : 'プレビュー'}
@@ -577,6 +605,13 @@ export default function FormDesigner({ appId }: { appId: string }) {
                         ) : null}
                     </DragOverlay>
                 )}
+                
+                <AiGenericDialog 
+                    open={aiDialogOpen} 
+                    onOpenChange={setAiDialogOpen} 
+                    onGenerated={handleAiGenerated} 
+                    type="form" 
+                />
             </div>
         </DndContext>
     );

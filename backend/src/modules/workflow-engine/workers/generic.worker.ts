@@ -110,7 +110,8 @@ export class GenericWorker implements OnModuleInit {
 
           // shouldAdvanceがfalseでない場合のみ完了ステータスに更新
           // (承認タスクなどはfalseを返すためPENDINGのまま維持される)
-          if (result.shouldAdvance !== false) {
+          // ただし、manualAdvanceがtrueの場合は、遷移はハンドラーが行ったがタスク自体は完了とみなす
+          if (result.shouldAdvance !== false || result.manualAdvance) {
             updateData.status = TaskStatus.COMPLETED;
             this.logger.debug(`Task ${taskId} marking as COMPLETED`);
           } else {

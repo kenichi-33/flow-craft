@@ -36,6 +36,8 @@ export interface TaskResult {
   error?: string;
   /** 次のノードへ自動的に進むか（デフォルト: true） */
   shouldAdvance?: boolean;
+  /** 手動で遷移を制御したか（trueの場合、shouldAdvance=falseでもCOMPLETEDにする） */
+  manualAdvance?: boolean;
   /** 実行ログ (console.log収集) */
   logs?: string[];
 }

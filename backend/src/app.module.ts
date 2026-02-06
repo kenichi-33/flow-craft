@@ -22,6 +22,7 @@ import { QueueModule } from './modules/queue/queue.module';
 import { SchedulerModule } from './modules/scheduler/scheduler.module';
 import { StatisticsModule } from './modules/statistics/statistics.module';
 import { MasterConnectorsModule } from './modules/master-connectors/master-connectors.module';
+import { AiCoreModule } from './modules/ai-core/ai-core.module';
 
 import { WorkflowWorkerModule } from './modules/workflow-engine/workers/workflow-worker.module';
 import { WorkflowExecutorModule } from './modules/workflow-engine/executors/workflow-executor.module';
@@ -46,6 +47,7 @@ import { WorkflowExecutorModule } from './modules/workflow-engine/executors/work
     SearchModule,
     StatisticsModule,
     MasterConnectorsModule,
+    AiCoreModule,
     // Conditional Modules
     ...(process.env.ENABLE_WORKER !== 'false' ? [WorkflowWorkerModule] : []),
     ...(process.env.ENABLE_EXECUTOR !== 'false'

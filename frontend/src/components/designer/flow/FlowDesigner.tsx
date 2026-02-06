@@ -5,7 +5,7 @@ import { api } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
-import { Loader2, Save, Trash2 } from 'lucide-react';
+import { Loader2, Save, Trash2, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
 
 import {
@@ -36,6 +36,7 @@ import {
 } from "@/components/ui/dialog";
 import { Lock } from 'lucide-react';
 import PermissionMatrix from './PermissionMatrix';
+import AiGenericDialog from '@/features/designer/components/AiGenericDialog';
 
 import StartNode from './nodes/StartNode';
 import ApprovalNode from './nodes/ApprovalNode';
@@ -56,6 +57,7 @@ import SlackNode from './nodes/SlackNode';
 import ScriptNode from './nodes/ScriptNode';
 import GraphQLNode from './nodes/GraphQLNode';
 import ForEachNode from './nodes/ForEachNode';
+import AiBranchNode from './nodes/AiBranchNode';
 
 const nodeTypes = {
     start: StartNode,
@@ -77,6 +79,7 @@ const nodeTypes = {
     script: ScriptNode,
     graphql: GraphQLNode,
     foreach: ForEachNode,
+    aiBranch: AiBranchNode,
 };
 
 // BPMN-style toolbox groups
@@ -112,6 +115,7 @@ const TOOLBOX_GROUPS = [
         name: '制御フロー', 
         items: [
             { type: 'branch', label: '分岐 (XOR)', color: '#ffca28', icon: '◇' }, 
+            { type: 'aiBranch', label: 'AI分岐', color: '#9c27b0', icon: '✨' },
             { type: 'parallel', label: '並行 (AND)', color: '#ffeb3b', icon: '+' }, 
             { type: 'join', label: '合流', color: '#ffeb3b', icon: '><' },
             { type: 'delay', label: '待機 (タイマー)', color: '#ffd600', icon: '⏰' },
@@ -323,7 +327,7 @@ function FlowDesignerContent({ appId, isStatsMode, statsOverlay }: { appId: stri
                 }
                 
                 // For other nodes
-                if (['branch', 'apiCall', 'llmCall', 'approval', 'userInput', 'script', 'graphql', 'foreach'].includes(n.type || '')) {
+                if (['branch', 'aiBranch', 'apiCall', 'llmCall', 'approval', 'userInput', 'script', 'graphql', 'foreach'].includes(n.type || '')) {
                    return { ...n, ...swimlaneProps, data: newData };
                 }
                 // Even simpler default (includes swimlane)
@@ -362,11 +366,40 @@ function FlowDesignerContent({ appId, isStatsMode, statsOverlay }: { appId: stri
     // Real-time validation
     const validationResult = React.useMemo(() => validateFlow(nodes, edges), [nodes, edges]);
     const [permissionMatrixOpen, setPermissionMatrixOpen] = useState(false);
+    const [aiDialogOpen, setAiDialogOpen] = useState(false);
 
     const handlePermissionSave = (updatedNodes: Node[]) => {
         setNodes(updatedNodes);
         setPermissionMatrixOpen(false);
         toast.success('権限設定を反映しました');
+    };
+
+    const handleAiGenerated = (data: any) => {
+        if (data && Array.isArray(data.nodes) && Array.isArray(data.edges)) {
+            // Transform nodes to standard format and ensure valid structure
+            const newNodes = data.nodes.map((n: any, index: number) => ({
+                id: n.id || `node_${index}`,
+                type: n.type || 'approval', // Default fallback
+                position: (n.position && typeof n.position.x === 'number' && typeof n.position.y === 'number') 
+                    ? n.position 
+                    : { x: 100 + (index * 200), y: 100 }, // Fallback layout (simple horizontal stack)
+                data: { ...n.data, formFields, readOnly: isReadOnly }
+            }));
+            
+            // Ensure edges have source/target
+            const newEdges = data.edges.filter((e: any) => e.source && e.target).map((e: any) => ({
+                ...e,
+                id: e.id || `e_${e.source}_${e.target}`
+            }));
+
+            setNodes(newNodes);
+            setEdges(newEdges);
+            setTimeout(() => fitView({ padding: 0.2 }), 50);
+            toast.success('AIによりフローを生成しました');
+        } else {
+            console.error('Invalid AI response format:', data);
+            toast.error('AI生成データの形式が不正です');
+        }
     };
 
     useEffect(() => {
@@ -388,7 +421,7 @@ function FlowDesignerContent({ appId, isStatsMode, statsOverlay }: { appId: stri
         if (!type) return;
         const position = screenToFlowPosition({ x: event.clientX, y: event.clientY });
         const id = `${type}_${Date.now()}`;
-        const labelMap: Record<string, string> = { approval: '承認', branch: '条件分岐', end: '終了', swimlane: 'レーン', script: 'スクリプト', graphql: 'GraphQL', foreach: '繰り返し' };
+        const labelMap: Record<string, string> = { approval: '承認', branch: '条件分岐', aiBranch: 'AI分岐', end: '終了', swimlane: 'レーン', script: 'スクリプト', graphql: 'GraphQL', foreach: '繰り返し' };
         const newNode: Node = {
             id, type, position,
             data: { 
@@ -396,7 +429,7 @@ function FlowDesignerContent({ appId, isStatsMode, statsOverlay }: { appId: stri
                 assignee: type === 'approval' ? 'role:wf_approver' : undefined,
                 assigneeType: type === 'approval' ? 'role' : undefined,
                 assigneeRole: type === 'approval' ? 'wf_approver' : undefined,
-                formFields: ['branch', 'apiCall', 'llmCall', 'approval', 'start', 'userInput', 'script', 'graphql'].includes(type) ? formFields : undefined, 
+                formFields: ['branch', 'aiBranch', 'apiCall', 'llmCall', 'approval', 'start', 'userInput', 'script', 'graphql'].includes(type) ? formFields : undefined, 
                 ...(type === 'swimlane' && { width: 800, height: 200, color: '#e3f2fd' }) 
             },
             ...(type === 'swimlane' && { style: { width: 800, height: 200 }, zIndex: -100 }),
@@ -503,6 +536,10 @@ function FlowDesignerContent({ appId, isStatsMode, statsOverlay }: { appId: stri
                                         <Lock className="h-4 w-4 mr-1" />
                                         権限
                                     </Button>
+                                    <Button variant="outline" size="sm" onClick={() => setAiDialogOpen(true)} className="border-purple-200 bg-purple-50 text-purple-700 hover:bg-purple-100">
+                                        <Sparkles className="h-4 w-4 mr-1" />
+                                        AI生成
+                                    </Button>
                                     <Button size="sm" onClick={handleSave} disabled={saveMutation.isPending}>
                                         {saveMutation.isPending ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Save className="h-4 w-4 mr-1" />}
                                         下書き保存
@@ -534,6 +571,13 @@ function FlowDesignerContent({ appId, isStatsMode, statsOverlay }: { appId: stri
                     />
                 </DialogContent>
             </Dialog>
+
+            <AiGenericDialog 
+                open={aiDialogOpen} 
+                onOpenChange={setAiDialogOpen} 
+                onGenerated={handleAiGenerated} 
+                type="flow" 
+            />
         </div>
     );
 }

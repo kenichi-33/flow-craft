@@ -1,5 +1,6 @@
 import { Module, OnModuleInit } from '@nestjs/common';
 import { WorkflowCoreModule } from '../workflow-core.module';
+import { AiCoreModule } from '../../ai-core/ai-core.module';
 import { GenericWorker } from './generic.worker';
 import { SchedulerWorker } from './scheduler.worker';
 import { TaskHandlerRegistry } from './task-handler.registry';
@@ -18,12 +19,15 @@ import { GraphQLTaskHandler } from './handlers/graphql-task.handler';
 import { NotificationsModule } from '../../notifications/notifications.module';
 import { UsersModule } from '../../users/users.module';
 
+import { AiBranchHandler } from './handlers/ai-branch.handler';
+
 @Module({
-  imports: [WorkflowCoreModule, NotificationsModule, UsersModule],
+  imports: [WorkflowCoreModule, NotificationsModule, UsersModule, AiCoreModule],
   providers: [
     GenericWorker,
     SchedulerWorker,
     TaskHandlerRegistry,
+    AiBranchHandler,
     // Handlers
     ApiCallHandler,
     LlmCallHandler,
@@ -51,6 +55,7 @@ export class WorkflowWorkerModule implements OnModuleInit {
     private readonly updateRecordHandler: UpdateRecordHandler,
     private readonly scriptTaskHandler: ScriptTaskHandler,
     private readonly graphqlTaskHandler: GraphQLTaskHandler,
+    private readonly aiBranchHandler: AiBranchHandler,
   ) {}
 
   onModuleInit() {
@@ -66,6 +71,7 @@ export class WorkflowWorkerModule implements OnModuleInit {
       this.updateRecordHandler,
       this.scriptTaskHandler,
       this.graphqlTaskHandler,
+      this.aiBranchHandler,
     ]);
   }
 }

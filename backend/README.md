@@ -90,6 +90,8 @@ APIサーバーは [http://localhost:8080](http://localhost:8080) で起動し�
 | `MAIL_USER` | SMTPユーザー | `user` |
 | `MAIL_PASSWORD` | SMTPパスワード | `password` |
 | `MAIL_FROM` | 送信元メールアドレス | `noreply@flowcraft.local` |
+| `OLLAMA_BASE_URL` | Ollama API URL | `http://host.docker.internal:11434` |
+| `OPENAI_API_KEY` | OpenAI API Key | `sk-...` (Optional) |
 | `PORT` | アプリケーションポート | `8080` (デフォルトは3000ですがdocker-composeでは8080) |
 
 ## モジュール構成
@@ -101,6 +103,7 @@ APIサーバーは [http://localhost:8080](http://localhost:8080) で起動し�
 - `src/modules/auth`: 認証・認可
 - `src/modules/notifications`: メール通知等
 - `src/modules/master-connectors`: 外部データ連携コネクタ管理
+- `src/modules/ai-core`: AI生成・分岐ロジック (LLM Gateway, Generator, Branch Service)
 
 ## テスト
 

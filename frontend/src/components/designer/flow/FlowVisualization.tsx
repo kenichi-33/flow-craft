@@ -23,6 +23,7 @@ import SlackNode from './nodes/SlackNode';
 import ScriptNode from './nodes/ScriptNode';
 import GraphQLNode from './nodes/GraphQLNode';
 import ForEachNode from './nodes/ForEachNode';
+import AiBranchNode from './nodes/AiBranchNode';
 
 interface FlowVisualizationProps {
     nodes: any[];
@@ -78,6 +79,7 @@ export default function FlowVisualization({
         script: ScriptNode,
         graphql: GraphQLNode,
         foreach: ForEachNode,
+        aiBranch: AiBranchNode,
         // Backward compatibility mapping
         input: UserInputNode, 
     }), []);
