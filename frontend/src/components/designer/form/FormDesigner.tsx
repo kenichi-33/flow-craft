@@ -115,12 +115,12 @@ export default function FormDesigner({ appId }: { appId: string }) {
         
         const allFields: FormField[] = Object.entries(properties).map(([fieldId, config]: [string, any]) => ({
             id: fieldId,
-            type: config.type === 'string' ? 'text' : config.type === 'number' || config.type === 'integer' ? 'number' : config.type === 'boolean' ? 'checkbox' : config.type === 'array' ? 'array' : 'text',
+            type: config['x-type'] || (config.type === 'string' ? 'text' : config.type === 'number' || config.type === 'integer' ? 'number' : config.type === 'boolean' ? 'checkbox' : config.type === 'array' ? 'array' : 'text'),
             label: config.title || fieldId,
             required: (schema.required || []).includes(fieldId),
             options: config.enum ? config.enum.map((e: string) => ({ label: e, value: e })) : [],
             description: config.description,
-            width: 12,
+            width: config['x-type'] === 'user-select' || config['x-type'] === 'department' ? 6 : 12,
             children: [],
         }));
 

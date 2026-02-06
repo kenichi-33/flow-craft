@@ -11,8 +11,11 @@ export interface AiBranchRequest {
   formData: Record<string, any>;
   branchRules: BranchRule[];
   piiMasking?: boolean;
+  provider?: string;
   model?: string;
   temperature?: number;
+  apiKey?: string;
+  baseUrl?: string;
 }
 
 export interface AiBranchResponse {
@@ -27,7 +30,7 @@ export class AiBranchService {
   constructor(private readonly llmGateway: LlmGatewayService) {}
 
   async evaluate(request: AiBranchRequest): Promise<AiBranchResponse> {
-    const { formData, branchRules, model, temperature } = request;
+    const { formData, branchRules, model, temperature, provider, apiKey, baseUrl } = request;
 
     // TODO: Implement PII Masking logic here if needed
     // const maskedFormData = this.maskPii(formData);
@@ -39,7 +42,7 @@ Your task is to select the most appropriate route based on the provided form dat
 Rules:
 1. You must carefully analyze the "formData" and match it against each "branchRule".
 2. You must select exactly one "id" from the branchRules.
-3. You must provide a clear "reasoning" for your decision.
+3. You must provide a clear "reasoning" for your decision. MUST BE IN JAPANESE.
 4. Output must be in strictly JSON format.
 5. If no rule perfectly matches, choose the one with "default" or "fallback" intent if present, otherwise choose the most logical one or a default id if specified in rules.
 
@@ -64,8 +67,13 @@ Select the best route.
       systemPrompt,
       userPrompt,
       responseFormat: 'json_object',
+      provider: provider,
       model: model || 'qwen2.5-coder:14b', // Default recommended model
       temperature: temperature ?? 0.1, // Low temperature for deterministic results (0 is falsy, so use ??)
+      providerConfig: {
+        apiKey,
+        baseUrl
+      }
     });
 
     const content = response.content;

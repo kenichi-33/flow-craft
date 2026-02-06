@@ -26,12 +26,18 @@ export class OpenAIProvider implements ILLMProvider {
     const model = request.model || 'gpt-4o';
     const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [];
 
+    // Use runtime API Key if provided, otherwise use default client
+    let client = this.client;
+    if (request.providerConfig?.apiKey) {
+        client = new OpenAI({ apiKey: request.providerConfig.apiKey });
+    }
+
     if (request.systemPrompt) {
       messages.push({ role: 'system', content: request.systemPrompt });
     }
     messages.push({ role: 'user', content: request.userPrompt });
 
-    const completion = await this.client.chat.completions.create({
+    const completion = await client.chat.completions.create({
       model,
       messages,
       temperature: request.temperature ?? 0.7,

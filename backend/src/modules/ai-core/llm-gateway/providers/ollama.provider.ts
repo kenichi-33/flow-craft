@@ -26,7 +26,10 @@ export class OllamaProvider implements ILLMProvider {
       request.model ||
       this.configService.get<string>('OLLAMA_MODEL') ||
       'qwen2.5-coder:14b';
-    const url = `${this.baseUrl.replace(/\/$/, '')}/api/chat`;
+    
+    // Use runtime Base URL if provided
+    const baseUrl = request.providerConfig?.baseUrl || this.baseUrl;
+    const url = `${baseUrl.replace(/\/$/, '')}/api/chat`;
 
     const messages: { role: string; content: string }[] = [];
     if (request.systemPrompt) {

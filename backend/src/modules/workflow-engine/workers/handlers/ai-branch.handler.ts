@@ -26,12 +26,22 @@ export class AiBranchHandler implements ITaskHandler {
         aiCondition: r.aiCondition,
       }));
 
+      // Explicitly add 'default' rule to guide AI
+      branchRules.push({
+        id: 'default',
+        label: nodeData.defaultLabel || 'その他 (Default)',
+        aiCondition: 'If none of the above conditions are met.',
+      });
+
       // 2. Call AI Service
       const result = await this.aiBranchService.evaluate({
         formData: inputData,
         branchRules,
+        provider: nodeData.provider,
         model: nodeData.model,
         temperature: nodeData.temperature,
+        apiKey: nodeData.apiKey,
+        baseUrl: nodeData.baseUrl,
       });
 
       this.logger.log(`AI selected route: ${result.selectedRouteId} (${result.reasoning})`);

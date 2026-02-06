@@ -16,7 +16,7 @@ export class LlmGatewayService {
   }
 
   async generate(request: LLMRequest): Promise<LLMResponse> {
-    const providerName = process.env.AI_PROVIDER || 'ollama'; // Default to ollama
+    const providerName = request.provider || process.env.AI_PROVIDER || 'ollama'; // Use request provider first
     const provider = this.providers.get(providerName);
 
     if (!provider) {

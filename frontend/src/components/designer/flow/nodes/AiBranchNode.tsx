@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
 import { Pencil, Plus, Trash2, Sparkles } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
@@ -20,6 +21,11 @@ export default function AiBranchNode({ id, data }: { id: string; data: any }) {
     const [dialogOpen, setDialogOpen] = useState(false);
     const [rules, setRules] = useState<AiRule[]>(data.rules || []);
     const [defaultLabel, setDefaultLabel] = useState(data.defaultLabel || 'その他 (Default)');
+
+    // LLM Config
+    const [provider, setProvider] = useState(data.provider || 'ollama'); // Default to ollama to match existing behavior
+    const [apiKey, setApiKey] = useState(data.apiKey || '');
+    const [baseUrl, setBaseUrl] = useState(data.baseUrl || 'http://host.docker.internal:11434');
 
     const { setNodes } = useReactFlow();
     const isReadOnly = data.readOnly === true;
@@ -49,7 +55,10 @@ export default function AiBranchNode({ id, data }: { id: string; data: any }) {
                         data: { 
                             ...node.data, 
                             rules, 
-                            defaultLabel
+                            defaultLabel,
+                            provider,
+                            apiKey,
+                            baseUrl
                         } 
                     }
                     : node
@@ -204,6 +213,60 @@ export default function AiBranchNode({ id, data }: { id: string; data: any }) {
                                 <Sparkles className="h-4 w-4 text-purple-600" />
                                 LLM設定 (高度な設定)
                             </h4>
+                            
+                            <div className="grid grid-cols-2 gap-4 mb-4">
+                                <div className="grid gap-1.5">
+                                    <Label className="text-xs">プロバイダー</Label>
+                                    <Select value={provider} onValueChange={(val) => {
+                                        setProvider(val);
+                                        // Reset defaults
+                                        if (val === 'openai') { setBaseUrl(''); }
+                                        else if (val === 'ollama') { setBaseUrl('http://host.docker.internal:11434'); }
+                                        // Update immediate state for visual feedback if needed, but save handles persistent
+                                        setNodes((nds) => nds.map((n) => n.id === id ? { ...n, data: { ...n.data, provider: val }} : n));
+                                    }} disabled={isReadOnly}>
+                                        <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="ollama">Ollama (Local)</SelectItem>
+                                            <SelectItem value="openai">OpenAI</SelectItem>
+                                            <SelectItem value="anthropic">Anthropic</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                                {provider !== 'ollama' && (
+                                    <div className="grid gap-1.5">
+                                        <Label className="text-xs">API Key</Label>
+                                        <Input 
+                                            type="password"
+                                            value={apiKey} 
+                                            onChange={(e) => {
+                                                setApiKey(e.target.value);
+                                                setNodes((nds) => nds.map((n) => n.id === id ? { ...n, data: { ...n.data, apiKey: e.target.value }} : n));
+                                            }}
+                                            placeholder="sk-..." 
+                                            disabled={isReadOnly} 
+                                            className="h-9"
+                                        />
+                                        <p className="text-[9px] text-muted-foreground">空の場合は環境変数を使用</p>
+                                    </div>
+                                )}
+                                {provider === 'ollama' && (
+                                     <div className="grid gap-1.5">
+                                        <Label className="text-xs">Base URL</Label>
+                                        <Input 
+                                            value={baseUrl} 
+                                            onChange={(e) => {
+                                                setBaseUrl(e.target.value);
+                                                setNodes((nds) => nds.map((n) => n.id === id ? { ...n, data: { ...n.data, baseUrl: e.target.value }} : n));
+                                            }}
+                                            placeholder="http://host.docker.internal:11434" 
+                                            disabled={isReadOnly} 
+                                            className="h-9"
+                                        />
+                                    </div>
+                                )}
+                            </div>
+
                             <div className="grid grid-cols-2 gap-4">
                                 <div className="grid gap-1.5">
                                     <Label className="text-xs">モデル (Ollama Model / OpenAI Model)</Label>

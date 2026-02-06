@@ -5,6 +5,11 @@ export interface LLMRequest {
   responseFormat?: 'text' | 'json_object';
   model?: string;
   maxTokens?: number;
+  provider?: string;
+  providerConfig?: {
+    apiKey?: string;
+    baseUrl?: string;
+  };
 }
 
 export interface LLMResponse<T = any> {

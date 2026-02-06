@@ -49,6 +49,13 @@ ${commonRules}
 2. Use 'title' for field labels.
 3. Use 'description' for helper text.
 4. For selection fields, use 'enum' or 'oneOf'.
+5. CRITICAL: You MUST specify the UI component type using the "x-type" property.
+
+Available "x-type" values:
+- Input: text, textarea, number, currency, email, tel, url, date, time, dateRange, file
+- Selection: select, radio, checkbox, switch, user-select, department
+- Layout: group, divider, label, section
+- Advanced: array (for tables/lists)
 
 Example Output Structure:
 {
@@ -56,7 +63,9 @@ Example Output Structure:
   "data": {
     "type": "object",
     "properties": {
-      "title": { "type": "string", "title": "Title" }
+      "title": { "type": "string", "title": "Title", "x-type": "text" },
+      "category": { "type": "string", "title": "Category", "enum": ["A", "B"], "x-type": "select" },
+      "amount": { "type": "number", "title": "Amount", "x-type": "currency" }
     },
     "required": ["title"]
   }
@@ -79,10 +88,28 @@ ${commonRules}
 
 Available Node Types:
 - start, end
-- approval (requires 'assigneeRole' or 'assignee' in data)
+- approval
+      - assigneeRole: string (e.g., "manager", "admin")
+      - assignee: string (specific user ID)
 - userInput
-- branch (requires 'rules' in data)
-- apiCall, llmCall
+- branch (Standard Logic Branch)
+      - rules: { id: string, label: string, condition: string }[]
+      - condition: JS expression using formData (e.g., "formData.amount > 1000")
+- aiBranch (AI-driven Branch)
+      - rules: { id: string, label: string, aiCondition: string }[] (Natural language condition)
+      - provider: "ollama" | "openai"
+      - model: string
+- llmCall (Invoke LLM)
+      - provider: "ollama" | "openai"
+      - model: string
+      - prompt: string (Can use {{formData.key}})
+      - systemPrompt: string
+      - outputField: string
+- apiCall
+      - url: string
+      - method: "GET" | "POST"
+      - body: string
+      - outputField: string
 - sendEmail, slack
 
 Example Output Structure:
