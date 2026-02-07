@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { api } from '@/lib/api';
@@ -6,10 +6,11 @@ import DynamicFormRenderer from '@/components/model/form/renderer/DynamicFormRen
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { ArrowLeft, Loader2, CheckCircle, GitFork, XCircle } from 'lucide-react';
+import { ArrowLeft, Loader2, CheckCircle, GitFork, XCircle, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
 import FlowVisualization from '@/components/designer/flow/FlowVisualization';
 import { useAuthStore } from '@/stores/useAuthStore';
+import AiFormDialog from '../components/AiFormDialog';
 import {
     AlertDialog,
     AlertDialogAction,
@@ -46,6 +47,8 @@ export default function ApplicationFormPage() {
     const [submitSuccess, setSubmitSuccess] = useState(false);
     const [errorDialogOpen, setErrorDialogOpen] = useState(false);
     const [errorMessage, setErrorMessage] = useState('');
+    const [aiDialogOpen, setAiDialogOpen] = useState(false);
+    const formRef = useRef<any>(null);
     const [errorDetail, setErrorDetail] = useState('');
     
     // Determine mode based on URL and ID
@@ -328,8 +331,18 @@ export default function ApplicationFormPage() {
 
             {/* Dynamic Form */}
             <Card className="border-0 shadow-md">
-                <CardHeader className="pb-4">
+                <CardHeader className="pb-4 flex flex-row items-center justify-between">
                     <CardTitle className="text-lg">申請内容</CardTitle>
+                    <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setAiDialogOpen(true)}
+                        className="bg-gradient-to-r from-purple-500 to-pink-500 text-white border-0 hover:from-purple-600 hover:to-pink-600"
+                    >
+                        <Sparkles className="h-4 w-4 mr-2" />
+                        AI自動入力
+                    </Button>
                 </CardHeader>
                 <CardContent>
                     <DynamicFormRenderer 
@@ -339,10 +352,12 @@ export default function ApplicationFormPage() {
                         onSubmit={handleSubmit}
                         fieldPermissions={definition.flowDefinition?.nodes?.find((n: any) => n.type === 'start')?.data?.fieldPermissions}
                         currentStepId="start"
-                        renderActions={(methods) => (
+                        renderActions={(methods) => {
+                            // Store form methods for AI auto-fill
+                            formRef.current = methods;
+                            return (
                             <div className="flex gap-4 justify-center pt-6">
                                 <Button 
-                                    type="button" 
                                     variant="outline" 
                                     onClick={() => navigate(-1)}
                                     disabled={submitMutation.isPending || saveDraftMutation.isPending}
@@ -376,7 +391,7 @@ export default function ApplicationFormPage() {
                                     )}
                                 </Button>
                             </div>
-                        )}
+                        );}}
                     />
                 </CardContent>
             </Card>
@@ -399,6 +414,25 @@ export default function ApplicationFormPage() {
                     </AlertDialogFooter>
                 </AlertDialogContent>
             </AlertDialog>
+
+            {/* AI Form Dialog */}
+            <AiFormDialog
+                open={aiDialogOpen}
+                onOpenChange={setAiDialogOpen}
+                onFilled={(data, refId) => {
+                    // Update form values using the stored methods
+                    if (formRef.current?.reset) {
+                        formRef.current.reset(data);
+                    }
+                    if (refId) {
+                        toast.success('📝 過去の申請データを参照して自動入力しました');
+                    } else {
+                        toast.success('✨ AI自動入力が完了しました');
+                    }
+                }}
+                formSchema={definition?.formDefinition?.schema}
+                currentUser={{ id: user?.username || 'anonymous', name: user?.name }}
+            />
         </div>
     );
 }

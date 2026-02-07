@@ -485,4 +485,23 @@ export class ApplicationsService {
 
     return updatedApplication;
   }
+
+  async findApprovedHistory(userId: string, limit: number = 5) {
+    return this.prisma.application.findMany({
+      where: {
+        applicantId: userId,
+        status: 'APPROVED',
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+      take: limit,
+      select: {
+        id: true,
+        title: true,
+        inputData: true,
+        createdAt: true,
+      },
+    });
+  }
 }

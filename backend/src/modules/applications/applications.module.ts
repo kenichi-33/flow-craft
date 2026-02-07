@@ -10,5 +10,6 @@ import { WorkflowCoreModule } from '../workflow-engine/workflow-core.module';
   imports: [UsersModule, WorkflowCoreModule],
   controllers: [ApplicationsController],
   providers: [ApplicationsService, ApplicationRecoveryService],
+  exports: [ApplicationsService],
 })
 export class ApplicationsModule {}

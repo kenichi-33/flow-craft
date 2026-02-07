@@ -9,9 +9,12 @@ import { QueueModule } from '../queue/queue.module';
 import { AiGeneratorService } from './services/ai-generator.service';
 import { AiCoreController } from './ai-core.controller';
 
+import { AiFormFillerService } from './services/ai-form-filler.service';
+import { ApplicationsModule } from '../applications/applications.module';
+
 @Global()
 @Module({
-  imports: [ConfigModule, WorkflowCoreModule, QueueModule],
+  imports: [ConfigModule, WorkflowCoreModule, QueueModule, ApplicationsModule],
   controllers: [AiCoreController],
   providers: [
     LlmGatewayService,
@@ -19,6 +22,7 @@ import { AiCoreController } from './ai-core.controller';
     OllamaProvider,
     AiBranchService,
     AiGeneratorService,
+    AiFormFillerService,
     {
       provide: 'LLM_PROVIDERS',
       useFactory: (openai: OpenAIProvider, ollama: OllamaProvider) => [
@@ -28,6 +32,6 @@ import { AiCoreController } from './ai-core.controller';
       inject: [OpenAIProvider, OllamaProvider],
     },
   ],
-  exports: [LlmGatewayService, AiBranchService, AiGeneratorService],
+  exports: [LlmGatewayService, AiBranchService, AiGeneratorService, AiFormFillerService],
 })
 export class AiCoreModule {}
