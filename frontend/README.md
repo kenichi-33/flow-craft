@@ -19,6 +19,10 @@ React, Vite, Shadcn UI を使用して構築されており、直感的なフォ
 - **Rich Text Editor**: [Tiptap](https://tiptap.dev/)
 - **Forms**: [React Hook Form](https://react-hook-form.com/) + [Zod](https://zod.dev/)
 
+## 🤖 AI機能
+- **AI Start Node**: 自然言語での対話による申請作成機能 (`/ai/start`)
+- **App Generation**: プロンプトからフォーム・フローを自動生成
+
 ## 🚀 ディレクトリ構成
 
 - `src/components`: 再利用可能なUIコンポーネント

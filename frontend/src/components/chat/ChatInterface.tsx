@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Send, Loader2, CheckCircle, FileText, Play } from 'lucide-react';
+import { Send, Loader2, CheckCircle, FileText, Play, Paperclip, X, File as FileIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Card } from '@/components/ui/card';
@@ -9,6 +9,8 @@ import { useNavigate } from 'react-router-dom';
 import { useAiConversation, type Message } from '@/hooks/useAiConversation';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api';
+import { useFileUpload } from '@/hooks/useFileUpload';
+import { toast } from 'sonner';
 
 interface ChatInterfaceProps {
   flowId: string;
@@ -28,7 +30,9 @@ export function ChatInterface({
   appName: externalAppName,
 }: ChatInterfaceProps) {
   const [inputMessage, setInputMessage] = useState('');
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
   
   const {
@@ -48,6 +52,8 @@ export function ChatInterface({
     systemPrompt: _initialSystemPrompt,
     allowedApps: _initialAllowedApps,
   });
+
+  const { uploadFile, isUploading: isFileUploading } = useFileUpload();
 
   // 親Application取得 (セッションから)
   const { data: sessionData } = useQuery({
@@ -83,17 +89,56 @@ export function ChatInterface({
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  const handleSend = async () => {
-    if (!inputMessage.trim() || isLoading) return;
+  const handleRemoveFile = () => {
+    setSelectedFile(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
 
-    const message = inputMessage;
+  const handleSend = async () => {
+    if ((!inputMessage.trim() && !selectedFile) || isLoading || isFileUploading) return;
+
+    const currentMessage = inputMessage;
+    const currentFile = selectedFile;
+    
     setInputMessage('');
+    setSelectedFile(null);
 
     try {
-      await sendMessage(message);
+      let finalMessage = currentMessage;
+
+      if (currentFile) {
+        try {
+          const result = await uploadFile(currentFile);
+          const fileMsg = `ファイルをアップロードしました: ${result.filename} (ID: ${result.fileId})`;
+          finalMessage = finalMessage ? `${fileMsg}\n\n${finalMessage}` : fileMsg;
+        } catch (error) {
+          console.error('File upload failed', error);
+          toast.error('ファイルのアップロードに失敗しました');
+          setInputMessage(currentMessage);
+          setSelectedFile(currentFile);
+          return;
+        }
+      }
+
+      await sendMessage(finalMessage);
     } catch (error) {
       console.error('Failed to send message:', error);
+      toast.error('メッセージの送信に失敗しました');
     }
+  };
+
+  const handleFileClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    
+    setSelectedFile(file);
+    e.target.value = '';
   };
 
   const handleKeyPress = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -205,13 +250,48 @@ export function ChatInterface({
             <span className="text-sm">{agentName}が入力中...</span>
           </div>
         )}
+        
+        {isFileUploading && (
+          <div className="flex items-center gap-2 text-muted-foreground">
+            <Loader2 className="h-4 w-4 animate-spin text-blue-500" />
+            <span className="text-sm">ファイルをアップロード中...</span>
+          </div>
+        )}
 
         <div ref={messagesEndRef} />
       </div>
 
       {/* Input */}
       <div className="p-4 border-t bg-muted/20">
+        {selectedFile && (
+          <div className="mb-2 px-2">
+            <div className="flex items-center gap-2 bg-slate-100 p-2 rounded-md w-fit border border-slate-200">
+               <FileIcon className="h-4 w-4 text-blue-500" />
+               <span className="text-sm truncate max-w-[200px]">{selectedFile.name}</span>
+               <Button variant="ghost" size="icon" onClick={handleRemoveFile} className="h-5 w-5 rounded-full hover:bg-slate-200">
+                 <X className="h-3 w-3 text-slate-500" />
+               </Button>
+            </div>
+          </div>
+        )}
         <div className="flex gap-2 items-end">
+          <input 
+            type="file" 
+            ref={fileInputRef} 
+            className="hidden" 
+            onChange={handleFileChange} 
+          />
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            onClick={handleFileClick} 
+            disabled={isLoading || isFileUploading}
+            className="mb-0.5 text-muted-foreground hover:text-foreground"
+            title="ファイルを添付"
+          >
+            <Paperclip className="h-5 w-5" />
+          </Button>
+
           <Textarea
             value={inputMessage}
             onChange={(e) => {
@@ -221,11 +301,11 @@ export function ChatInterface({
             }}
             onKeyDown={handleKeyPress}
             placeholder="メッセージを入力... (Shift+Enter で改行)"
-            disabled={isLoading}
+            disabled={isLoading || isFileUploading}
             className="flex-1 min-h-[40px] max-h-[200px] resize-none overflow-y-auto"
             rows={1}
           />
-          <Button onClick={handleSend} disabled={isLoading || !inputMessage.trim()}>
+          <Button onClick={handleSend} disabled={isLoading || isFileUploading || (!inputMessage.trim() && !selectedFile)}>
             <Send className="h-4 w-4" />
           </Button>
         </div>

@@ -113,6 +113,8 @@ export interface SlotFillingResponse {
   isComplete: boolean;
 }
 
+import { ConfigService } from '@nestjs/config';
+
 @Injectable()
 export class AgentService {
   private readonly logger = new Logger(AgentService.name);
@@ -125,6 +127,7 @@ export class AgentService {
     @Inject(forwardRef(() => WorkflowEngineService))
     private readonly workflowEngineService: WorkflowEngineService,
     private readonly usersService: UsersService,
+    private readonly configService: ConfigService,
   ) {}
 
   /**
@@ -447,21 +450,58 @@ Extract available parameters and identify missing ones.
     const detectedApps = session.detectedApps as any[];
     const slots = session.slots as any || {};
 
-    // すべてのアプリの情報収集状況を確認
-    let allComplete = true;
-    let currentAppId: string | null = null;
+    // ターゲットアプリを決定（必須項目が不足しているアプリを優先）
+    let targetAppId: string | null = null;
+    let fallbackAppId: string | null = null;
 
     for (const app of detectedApps) {
+      if (!fallbackAppId) fallbackAppId = app.appId;
+
       const appSlots = slots[app.appId] || {};
       const fields = await this.extractFormFields(app.appId);
       const requiredFields = fields.filter(f => f.required);
       const missingCount = requiredFields.filter(f => !appSlots[f.id]).length;
 
       if (missingCount > 0) {
-        allComplete = false;
-        currentAppId = app.appId;
+        targetAppId = app.appId;
         break;
       }
+    }
+
+    const appIdToUse = targetAppId || fallbackAppId;
+
+    if (!appIdToUse) {
+      return 'アプリケーションが見つかりません。';
+    }
+
+    // 情報収集を実行（ユーザーメッセージを処理し、スロットを更新）
+    // 必須項目が揃っていても、任意項目の追加や値の修正のために呼び出す必要がある
+    const slotResponse = await this.performSlotFilling({
+      sessionId: session.id,
+      userMessage: message,
+      appId: appIdToUse,
+    });
+
+    // スロット更新後の状態で再度完了判定
+    const updatedSession = await this.getSession(session.id);
+    const updatedSlots = updatedSession.slots as any || {};
+    
+    let allComplete = true;
+    
+    for (const app of detectedApps) {
+      const appSlots = updatedSlots[app.appId] || {};
+      const fields = await this.extractFormFields(app.appId);
+      const requiredFields = fields.filter(f => f.required);
+      const missingCount = requiredFields.filter(f => !appSlots[f.id]).length;
+
+      if (missingCount > 0) {
+        allComplete = false;
+        break;
+      }
+    }
+
+    if (slotResponse.nextQuestion) {
+      return slotResponse.nextQuestion;
     }
 
     if (allComplete) {
@@ -474,14 +514,24 @@ Extract available parameters and identify missing ones.
       return await this.generateConfirmationMessage(session.id);
     }
 
-    // まだ情報が不足している → スロットフィリングを続行
-    const slotResponse = await this.performSlotFilling({
-      sessionId: session.id,
-      userMessage: message,
-      appId: currentAppId!,
-    });
+    // LLMからの質問はないが、システム的には未完了の場合
+    // 不足している必須フィールドを探して明示的に聞く
+    const missingFieldLabels: string[] = [];
+    for (const app of detectedApps) {
+      const appSlots = updatedSlots[app.appId] || {};
+      const fields = await this.extractFormFields(app.appId);
+      const requiredFields = fields.filter(f => f.required && !appSlots[f.id]);
+      if (requiredFields.length > 0) {
+        missingFieldLabels.push(...requiredFields.map(f => f.label));
+      }
+    }
 
-    return slotResponse.nextQuestion || '情報をありがとうございます。他に必要な情報はありますか？';
+    if (missingFieldLabels.length > 0) {
+      return `以下の必須項目がまだ入力されていません: ${missingFieldLabels.join(', ')}。\n入力をお願いします。中止する場合は「キャンセル」と言ってください。`;
+    }
+
+    // ここに来ることは理論上ないはずだが、念のため
+    return '情報をありがとうございます。他に必要な情報はありますか？';
   }
 
   /**
@@ -512,8 +562,41 @@ Extract available parameters and identify missing ones.
 
       return '実行をキャンセルしました。';
     } else {
-      // 再確認
-      return await this.generateConfirmationMessage(session.id);
+      // 修正指示の可能性あり
+      // すべての検出済みアプリに対してスロットフィリングを再実行
+      const detectedApps = session.detectedApps as any[];
+      let updated = false;
+
+      // 修正指示であることを伝えるためにシステムプロンプトを少し調整したいが、
+      // performSlotFillingは汎用的に作られているのでそのまま利用してみる。
+      // ただし、現状のシステムプロンプトは「不足している情報を特定」に重点が置かれている。
+      // 修正の場合は「既存の値を上書き」する動作が必要。
+      // performSlotFilling内のupdatedSlotsマージロジックは上書きするのでOK。
+
+      for (const app of detectedApps) {
+         try {
+             // 修正のみを目的とする場合、本来はmissingFieldsのチェックなどは不要だが、
+             // 既存のメソッドを再利用する。
+             const result = await this.performSlotFilling({
+                 sessionId: session.id,
+                 userMessage: message,
+                 appId: app.appId
+             });
+             
+             if (Object.keys(result.extractedInfo).length > 0) {
+                 updated = true;
+             }
+         } catch (e) {
+             this.logger.warn(`Failed to update slots for app ${app.appId}`, e);
+         }
+      }
+
+      if (updated) {
+          return '承知しました。情報を更新しました。\n\n' + await this.generateConfirmationMessage(session.id);
+      } else {
+          // 再確認
+          return '申し訳ございません。修正内容を特定できませんでした。修正したい項目と値を具体的に教えてください。\n\n' + await this.generateConfirmationMessage(session.id);
+      }
     }
   }
 
@@ -534,7 +617,7 @@ Be friendly and concise.
       .join('\n');
 
     const response = await this.llmGateway.generate({
-      model: 'qwen2.5:7b',
+      model: this.configService.get('AI_CHAT_MODEL', 'qwen2.5:14b'),
       systemPrompt,
       userPrompt: conversationContext,
       temperature: 0.7,
@@ -599,7 +682,7 @@ ${request.availableApps.map(app => `- ${app.name} (ID: ${app.id})${app.descripti
 
     try {
       const response = await this.llmGateway.generate({
-        model: 'qwen2.5:7b',
+        model: this.configService.get('AI_CHAT_MODEL', 'qwen2.5:14b'),
         systemPrompt,
         userPrompt,
         temperature: 0.3,
@@ -639,10 +722,19 @@ ${request.availableApps.map(app => `- ${app.name} (ID: ${app.id})${app.descripti
     if (formSchema.properties) {
       for (const [fieldId, fieldDef] of Object.entries(formSchema.properties)) {
         const def = fieldDef as any;
+        let type = def.type || 'string';
+
+        // ファイルタイプの判定
+        if (def.type === 'file' || def['x-type'] === 'file' || (def.type === 'string' && def.format === 'binary')) {
+             type = 'file';
+        } else if (def.format) {
+            type = `${def.type} (${def.format})`;
+        }
+
         fields.push({
           id: fieldId,
           label: def.title || fieldId,
-          type: def.type || 'string',
+          type: type,
           required: formSchema.required?.includes(fieldId) || false,
           description: def.description,
         });
@@ -660,27 +752,53 @@ ${request.availableApps.map(app => `- ${app.name} (ID: ${app.id})${app.descripti
   ): Promise<SlotFillingResponse> {
     this.logger.log(`Performing slot filling for app ${request.appId}`);
 
+
     const session = await this.getSession(request.sessionId);
     const fields = await this.extractFormFields(request.appId);
+    this.logger.log(`Extracted fields count: ${fields.length}`);
+
     
     // 現在のスロット（既に収集済みの情報）
     const currentSlots = (session.slots as any)[request.appId] || {};
 
     const systemPrompt = `
 あなたは情報収集アシスタントです。
-ユーザーとの会話から必要な情報を抽出し、不足している情報を特定してください。
+ユーザーとの会話から必要な情報を抽出してください。
 
 ## 必要な情報フィールド:
-${fields.map(f => `- ${f.label} (${f.id}): ${f.type}${f.required ? ' [必須]' : ''}${f.description ? ` - ${f.description}` : ''}`).join('\n')}
+${fields.map(f => `- ${f.label} (${f.id}): ${f.type}${f.required ? ' [必須]' : ' [任意]'}${f.description ? ` - ${f.description}` : ''}`).join('\n')}
 
 ## 現在収集済みの情報:
 ${JSON.stringify(currentSlots, null, 2)}
 
 ## タスク:
 1. ユーザーの最新メッセージから情報を抽出
-2. まだ不足している必須フィールドを特定
+   - **重要**: 必須フィールドだけでなく、**任意フィールド**も積極的に抽出してください。
+   - **重要**: 既に値が入っているフィールドでも、ユーザーが新しい値を指定した場合は**上書き更新**してください。
+2. まだ不足している必須フィールド、任意フィールドを特定
 3. 次に聞くべき質問を生成
-4. すべての必須情報が揃っていれば完了フラグを立てる
+   - **優先順位1**: 不足している必須フィールドについて質問してください。
+   - **優先順位2**: 必須フィールドが揃っていても、未入力の任意フィールドがある場合は、「〇〇（任意項目）については入力しますか？」と確認してください。
+   - **優先順位3**: 全ての情報が揃った、またはユーザーが「ない」「不要」と言った場合は質問なし（完了）としてください。
+4. 完了判定
+   - 必須情報が全て揃っており、かつユーザーへの確認事項がなければ完了フラグを立ててください。
+
+## コメント・補足情報の抽出:
+- フォーム定義に \`notes\`, \`description\`, \`remarks\`, \`comment\` などのテキストフィールドが存在する場合、ユーザーのメッセージに含まれる補足的な発言やコメントをそのフィールドに抽出してください。
+- ファイルアップロード時のコメント（例:「領収書です。接待費として計上します」）は特に重要です。この場合、「接待費として計上します」の部分をコメントフィールドに抽出してください。
+
+## データ形式:
+各フィールドの値は以下のフォーマットに従ってください:
+- **数値 (number/integer)**: 半角数字のみを使用してください。カンマ、単位、全角数字は含めないでください。(例: 3000)
+- **日付 (date/datetime)**: YYYY-MM-DD 形式または YYYY-MM-DD HH:mm:ss 形式で抽出してください。(例: 2024-01-15)
+- **真偽値 (boolean)**: true または false のみを使用してください。(例: true)
+
+## ファイル添付に関するルール:
+- ユーザーメッセージ履歴に「ファイルをアップロードしました: [ファイル名] (ID: [UUID])」のようなメッセージが含まれている場合、そのファイルID（UUID）を抽出してください。
+- フォームフィールドに \`type: file\` または \`attachment\` という名前のフィールドがあり、ユーザーがファイルをアップロード済みの場合は、その **ファイルID** を抽出値として使用してください。
+- **重要**: ファイル名は抽出しないでください。必ずUUID形式のIDを使用してください。
+- **重要**: JSONのキー（フィールドID）は、必ず上記の「必要な情報フィールド」に記載されているIDと完全に一致させてください。勝手に新しいID（例: receipt_file）を作らないでください。
+- 抽出例: {"receipt": "550e8400-e29b-41d4-a716-446655440000"}
 
 ## 回答形式:
 以下のJSON形式で回答してください:
@@ -694,23 +812,55 @@ ${JSON.stringify(currentSlots, null, 2)}
 }
 `;
 
-    const userPrompt = `ユーザーメッセージ: "${request.userMessage}"`;
+    const history = (session.history as any[] || [])
+      .slice(-10)
+      .map((msg: any) => `${msg.role}: ${msg.content}`)
+      .join('\n');
+
+    const userPrompt = `
+## 会話履歴:
+${history}
+
+## 最新のメッセージ:
+"${request.userMessage}"
+`;
 
     try {
+      this.logger.log(`Calling LLM Gateway. User Prompt:\n${userPrompt}`);
       const response = await this.llmGateway.generate({
-        model: 'qwen2.5:7b',
+        model: this.configService.get('AI_CHAT_MODEL', 'qwen2.5:14b'),
         systemPrompt,
         userPrompt,
-        temperature: 0.3,
+        temperature: 0.1, // 温度を下げて抽出精度を上げる
       });
 
+      this.logger.log(`LLM raw response: ${response.rawContent}`);
+
       const parsed = JSON.parse(response.rawContent);
+      
+      this.logger.log(`Parsed extractedInfo: ${JSON.stringify(parsed.extractedInfo)}`);
+      this.logger.log(`Available fields: ${JSON.stringify(fields.map(f => ({ id: f.id, type: f.type })))}`);
+
+      // キーごとに型変換を実行
+      const convertedInfo: Record<string, any> = {};
+      for (const [key, value] of Object.entries(parsed.extractedInfo || {})) {
+        const field = fields.find(f => f.id === key);
+        this.logger.log(`Converting field "${key}": value="${value}", fieldType="${field?.type || 'unknown'}"`);
+        if (field) {
+          convertedInfo[key] = this.convertValue(value, field.type, key);
+        } else {
+          convertedInfo[key] = value;
+        }
+        this.logger.log(`Converted "${key}": ${convertedInfo[key]} (${typeof convertedInfo[key]})`);
+      }
 
       // スロットを更新
       const updatedSlots = {
         ...currentSlots,
-        ...parsed.extractedInfo,
+        ...convertedInfo,
       };
+
+      this.logger.log(`Updated slots for app ${request.appId}: ${JSON.stringify(updatedSlots)}`);
 
       // セッション更新
       const allSlots = (session.slots as any) || {};
@@ -722,7 +872,7 @@ ${JSON.stringify(currentSlots, null, 2)}
       });
 
       return {
-        extractedInfo: parsed.extractedInfo || {},
+        extractedInfo: convertedInfo,
         missingFields: parsed.missingFields || [],
         nextQuestion: parsed.nextQuestion || '',
         isComplete: parsed.isComplete || false,
@@ -731,6 +881,77 @@ ${JSON.stringify(currentSlots, null, 2)}
       this.logger.error('Failed to perform slot filling', error);
       throw error;
     }
+  }
+
+  /**
+   * 値をフィールド型に合わせて変換
+   */
+  private convertValue(value: any, type: string, fieldId?: string): any {
+    if (value === null || value === undefined) return null;
+
+    // もし値がオブジェクトで、idプロパティを持っている場合（LLMが誤ってオブジェクトを返した場合の救済措置）
+    if (typeof value === 'object' && !Array.isArray(value)) {
+      if (value.id) return value.id;
+      if (value.field_id) return value.field_id;
+      if (value.file_id) return value.file_id;
+      // 値として使えそうなプロパティが見つからない場合は、JSON文字列化して返す（Reactエラー回避のため）
+      return JSON.stringify(value);
+    }
+    
+    // 型情報からフォーマットを除去 ("number (currency)" -> "number")
+    const baseType = type.split(' ')[0].trim();
+    
+    // 金額関連のフィールド名は強制的に数値変換を試みる
+    const isAmountField = fieldId && /amount|price|cost|fee|salary|total|sum/i.test(fieldId);
+    
+    switch (baseType) {
+      case 'number':
+      case 'integer':
+         return this.convertToNumber(value);
+      
+      case 'boolean':
+         if (typeof value === 'boolean') return value;
+         if (typeof value === 'string') {
+             if (value.toLowerCase() === 'true') return true;
+             if (value.toLowerCase() === 'false') return false;
+         }
+         return value;
+
+      case 'date':
+      case 'datetime':
+         return value;
+
+      default:
+         // フィールド名が金額を示唆する場合は数値変換を試みる
+         if (isAmountField && typeof value === 'string') {
+           const numValue = this.convertToNumber(value);
+           if (typeof numValue === 'number') return numValue;
+         }
+         return value;
+    }
+  }
+
+  /**
+   * 文字列を数値に変換（カンマや単位を除去）
+   */
+  private convertToNumber(value: any): any {
+    if (typeof value === 'number') return value;
+    
+    if (typeof value === 'string') {
+      // 全角数字を半角数字に変換
+      const zenkaku = value.replace(/[０-９]/g, (s) => {
+        return String.fromCharCode(s.charCodeAt(0) - 0xFEE0);
+      });
+
+      // 3桁区切りのカンマを除去し、数字・小数点・マイナス以外を除去
+      const cleanStr = zenkaku.replace(/,/g, '').replace(/[^0-9.-]/g, '');
+      if (cleanStr === '') return value; // 数字が含まれていない場合は元の値を返す
+      const num = Number(cleanStr);
+      return isNaN(num) ? value : num;
+    }
+    
+    const num = Number(value);
+    return isNaN(num) ? value : num;
   }
 
   /**

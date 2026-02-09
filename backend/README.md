@@ -22,6 +22,7 @@ Flow Craft のバックエンド API アプリケーションです。NestJS を
 - **[ディレクトリ構成](./docs/directory_structure.md)**: バックエンドの詳細なディレクトリ構造
 - **[シーケンス図](./docs/sequence_diagrams.md)**: 主要な処理のシーケンス図
 - **[バージョニング](./docs/versioning.md)**: APIとアプリケーションのバージョン管理方針
+- **[AI機能設計](./docs/ai_features.md)**: AIチャット機能のアーキテクチャと詳細設計
 
 ## 技術スタック
 

@@ -63,6 +63,18 @@ erDiagram
         string type "rest, sql, csv"
         boolean isShared
     }
+    
+    ConversationSession {
+        string id PK
+        string status "ACTIVE, COLLECTING..."
+        json history
+        json detectedApps
+        json slots
+        string[] allowedApps
+    }
+    
+    ConversationSession ||--o| Application : "creates parent"
+    ConversationSession ||--o{ Application : "creates children"
 
     MasterDataItem {
         string id PK
@@ -84,6 +96,7 @@ erDiagram
 | **flow_definitions** | フローのノード・エッジ定義 (ReactFlow形式)。 |
 | **master_connectors** | 外部システム連携設定。`isShared`による共有設定や、作成・更新者の監査情報(`createdBy`, `updatedBy`)を保持。 |
 | **master_data_items** | CSV連携タイプの場合のインポートデータレコード。 |
+| **conversation_sessions** | AIチャットのセッション管理。会話履歴や収集中のスロット情報を保持。 |
 
 ## スナップショット機能
 
