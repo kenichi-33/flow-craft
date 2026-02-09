@@ -104,6 +104,7 @@ export class WorkflowExecutorModule implements OnModuleInit {
       'updateRecord',
       'script',
       'graphql',
+      'aiCheck',
     ];
   }
 }

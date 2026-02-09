@@ -14,7 +14,7 @@ import {
 } from '@dnd-kit/core';
 import { arrayMove } from '@dnd-kit/sortable';
 import { toast } from 'sonner';
-import { Eye, Edit3, Save, Loader2, AlertCircle, Sparkles } from 'lucide-react';
+import { Eye, Edit3, Save, Loader2, AlertCircle, Sparkles, CheckCircle } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
@@ -27,6 +27,10 @@ import FormEditorProperties from './FormEditorProperties';
 import DynamicFormRenderer from '@/components/model/form/renderer/DynamicFormRenderer';
 import GlobalValidationRulesDialog from './GlobalValidationRulesDialog';
 import AiGenericDialog from '@/features/designer/components/AiGenericDialog';
+import { AiReviewDialog } from '@/features/designer/components/AiReviewDialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import type { FormField, ValidationRule } from './types';
 import { generateId, findFieldRecursive, updateFieldRecursive, deleteFieldRecursive, getAllFieldsFlattened, findParentId } from './utils';
 
@@ -41,6 +45,11 @@ export default function FormDesigner({ appId }: { appId: string }) {
     const [selectedFieldId, setSelectedFieldId] = useState<string | null>(null);
     const [activeDragItem, setActiveDragItem] = useState<any | null>(null);
     const [isPreviewMode, setIsPreviewMode] = useState(false);
+    
+    // AI Review State
+    const [aiReviewOpen, setAiReviewOpen] = useState(false);
+    const [aiReviewResult, setAiReviewResult] = useState(null);
+    const [isReviewing, setIsReviewing] = useState(false);
     
     // Form Settings
     const [formName, setFormName] = useState('');
@@ -468,6 +477,36 @@ export default function FormDesigner({ appId }: { appId: string }) {
         };
     };
 
+    const [requirements, setRequirements] = useState('');
+    const [requirementsDialogOpen, setRequirementsDialogOpen] = useState(false);
+
+    const handleAiReviewClick = () => {
+        setRequirements('');
+        setRequirementsDialogOpen(true);
+    };
+
+    const handleAiReviewConfirm = async () => {
+        setRequirementsDialogOpen(false);
+        setAiReviewOpen(true);
+        setIsReviewing(true);
+        setAiReviewResult(null);
+        try {
+            const { schema } = generatePreviewSchema();
+            const result = await api.post('/ai/review-definition', { 
+                type: 'form', 
+                definition: schema,
+                requirements: requirements 
+            });
+            setAiReviewResult(result as any);
+        } catch (error) {
+            console.error(error);
+            toast.error('AIレビューに失敗しました');
+            setAiReviewOpen(false);
+        } finally {
+            setIsReviewing(false);
+        }
+    };
+
     const handleSave = () => {
         if (isReadOnly) return;
         if (!appDef) {
@@ -522,6 +561,12 @@ export default function FormDesigner({ appId }: { appId: string }) {
                             <Button variant="outline" size="sm" onClick={() => setAiDialogOpen(true)} className="gap-2 border-purple-200 bg-purple-50 text-purple-700 hover:bg-purple-100">
                                 <Sparkles className="h-4 w-4" />
                                 AI生成
+                            </Button>
+                        )}
+                        {!isReadOnly && (
+                            <Button variant="outline" size="sm" onClick={handleAiReviewClick} className="gap-2 border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100">
+                                <CheckCircle className="h-4 w-4" />
+                                AIレビュー
                             </Button>
                         )}
                         <Button variant={isPreviewMode ? "outline" : "default"} size="sm" onClick={() => setIsPreviewMode(!isPreviewMode)} className="gap-2">
@@ -611,6 +656,42 @@ export default function FormDesigner({ appId }: { appId: string }) {
                     onOpenChange={setAiDialogOpen} 
                     onGenerated={handleAiGenerated} 
                     type="form" 
+                />
+
+                <Dialog open={requirementsDialogOpen} onOpenChange={setRequirementsDialogOpen}>
+                    <DialogContent>
+                        <DialogHeader>
+                            <DialogTitle>AIレビューの設定</DialogTitle>
+                        </DialogHeader>
+                        <div className="space-y-4 py-4">
+                            <div className="space-y-2">
+                                <Label>補足要件・コンテキスト (任意)</Label>
+                                <Textarea 
+                                    value={requirements} 
+                                    onChange={(e) => setRequirements(e.target.value)} 
+                                    placeholder="例: 高齢者向けの使いやすさを重視してください、入力項目を減らしたいです..." 
+                                    rows={4}
+                                />
+                                <p className="text-sm text-muted-foreground">
+                                    AIに特に注目してほしい点や、設計の背景があれば入力してください。
+                                </p>
+                            </div>
+                        </div>
+                        <DialogFooter>
+                            <Button variant="outline" onClick={() => setRequirementsDialogOpen(false)}>キャンセル</Button>
+                            <Button onClick={handleAiReviewConfirm} className="gap-2">
+                                <Sparkles className="h-4 w-4" />
+                                レビュー実行
+                            </Button>
+                        </DialogFooter>
+                    </DialogContent>
+                </Dialog>
+
+                <AiReviewDialog 
+                    open={aiReviewOpen} 
+                    onOpenChange={setAiReviewOpen} 
+                    result={aiReviewResult} 
+                    isLoading={isReviewing}
                 />
             </div>
         </DndContext>

@@ -21,6 +21,8 @@ import { UsersModule } from '../../users/users.module';
 
 import { AiBranchHandler } from './handlers/ai-branch.handler';
 import { AiFlowRouterHandler } from './handlers/ai-flow-router.handler';
+import { AiCheckHandler } from './handlers/ai-check.handler';
+
 import { ApplicationsModule } from '../../applications/applications.module';
 
 @Module({
@@ -37,6 +39,8 @@ import { ApplicationsModule } from '../../applications/applications.module';
     TaskHandlerRegistry,
     AiBranchHandler,
     AiFlowRouterHandler,
+    AiCheckHandler,
+
     // Handlers
     ApiCallHandler,
     LlmCallHandler,
@@ -66,6 +70,7 @@ export class WorkflowWorkerModule implements OnModuleInit {
     private readonly graphqlTaskHandler: GraphQLTaskHandler,
     private readonly aiBranchHandler: AiBranchHandler,
     private readonly aiFlowRouterHandler: AiFlowRouterHandler,
+    private readonly aiCheckHandler: AiCheckHandler,
   ) {}
 
   onModuleInit() {
@@ -83,6 +88,8 @@ export class WorkflowWorkerModule implements OnModuleInit {
       this.graphqlTaskHandler,
       this.aiBranchHandler,
       this.aiFlowRouterHandler,
+      this.aiCheckHandler,
     ]);
   }
 }
+

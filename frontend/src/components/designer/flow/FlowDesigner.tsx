@@ -5,7 +5,7 @@ import { api } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
-import { Loader2, Save, Trash2, Sparkles } from 'lucide-react';
+import { Loader2, Save, Trash2, Sparkles, CheckCircle } from 'lucide-react';
 import { toast } from 'sonner';
 
 import {
@@ -33,10 +33,16 @@ import {
 import {
     Dialog,
     DialogContent,
+    DialogHeader,
+    DialogTitle,
+    DialogFooter,
 } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Lock } from 'lucide-react';
 import PermissionMatrix from './PermissionMatrix';
 import AiGenericDialog from '@/features/designer/components/AiGenericDialog';
+import { AiReviewDialog } from '@/features/designer/components/AiReviewDialog';
 
 import StartNode from './nodes/StartNode';
 import ApprovalNode from './nodes/ApprovalNode';
@@ -60,6 +66,7 @@ import ForEachNode from './nodes/ForEachNode';
 import AiBranchNode from './nodes/AiBranchNode';
 import AiStartNode from './nodes/AiStartNode';
 import AiFlowRouterNode from './nodes/AiFlowRouterNode';
+import AiCheckNode from './nodes/AiCheckNode';
 
 const nodeTypes = {
     start: StartNode,
@@ -84,6 +91,7 @@ const nodeTypes = {
     aiBranch: AiBranchNode,
     aiStart: AiStartNode,
     aiFlowRouter: AiFlowRouterNode,
+    aiCheck: AiCheckNode,
 };
 
 // BPMN-style toolbox groups
@@ -102,6 +110,7 @@ const TOOLBOX_GROUPS = [
             { type: 'aiStart', label: 'AIスタート', color: '#9c27b0', icon: '💬' },
             { type: 'aiFlowRouter', label: 'AIルーター', color: '#673ab7', icon: '🔀' },
             { type: 'aiBranch', label: 'AI分岐', color: '#9c27b0', icon: '✨' },
+            { type: 'aiCheck', label: 'AIチェック', color: '#059669', icon: '🛡️' },
         ] 
     },
     { 
@@ -391,6 +400,40 @@ function FlowDesignerContent({ appId, isStatsMode, statsOverlay }: { appId: stri
     const validationResult = React.useMemo(() => validateFlow(nodes, edges), [nodes, edges]);
     const [permissionMatrixOpen, setPermissionMatrixOpen] = useState(false);
     const [aiDialogOpen, setAiDialogOpen] = useState(false);
+    const [aiReviewOpen, setAiReviewOpen] = useState(false);
+    const [aiReviewResult, setAiReviewResult] = useState(null);
+    const [isReviewing, setIsReviewing] = useState(false);
+
+    const [requirements, setRequirements] = useState('');
+    const [requirementsDialogOpen, setRequirementsDialogOpen] = useState(false);
+
+    const handleAiReviewClick = () => {
+        setRequirements('');
+        setRequirementsDialogOpen(true);
+    };
+
+    const handleAiReviewConfirm = async () => {
+        setRequirementsDialogOpen(false);
+        setAiReviewOpen(true);
+        setIsReviewing(true);
+        setAiReviewResult(null);
+        try {
+            const flowDef = {
+                name: flowName,
+                nodes: nodes.map(n => ({ id: n.id, type: n.type, data: n.data })), // Minify payload
+                edges: edges.map(e => ({ source: e.source, target: e.target, label: e.label })),
+                requirements: requirements
+            };
+            const result = await api.post('/ai/review-definition', { type: 'flow', definition: flowDef });
+            setAiReviewResult(result as any);
+        } catch (error) {
+            console.error(error);
+            toast.error('AIレビューに失敗しました');
+            setAiReviewOpen(false); // Close on error ? Or show error in dialog
+        } finally {
+            setIsReviewing(false);
+        }
+    };
 
     const handlePermissionSave = (updatedNodes: Node[]) => {
         setNodes(updatedNodes);
@@ -445,7 +488,7 @@ function FlowDesignerContent({ appId, isStatsMode, statsOverlay }: { appId: stri
         if (!type) return;
         const position = screenToFlowPosition({ x: event.clientX, y: event.clientY });
         const id = `${type}_${Date.now()}`;
-        const labelMap: Record<string, string> = { approval: '承認', branch: '条件分岐', aiBranch: 'AI分岐', end: '終了', swimlane: 'レーン', script: 'スクリプト', graphql: 'GraphQL', foreach: '繰り返し' };
+        const labelMap: Record<string, string> = { approval: '承認', branch: '条件分岐', aiBranch: 'AI分岐', aiCheck: 'AIチェック', end: '終了', swimlane: 'レーン', script: 'スクリプト', graphql: 'GraphQL', foreach: '繰り返し' };
         const newNode: Node = {
             id, type, position,
             data: { 
@@ -453,7 +496,7 @@ function FlowDesignerContent({ appId, isStatsMode, statsOverlay }: { appId: stri
                 assignee: type === 'approval' ? 'role:wf_approver' : undefined,
                 assigneeType: type === 'approval' ? 'role' : undefined,
                 assigneeRole: type === 'approval' ? 'wf_approver' : undefined,
-                formFields: ['branch', 'aiBranch', 'apiCall', 'llmCall', 'approval', 'start', 'userInput', 'script', 'graphql'].includes(type) ? formFields : undefined, 
+                formFields: ['branch', 'aiBranch', 'aiCheck', 'apiCall', 'llmCall', 'approval', 'start', 'userInput', 'script', 'graphql'].includes(type) ? formFields : undefined, 
                 ...(type === 'swimlane' && { width: 800, height: 200, color: '#e3f2fd' }) 
             },
             ...(type === 'swimlane' && { style: { width: 800, height: 200 }, zIndex: -100 }),
@@ -564,6 +607,10 @@ function FlowDesignerContent({ appId, isStatsMode, statsOverlay }: { appId: stri
                                         <Sparkles className="h-4 w-4 mr-1" />
                                         AI生成
                                     </Button>
+                                    <Button variant="outline" size="sm" onClick={handleAiReviewClick} className="border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100">
+                                        <CheckCircle className="h-4 w-4 mr-1" />
+                                        AIレビュー
+                                    </Button>
                                     <Button size="sm" onClick={handleSave} disabled={saveMutation.isPending}>
                                         {saveMutation.isPending ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Save className="h-4 w-4 mr-1" />}
                                         下書き保存
@@ -596,11 +643,47 @@ function FlowDesignerContent({ appId, isStatsMode, statsOverlay }: { appId: stri
                 </DialogContent>
             </Dialog>
 
+            <Dialog open={requirementsDialogOpen} onOpenChange={setRequirementsDialogOpen}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>AIレビューの設定</DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-4 py-4">
+                        <div className="space-y-2">
+                            <Label>補足要件・コンテキスト (任意)</Label>
+                            <Textarea 
+                                value={requirements} 
+                                onChange={(e) => setRequirements(e.target.value)} 
+                                placeholder="例: 承認フローの抜け漏れがないか確認してください..." 
+                                rows={4}
+                            />
+                            <p className="text-sm text-muted-foreground">
+                                AIに特に注目してほしい点や、設計の背景があれば入力してください。
+                            </p>
+                        </div>
+                    </div>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setRequirementsDialogOpen(false)}>キャンセル</Button>
+                        <Button onClick={handleAiReviewConfirm} className="gap-2">
+                            <Sparkles className="h-4 w-4" />
+                            レビュー実行
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
             <AiGenericDialog 
                 open={aiDialogOpen} 
                 onOpenChange={setAiDialogOpen} 
                 onGenerated={handleAiGenerated} 
                 type="flow" 
+            />
+
+            <AiReviewDialog 
+                open={aiReviewOpen} 
+                onOpenChange={setAiReviewOpen} 
+                result={aiReviewResult} 
+                isLoading={isReviewing}
             />
         </div>
     );

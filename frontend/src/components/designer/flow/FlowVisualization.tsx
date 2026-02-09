@@ -26,6 +26,7 @@ import ForEachNode from './nodes/ForEachNode';
 import AiBranchNode from './nodes/AiBranchNode';
 import AiFlowRouterNode from './nodes/AiFlowRouterNode';
 import AiStartNode from './nodes/AiStartNode';
+import AiCheckNode from './nodes/AiCheckNode';
 
 interface FlowVisualizationProps {
     nodes: any[];
@@ -83,6 +84,7 @@ export default function FlowVisualization({
         foreach: ForEachNode,
         aiBranch: AiBranchNode,
         aiStart: AiStartNode,
+        aiCheck: AiCheckNode,
         aiFlowRouter: AiFlowRouterNode,
         // Backward compatibility mapping
         input: UserInputNode, 
