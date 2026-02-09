@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { UserDisplay } from '@/components/common/UserDisplay';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, Loader2, Clock, User, FileText, CheckCircle, XCircle, AlertCircle, GitFork, RotateCcw, Lock, Shield, Edit, FileX } from 'lucide-react';
+import { ArrowLeft, Loader2, Clock, User, FileText, CheckCircle, XCircle, AlertCircle, GitFork, RotateCcw, Lock, Shield, Edit, FileX, Bot } from 'lucide-react';
 import DynamicFormRenderer from '@/components/model/form/renderer/DynamicFormRenderer';
 import ApprovalHistory from '@/components/model/application/ApprovalHistory';
 import TaskList from '@/components/model/application/TaskList';
@@ -93,6 +93,7 @@ interface ApplicationDetail {
         nodeName?: string;
         stepId?: string;
     }[];
+    childApplications?: any[];
 }
 
 const statusConfig: Record<string, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline'; icon: any }> = {
@@ -230,7 +231,15 @@ export default function ApplicationDetailPage() {
                     </div>
                 )}
                 {user?.username === application.applicantId && application.status === 'DRAFT' && (
-                    <Button variant="default" size="sm" onClick={() => navigate(`/applications/${id}/edit`)}>
+                    <Button variant="default" size="sm" onClick={() => {
+                        const conversationId = application.inputData?.__conversationId;
+                        const flowId = application.flowDefinition?.id;
+                        if (conversationId && flowId) {
+                             navigate(`/chat/${flowId}/${conversationId}`);
+                        } else {
+                             navigate(`/applications/${id}/edit`);
+                        }
+                    }}>
                         <Edit className="mr-2 h-4 w-4" />
                         編集する
                     </Button>
@@ -308,6 +317,22 @@ export default function ApplicationDetailPage() {
             )}
 
             {/* Info Cards */}
+
+
+            {/* Child Applications Section */}
+            {/* ... (existing child app section) ... */}
+
+            {application.childApplications && application.childApplications.length > 0 && (
+                <div className="space-y-4">
+                     {/* ... (existing child app code) ... */}
+                </div>
+            )}
+            
+            {/* Chat History Section */}
+            {application.inputData && application.inputData.__conversationId && (
+                <ChatHistorySection conversationId={application.inputData.__conversationId} />
+            )}
+
             <div className="grid gap-4 md:grid-cols-3">
                 <Card className="border-0 shadow-sm">
                     <CardHeader className="pb-2">
@@ -640,5 +665,41 @@ export default function ApplicationDetailPage() {
                 </AlertDialogContent>
             </AlertDialog>
         </div>
+    );
+}
+
+import { MessageBubble } from '@/components/chat/ChatInterface';
+import type { Message } from '@/hooks/useAiConversation';
+
+function ChatHistorySection({ conversationId }: { conversationId: string }) {
+    const { data: session, isLoading } = useQuery({
+        queryKey: ['chatSession', conversationId],
+        queryFn: () => api.get<any>(`/ai/chat/${conversationId}`),
+    });
+
+    if (isLoading) return <div className="text-sm text-muted-foreground p-4">チャット履歴を読み込み中...</div>;
+    if (!session || !session.history) return null;
+
+    const messages = (session.history as any[]).map((msg: any) => ({
+        ...msg,
+        timestamp: new Date(msg.timestamp),
+    }));
+
+    return (
+        <Card>
+            <CardHeader className="pb-3">
+                <CardTitle className="text-lg flex items-center gap-2">
+                    <Bot className="h-5 w-5" />
+                    チャット履歴
+                </CardTitle>
+            </CardHeader>
+            <CardContent>
+                <div className="flex flex-col gap-4 max-h-[400px] overflow-y-auto pr-2">
+                    {messages.map((msg: Message) => (
+                        <MessageBubble key={msg.id} message={msg} agentName={session.agentName || 'AIアシスタント'} />
+                    ))}
+                </div>
+            </CardContent>
+        </Card>
     );
 }

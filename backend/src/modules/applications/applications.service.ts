@@ -59,18 +59,22 @@ export class ApplicationsService {
             },
           },
         },
+        childApplications: {
+          orderBy: { createdAt: 'desc' },
+        },
       },
     });
     if (!application)
       throw new NotFoundException(`Application with ID ${id} not found`);
 
+    const appData = application as any;
     const enrichedTasks = await Promise.all(
-      application.workflowTasks.map(async (task) => {
+      (appData.workflowTasks || []).map(async (task: any) => {
         let isExecutable = false;
         if (requestUserId && task.status === 'PENDING') {
           try {
             isExecutable = await this.workflowEngineService.canUserExecuteTask(
-              task as any,
+              task,
               requestUserId,
             );
           } catch {
@@ -194,6 +198,7 @@ export class ApplicationsService {
           inputData: (createApplicationDto.inputData ||
             {}) as Prisma.InputJsonValue,
           status: 'DRAFT',
+          title: createApplicationDto.title || '無題',
           formSchema: formSchema as Prisma.InputJsonValue,
           flowNodes: flowNodes as Prisma.InputJsonValue,
           flowEdges: flowEdges as Prisma.InputJsonValue,
@@ -389,6 +394,8 @@ export class ApplicationsService {
           flowNodes: true, // Needed for list view snapshot
           createdAt: true,
           updatedAt: true,
+          inputData: true,
+          flowDefinitionId: true,
           applicationDefinition: {
             select: {
               id: true,
@@ -426,6 +433,8 @@ export class ApplicationsService {
           flowNodes: true,
           createdAt: true,
           updatedAt: true,
+          inputData: true,
+          flowDefinitionId: true,
           applicationDefinition: {
             select: {
               id: true,

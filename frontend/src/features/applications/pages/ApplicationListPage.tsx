@@ -46,6 +46,8 @@ interface Application {
     };
     flowNodes?: any[];
     isTestMode?: boolean;
+    inputData?: Record<string, any>;
+    flowDefinitionId?: string;
 }
 
 interface ApplicationsResponse {
@@ -211,7 +213,16 @@ export default function ApplicationListPage() {
                         <Button 
                             variant="default" 
                             size="sm" 
-                            onClick={(e) => { e.stopPropagation(); navigate(`/applications/${row.original.id}/edit`); }}
+                            onClick={(e) => { 
+                                e.stopPropagation(); 
+                                const conversationId = row.original.inputData?.__conversationId;
+                                const flowId = row.original.flowDefinitionId;
+                                if (conversationId && flowId) {
+                                     navigate(`/chat/${flowId}/${conversationId}`);
+                                } else {
+                                     navigate(`/applications/${row.original.id}/edit`); 
+                                }
+                            }}
                             className={`${row.original.status === 'DRAFT' ? 'bg-secondary text-secondary-foreground hover:bg-secondary/90' : 'bg-orange-500 hover:bg-orange-600'}`}
                         >
                             <Edit className="h-3 w-3 mr-1" />{row.original.status === 'DRAFT' ? '編集' : '再編集'}

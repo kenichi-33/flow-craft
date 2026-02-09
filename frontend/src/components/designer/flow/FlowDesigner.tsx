@@ -58,6 +58,8 @@ import ScriptNode from './nodes/ScriptNode';
 import GraphQLNode from './nodes/GraphQLNode';
 import ForEachNode from './nodes/ForEachNode';
 import AiBranchNode from './nodes/AiBranchNode';
+import AiStartNode from './nodes/AiStartNode';
+import AiFlowRouterNode from './nodes/AiFlowRouterNode';
 
 const nodeTypes = {
     start: StartNode,
@@ -80,6 +82,8 @@ const nodeTypes = {
     graphql: GraphQLNode,
     foreach: ForEachNode,
     aiBranch: AiBranchNode,
+    aiStart: AiStartNode,
+    aiFlowRouter: AiFlowRouterNode,
 };
 
 // BPMN-style toolbox groups
@@ -87,8 +91,17 @@ const TOOLBOX_GROUPS = [
     { 
         name: '基本・イベント', 
         items: [
+            { type: 'start', label: '開始', color: '#4caf50', icon: '●' },
             { type: 'swimlane', label: 'レーン', color: '#90caf9', icon: '═' },
             { type: 'end', label: '終了', color: '#ef5350', icon: '●' }
+        ] 
+    },
+    { 
+        name: 'AI', 
+        items: [
+            { type: 'aiStart', label: 'AIスタート', color: '#9c27b0', icon: '💬' },
+            { type: 'aiFlowRouter', label: 'AIルーター', color: '#673ab7', icon: '🔀' },
+            { type: 'aiBranch', label: 'AI分岐', color: '#9c27b0', icon: '✨' },
         ] 
     },
     { 
@@ -129,12 +142,23 @@ const TOOLBOX_GROUPS = [
 interface ValidationRule { id: string; name: string; description: string; category: 'structure' | 'connectivity' | 'path'; check: (nodes: Node[], edges: Edge[]) => string | null; }
 
 const VALIDATION_RULES: ValidationRule[] = [
-    { id: 'single-start', name: '開始イベント', description: '開始イベントは1つだけ必要です', category: 'structure', check: (nodes) => { const starts = nodes.filter(n => n.type === 'start'); if (starts.length === 0) return '開始イベントがありません'; if (starts.length > 1) return '開始イベントは1つだけにしてください'; return null; } },
+    { 
+        id: 'single-start', 
+        name: '開始イベント', 
+        description: '開始イベント(Start または AIスタート)は1つだけ必要です', 
+        category: 'structure', 
+        check: (nodes) => { 
+            const starts = nodes.filter(n => n.type === 'start' || n.type === 'aiStart'); 
+            if (starts.length === 0) return '開始イベント(Start または AIスタート)がありません'; 
+            if (starts.length > 1) return '開始イベントは1つだけにしてください'; 
+            return null; 
+        } 
+    },
     { id: 'has-end', name: '終了イベント', description: '終了イベントが1つ以上必要です', category: 'structure', check: (nodes) => nodes.filter(n => n.type === 'end').length === 0 ? '終了イベントがありません' : null },
-    { id: 'start-connected', name: '開始接続', description: '開始イベントから出力接続が必要です', category: 'connectivity', check: (nodes, edges) => { const start = nodes.find(n => n.type === 'start'); return start && !edges.some(e => e.source === start.id) ? '開始イベントから接続がありません' : null; } },
+    { id: 'start-connected', name: '開始接続', description: '開始イベントから出力接続が必要です', category: 'connectivity', check: (nodes, edges) => { const start = nodes.find(n => n.type === 'start' || n.type === 'aiStart'); return start && !edges.some(e => e.source === start.id) ? '開始イベントから接続がありません' : null; } },
     { id: 'end-connected', name: '終了接続', description: '終了イベントへの入力接続が必要です', category: 'connectivity', check: (nodes, edges) => { for (const end of nodes.filter(n => n.type === 'end')) { if (!edges.some(e => e.target === end.id)) return `終了イベント "${end.data?.label || end.id}" への接続がありません`; } return null; } },
     { id: 'gateway-connections', name: 'ゲートウェイ接続', description: 'ゲートウェイは1入力・2出力が必要です', category: 'connectivity', check: (nodes, edges) => { for (const n of nodes.filter(nd => nd.type === 'branch')) { if (!edges.some(e => e.target === n.id)) return `ゲートウェイ "${n.data?.label || '分岐'}" への入力がありません`; if (edges.filter(e => e.source === n.id).length < 2) return `ゲートウェイ "${n.data?.label || '分岐'}" には2つの出力が必要です`; } return null; } },
-    { id: 'path-reachable', name: 'パス到達性', description: '開始から終了へ到達可能なパスが必要です', category: 'path', check: (nodes, edges) => { const start = nodes.find(n => n.type === 'start'); const ends = nodes.filter(n => n.type === 'end'); if (!start || ends.length === 0) return null; const reachable = new Set<string>(); const queue = [start.id]; while (queue.length) { const cur = queue.shift()!; if (reachable.has(cur)) continue; reachable.add(cur); edges.filter(e => e.source === cur).forEach(e => queue.push(e.target)); } return ends.some(e => reachable.has(e.id)) ? null : '開始から終了へ到達可能なパスがありません'; } },
+    { id: 'path-reachable', name: 'パス到達性', description: '開始から終了へ到達可能なパスが必要です', category: 'path', check: (nodes, edges) => { const start = nodes.find(n => n.type === 'start' || n.type === 'aiStart'); const ends = nodes.filter(n => n.type === 'end'); if (!start || ends.length === 0) return null; const reachable = new Set<string>(); const queue = [start.id]; while (queue.length) { const cur = queue.shift()!; if (reachable.has(cur)) continue; reachable.add(cur); edges.filter(e => e.source === cur).forEach(e => queue.push(e.target)); } return ends.some(e => reachable.has(e.id)) ? null : '開始から終了へ到達可能なパスがありません'; } },
     { id: 'node-connectivity', name: 'ノード接続', description: '全てのノード（終了・スイムレーン以外）は次のノードに接続されている必要があります', category: 'connectivity', check: (nodes, edges) => { const brokenNodes = nodes.filter(n => n.type !== 'end' && n.type !== 'swimlane' && !edges.some(e => e.source === n.id)); if (brokenNodes.length > 0) return `次のノードに接続されていないノードがあります: ${brokenNodes.map(n => n.data?.label || n.id).join(', ')}`; return null; } },
     { 
         id: 'required-fields', 
@@ -241,7 +265,7 @@ function validateFlow(nodes: Node[], edges: Edge[]) {
     return { valid: errors.length === 0, errors };
 }
 
-const DEFAULT_NODES: Node[] = [{ id: 'start', type: 'start', position: { x: 250, y: 50 }, data: { label: '開始' } }];
+const DEFAULT_NODES: Node[] = [];
 
 function FlowDesignerContent({ appId, isStatsMode, statsOverlay }: { appId: string, isStatsMode?: boolean, statsOverlay?: Record<string, any> }) {
     const { versionId } = useParams();

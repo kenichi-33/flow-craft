@@ -24,6 +24,8 @@ import ScriptNode from './nodes/ScriptNode';
 import GraphQLNode from './nodes/GraphQLNode';
 import ForEachNode from './nodes/ForEachNode';
 import AiBranchNode from './nodes/AiBranchNode';
+import AiFlowRouterNode from './nodes/AiFlowRouterNode';
+import AiStartNode from './nodes/AiStartNode';
 
 interface FlowVisualizationProps {
     nodes: any[];
@@ -80,6 +82,8 @@ export default function FlowVisualization({
         graphql: GraphQLNode,
         foreach: ForEachNode,
         aiBranch: AiBranchNode,
+        aiStart: AiStartNode,
+        aiFlowRouter: AiFlowRouterNode,
         // Backward compatibility mapping
         input: UserInputNode, 
     }), []);

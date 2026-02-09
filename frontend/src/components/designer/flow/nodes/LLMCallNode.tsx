@@ -8,7 +8,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
-import { Pencil, Bot } from 'lucide-react';
+import { Pencil, Bot, AlertCircle } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 
 export default function LLMCallNode({ id, data }: { id: string; data: any }) {
@@ -148,7 +148,14 @@ export default function LLMCallNode({ id, data }: { id: string; data: any }) {
                         <div className="space-y-1.5">
                             <Label>プロンプト</Label>
                             <Textarea value={prompt} onChange={(e) => setPrompt(e.target.value)} rows={4} placeholder={"{{summary}} を要約してください。"} disabled={isReadOnly} />
-                            <p className="text-xs text-muted-foreground">{"{{変数}}"} でフォームデータを参照可能</p>
+                            <div className="bg-muted/50 p-2 rounded-md text-xs text-muted-foreground space-y-1">
+                                <p className="font-medium flex items-center gap-1"><AlertCircle className="h-3 w-3" /> 利用可能な変数</p>
+                                <ul className="list-disc list-inside pl-1 space-y-0.5">
+                                    <li><code>{"{{input}}"}</code>: 直前のノードの出力結果</li>
+                                    <li><code>{"{{変数名}}"}</code>: フォーム入力データ (例: <code>{"{{reason}}"}</code>)</li>
+                                    <li><code>{"{{system.applicant}}"}</code>: 申請者ID</li>
+                                </ul>
+                            </div>
                         </div>
                         <div className="space-y-1.5">
                             <Label>Temperature: {temperature}</Label>

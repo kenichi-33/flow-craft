@@ -11,15 +11,15 @@ datasource db {
 }
 
 model FormDefinition {
-  id        String   @id @default(uuid())
-  name      String
-  schema    Json     // フォーム構造定義 (RJSF schema)
-  defaultFlowId String? @map("default_flow_id") // デフォルトフローID
-  version   Int      @default(1)
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+  id            String   @id @default(uuid())
+  name          String
+  schema        Json // フォーム構造定義 (RJSF schema)
+  defaultFlowId String?  @map("default_flow_id") // デフォルトフローID
+  version       Int      @default(1)
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @default(now()) @updatedAt @map("updated_at")
 
-  applications Application[]
+  applications           Application[]
   applicationDefinitions ApplicationDefinition[]
 
   @@map("form_definitions")
@@ -28,59 +28,59 @@ model FormDefinition {
 model FlowDefinition {
   id        String   @id @default(uuid())
   name      String
-  nodes     Json     // フローノード定義
-  edges     Json     // フロー接続定義
-  swimlanes Json?    // スイムレーン定義 (担当者割当ルール含む)
+  nodes     Json // フローノード定義
+  edges     Json // フロー接続定義
+  swimlanes Json? // スイムレーン定義 (担当者割当ルール含む)
   version   Int      @default(1)
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
 
-  applications Application[]
+  applications           Application[]
   applicationDefinitions ApplicationDefinition[]
 
   @@map("flow_definitions")
 }
 
 model Application {
-  id                      String   @id @default(uuid())
-  applicationNumber       Int      @default(autoincrement()) @map("application_number")
-  title                   String   @default("無題") // 件名
-  applicationDefinitionId String?  @map("application_definition_id")
-  formDefinitionId        String   @map("form_definition_id")
-  flowDefinitionId        String   @map("flow_definition_id")
-  applicantId             String   @map("applicant_id")
+  id                      String            @id @default(uuid())
+  applicationNumber       Int               @default(autoincrement()) @map("application_number")
+  title                   String            @default("無題") // 件名
+  applicationDefinitionId String?           @map("application_definition_id")
+  formDefinitionId        String            @map("form_definition_id")
+  flowDefinitionId        String            @map("flow_definition_id")
+  applicantId             String            @map("applicant_id")
   // スナップショット: 申請者情報 { username, firstName, lastName, email, department }
-  applicantInfo           Json?    @map("applicant_info")
+  applicantInfo           Json?             @map("applicant_info")
   status                  ApplicationStatus @default(DRAFT)
   isTestMode              Boolean           @default(false) @map("is_test_mode")
-  inputData               Json     @map("input_data")
-  currentNodeId           String?  @map("current_node_id")
+  inputData               Json              @map("input_data")
+  currentNodeId           String?           @map("current_node_id")
   // スナップショット: 申請時点のフォーム・フロー定義を保存（バージョン互換性のため）
-  formSchema              Json?    @map("form_schema")
-  flowNodes               Json?    @map("flow_nodes")
-  flowEdges               Json?    @map("flow_edges")
-  searchMeta              Json?    @map("search_meta")     // 検索用メタデータ
-  fullText                String?  @map("full_text")       // 全文検索用テキスト
+  formSchema              Json?             @map("form_schema")
+  flowNodes               Json?             @map("flow_nodes")
+  flowEdges               Json?             @map("flow_edges")
+  searchMeta              Json?             @map("search_meta") // 検索用メタデータ
+  fullText                String?           @map("full_text") // 全文検索用テキスト
 
-  createdAt               DateTime @default(now()) @map("created_at")
-  updatedAt               DateTime @updatedAt @map("updated_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
   applicationDefinition ApplicationDefinition? @relation(fields: [applicationDefinitionId], references: [id])
   formDefinition        FormDefinition         @relation(fields: [formDefinitionId], references: [id])
   flowDefinition        FlowDefinition         @relation(fields: [flowDefinitionId], references: [id])
-  
+
   // Parent-Child Relation for Sub-processes
-  parentId              String?   @map("parent_id")
-  parentApplication     Application? @relation("ParentChild", fields: [parentId], references: [id])
-  childApplications     Application[] @relation("ParentChild")
+  parentId          String?       @map("parent_id")
+  parentApplication Application?  @relation("ParentChild", fields: [parentId], references: [id])
+  childApplications Application[] @relation("ParentChild")
 
   // 新統合テーブル
   workflowTasks         WorkflowTask[]
   workflowTaskHistories WorkflowTaskHistory[]
   history               ApprovalHistory[]
 
-  @@map("applications")
   @@index([fullText(ops: raw("gin_trgm_ops"))], type: Gin, name: "application_full_text_idx")
+  @@map("applications")
 }
 
 enum ApplicationStatus {
@@ -92,8 +92,6 @@ enum ApplicationStatus {
   CANCELED
 }
 
-
-
 enum TaskStatus {
   PENDING
   QUEUED
@@ -101,7 +99,7 @@ enum TaskStatus {
   COMPLETED
   FAILED
   CANCELED
-  INVALIDATED  // 差し戻しにより無効化されたタスク（履歴保持用）
+  INVALIDATED // 差し戻しにより無効化されたタスク（履歴保持用）
 }
 
 model ApprovalHistory {
@@ -110,27 +108,25 @@ model ApprovalHistory {
   actorId       String   @map("actor_id")
   // スナップショット: 実行者情報 { username, firstName, lastName, email, department }
   actorInfo     Json?    @map("actor_info")
-  action        String   // APPROVE, REJECT, REMAND
+  action        String // APPROVE, REJECT, REMAND
   comment       String?
   stepId        String   @map("step_id")
   actedAt       DateTime @default(now()) @map("acted_at")
 
-  application   Application @relation(fields: [applicationId], references: [id])
+  application Application @relation(fields: [applicationId], references: [id])
 
   @@map("approval_histories")
 }
-
-
 
 // 新統合テーブル: ServiceTask と ApprovalTask を統合
 model WorkflowTask {
   id            String     @id @default(uuid())
   applicationId String     @map("application_id")
   stepId        String     @map("step_id")
-  type          String     // approval, apiCall, llmCall, etc.
+  type          String // approval, apiCall, llmCall, etc.
   status        TaskStatus @default(PENDING)
   workerId      String?    @map("worker_id")
-  
+
   // 承認タスク用（共通フィールド化）
   assignedTo        String?   @map("assigned_to")
   assignedToDisplay String?   @map("assigned_to_display")
@@ -138,29 +134,29 @@ model WorkflowTask {
   claimedBy         String?   @map("claimed_by")
   claimedAt         DateTime? @map("claimed_at")
   dueDate           DateTime? @map("due_date")
-  
+
   // タスク設定スナップショット（ノード設定を保存）
-  config        Json?
-  
+  config Json?
+
   // 実行結果
-  result        Json?
-  error         String?
-  retries       Int      @default(0)
-  
+  result  Json?
+  error   String?
+  retries Int     @default(0)
+
   // SLA/Reminder
   slaDueAt         DateTime? @map("sla_due_at")
   reminderDueAt    DateTime? @map("reminder_due_at")
   slaNotified      Boolean   @default(false) @map("sla_notified")
   reminderNotified Boolean   @default(false) @map("reminder_notified")
-  
+
   // Delay/Schedule
-  scheduledAt      DateTime? @map("scheduled_at")
+  scheduledAt DateTime? @map("scheduled_at")
 
-  createdAt     DateTime @default(now()) @map("created_at")
-  updatedAt     DateTime @updatedAt @map("updated_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
-  application   Application @relation(fields: [applicationId], references: [id])
-  history       WorkflowTaskHistory[]
+  application Application           @relation(fields: [applicationId], references: [id])
+  history     WorkflowTaskHistory[]
 
   @@map("workflow_tasks")
 }
@@ -176,24 +172,23 @@ model WorkflowTaskHistory {
   error         String?
   executedAt    DateTime   @default(now()) @map("executed_at")
 
-  task          WorkflowTask @relation(fields: [taskId], references: [id])
-  application   Application  @relation(fields: [applicationId], references: [id])
+  task        WorkflowTask @relation(fields: [taskId], references: [id])
+  application Application  @relation(fields: [applicationId], references: [id])
 
   @@map("workflow_task_histories")
 }
 
 // スケジューラ用ロックテーブル（排他制御）
 model CronScheduleLock {
-  id        String   @id @default(uuid())
-  key       String   // スケジュール識別子（例: definitionId）
-  lockedAt  DateTime @map("locked_at") // 分単位のタイムスタンプ
+  id       String   @id @default(uuid())
+  key      String // スケジュール識別子（例: definitionId）
+  lockedAt DateTime @map("locked_at") // 分単位のタイムスタンプ
 
   createdAt DateTime @default(now()) @map("created_at")
 
   @@unique([key, lockedAt]) // 同じ分に同じキーで2重登録できない
   @@map("cron_schedule_locks")
 }
-
 
 // 申請アプリ定義（フォームとフローを紐づける）
 model ApplicationDefinition {
@@ -206,7 +201,7 @@ model ApplicationDefinition {
   version          Int          @default(1)
   tags             String[]     @default([])
   webhookToken     String?      @unique @map("webhook_token") // Webhook用トークン
-  scheduleCron     String?      @map("schedule_cron")         // 定期実行用Cron式
+  scheduleCron     String?      @map("schedule_cron") // 定期実行用Cron式
   adminIds         String[]     @default([]) @map("admin_ids") // アプリ管理者のユーザーIDリスト
   publishedAt      DateTime?    @map("published_at")
   createdBy        String?      @map("created_by")
@@ -214,10 +209,10 @@ model ApplicationDefinition {
   createdAt        DateTime     @default(now()) @map("created_at")
   updatedAt        DateTime     @updatedAt @map("updated_at")
 
-  formDefinition   FormDefinition? @relation(fields: [formDefinitionId], references: [id])
-  flowDefinition   FlowDefinition? @relation(fields: [flowDefinitionId], references: [id])
-  applications     Application[]
-  versions         AppVersion[]
+  formDefinition    FormDefinition?   @relation(fields: [formDefinitionId], references: [id])
+  flowDefinition    FlowDefinition?   @relation(fields: [flowDefinitionId], references: [id])
+  applications      Application[]
+  versions          AppVersion[]
   allowedConnectors MasterConnector[] @relation("ConnectorAccess")
 
   @@map("application_definitions")
@@ -241,7 +236,7 @@ model AppVersion {
   publishedBy             String?  @map("published_by")
   comment                 String?
 
-  applicationDefinition   ApplicationDefinition @relation(fields: [applicationDefinitionId], references: [id])
+  applicationDefinition ApplicationDefinition @relation(fields: [applicationDefinitionId], references: [id])
 
   @@unique([applicationDefinitionId, version])
   @@map("app_versions")
@@ -249,13 +244,13 @@ model AppVersion {
 
 // チーム（任意作成可能なグループ）
 model Team {
-  id          String       @id @default(uuid())
+  id          String   @id @default(uuid())
   name        String
   description String?
-  createdAt   DateTime     @default(now()) @map("created_at")
-  updatedAt   DateTime     @updatedAt @map("updated_at")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
 
-  members     TeamMember[]
+  members TeamMember[]
 
   @@map("teams")
 }
@@ -265,10 +260,10 @@ model TeamMember {
   id         String   @id @default(uuid())
   teamId     String   @map("team_id")
   memberType String   @map("member_type") // 'user' | 'department'
-  memberId   String   @map("member_id")   // ユーザー名 or グループパス
+  memberId   String   @map("member_id") // ユーザー名 or グループパス
   createdAt  DateTime @default(now()) @map("created_at")
 
-  team       Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
 
   @@unique([teamId, memberType, memberId])
   @@map("team_members")
@@ -277,12 +272,12 @@ model TeamMember {
 // アップロードされたファイル
 model File {
   id            String   @id @default(uuid())
-  filename      String   // 表示用ファイル名
+  filename      String // 表示用ファイル名
   originalName  String   @map("original_name") // 元のファイル名
   mimeType      String   @map("mime_type")
-  size          Int      // バイト数
+  size          Int // バイト数
   bucket        String
-  key           String   // S3/MinIOのオブジェクトキー
+  key           String // S3/MinIOのオブジェクトキー
   status        String   @default("pending") // pending, uploaded, deleted
   applicationId String?  @map("application_id")
   uploadedBy    String   @map("uploaded_by")
@@ -293,20 +288,20 @@ model File {
 
 // 外部マスター連携コネクタ
 model MasterConnector {
-  id          String   @id @default(uuid())
+  id          String  @id @default(uuid())
   name        String
   description String?
-  type        String   // 'rest', 'sql', 'csv'
-  config      Json     // URL, Method, Auth, Headers
-  mapping     Json     // Response mapping
-  
-  isShared    Boolean  @default(true) // 全アプリ作成者に公開するか
-  ownerId     String?  // 非公開の場合の所有者
+  type        String // 'rest', 'sql', 'csv'
+  config      Json // URL, Method, Auth, Headers
+  mapping     Json // Response mapping
 
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
-  createdBy   String?  @map("created_by")
-  updatedBy   String?  @map("updated_by")
+  isShared Boolean @default(true) // 全アプリ作成者に公開するか
+  ownerId  String? // 非公開の場合の所有者
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  createdBy String?  @map("created_by")
+  updatedBy String?  @map("updated_by")
 
   dataItems   MasterDataItem[]
   allowedApps ApplicationDefinition[] @relation("ConnectorAccess")
@@ -315,12 +310,48 @@ model MasterConnector {
 }
 
 model MasterDataItem {
-  id          String   @id @default(uuid())
-  connectorId String   @map("connector_id")
-  data        Json     // CSV row data
-  
-  connector   MasterConnector @relation(fields: [connectorId], references: [id], onDelete: Cascade)
+  id          String @id @default(uuid())
+  connectorId String @map("connector_id")
+  data        Json // CSV row data
+
+  connector MasterConnector @relation(fields: [connectorId], references: [id], onDelete: Cascade)
 
   @@index([connectorId])
   @@map("master_data_items")
+}
+
+// AI Orchestrator: 会話セッション
+model ConversationSession {
+  id      String             @id @default(uuid())
+  flowId  String             @map("flow_id") // どのAI Start Nodeから開始したか
+  userId  String             @map("user_id") // 対話しているユーザー
+  status  ConversationStatus @default(ACTIVE)
+  context Json               @default("{}") // 抽出済みパラメータ
+  history Json               @default("[]") // 会話ログ [{role, content, timestamp}]
+
+  // AI設定（AI Start Nodeからコピー）
+  agentName    String?  @map("agent_name")
+  systemPrompt String?  @map("system_prompt")
+  allowedFlows String[] @default([]) @map("allowed_flows") // 旧仕様: フローID一覧
+  allowedApps  String[] @default([]) @map("allowed_apps")  // 新仕様: アプリID一覧
+
+  // 複数アプリ実行機能
+  applicationId       String?  @map("application_id") // 親Application ID
+  detectedApps        Json     @default("[]") @map("detected_apps") // 検出されたアプリ情報
+  slots               Json     @default("{}") // スロットフィリング状態
+  childApplicationIds String[] @default([]) @map("child_application_ids") // 実行した子Application ID一覧
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("conversation_sessions")
+}
+
+enum ConversationStatus {
+  ACTIVE     // 会話中
+  COLLECTING // 情報収集中
+  CONFIRMING // 確認中
+  EXECUTING  // 実行中
+  COMPLETED  // 完了
+  CANCELED   // キャンセル
 }

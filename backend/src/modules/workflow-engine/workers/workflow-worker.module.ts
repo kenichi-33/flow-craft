@@ -20,14 +20,23 @@ import { NotificationsModule } from '../../notifications/notifications.module';
 import { UsersModule } from '../../users/users.module';
 
 import { AiBranchHandler } from './handlers/ai-branch.handler';
+import { AiFlowRouterHandler } from './handlers/ai-flow-router.handler';
+import { ApplicationsModule } from '../../applications/applications.module';
 
 @Module({
-  imports: [WorkflowCoreModule, NotificationsModule, UsersModule, AiCoreModule],
+  imports: [
+    WorkflowCoreModule,
+    NotificationsModule,
+    UsersModule,
+    AiCoreModule,
+    ApplicationsModule,
+  ],
   providers: [
     GenericWorker,
     SchedulerWorker,
     TaskHandlerRegistry,
     AiBranchHandler,
+    AiFlowRouterHandler,
     // Handlers
     ApiCallHandler,
     LlmCallHandler,
@@ -56,6 +65,7 @@ export class WorkflowWorkerModule implements OnModuleInit {
     private readonly scriptTaskHandler: ScriptTaskHandler,
     private readonly graphqlTaskHandler: GraphQLTaskHandler,
     private readonly aiBranchHandler: AiBranchHandler,
+    private readonly aiFlowRouterHandler: AiFlowRouterHandler,
   ) {}
 
   onModuleInit() {
@@ -72,6 +82,7 @@ export class WorkflowWorkerModule implements OnModuleInit {
       this.scriptTaskHandler,
       this.graphqlTaskHandler,
       this.aiBranchHandler,
+      this.aiFlowRouterHandler,
     ]);
   }
 }

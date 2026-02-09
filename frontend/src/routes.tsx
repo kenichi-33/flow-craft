@@ -14,6 +14,7 @@ const ApplicationListPage = Loadable(lazy(() => import("@/features/applications/
 const ApplicationDetailPage = Loadable(lazy(() => import("@/features/applications/pages/ApplicationDetailPage")));
 const TaskListPage = Loadable(lazy(() => import("@/features/tasks/pages/TaskListPage")));
 const TaskDetailPage = Loadable(lazy(() => import("@/features/tasks/pages/TaskDetailPage")));
+const ChatPage = Loadable(lazy(() => import("@/pages/ChatPage")));
 
 // Designer (App Studio) - Outside Layout (list, new)
 const DesignerAppsPage = Loadable(lazy(() => import("@/features/designer/pages/DesignerAppsPage")));
@@ -55,6 +56,9 @@ export const router = createBrowserRouter([
             // Tasks
             { path: "/tasks", element: <TaskListPage /> },
             { path: "/tasks/:id", element: <TaskDetailPage /> },
+            // Chat
+            { path: "/chat/:flowId", element: <ChatPage /> },
+            { path: "/chat/:flowId/:sessionId", element: <ChatPage /> },
             // Designer List & New (AppLayout)
             { path: "/designer/apps", element: <DesignerAppsPage /> },
             { path: "/designer/apps/new", element: <DesignerNewAppPage /> },

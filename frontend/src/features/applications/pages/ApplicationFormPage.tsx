@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { api } from '@/lib/api';
@@ -96,6 +96,22 @@ export default function ApplicationFormPage() {
 
     const [initialData, setInitialData] = useState<any>(null); // For DynamicForm
     const [dataLoaded, setDataLoaded] = useState(false);
+
+    // AI Chat Redirect Logic
+    useEffect(() => {
+        // inputDataに__conversationIdが含まれていれば、AIチャット経由の申請とみなしてリダイレクト
+        // ステータスがDRAFT以外（例: IN_PROGRESSでタスク処理中）の場合も、
+        // ApplicationFormPage（編集画面）に来たということはフォームデータをいじろうとしているので、
+        // AIチャットに誘導するのが自然（整合性を保つため）。
+        if (existingApp?.inputData?.__conversationId) {
+            const flowId = existingApp.flowDefinitionId;
+            const sessionId = existingApp.inputData.__conversationId;
+            if (flowId && sessionId) {
+                console.log('Redirecting to AI Chat:', { flowId, sessionId });
+                navigate(`/chat/${flowId}/${sessionId}`);
+            }
+        }
+    }, [existingApp, navigate]);
 
     // Populate initial data when editing
     if (isEditMode && existingApp && !dataLoaded) {
@@ -205,10 +221,17 @@ export default function ApplicationFormPage() {
              return;
         }
 
+        // 既存のAIチャットIDがあれば引き継ぐ
+        const conversationId = initialData?.__conversationId || existingApp?.inputData?.__conversationId;
+        const submitData = {
+            ...formData,
+            ...(conversationId ? { __conversationId: conversationId } : {})
+        };
+
         saveDraftMutation.mutate({
             definitionId: definition.id,
             title: draftTitle,
-            inputData: formData,
+            inputData: submitData,
             formDefinitionId: definition.formDefinition.id,
             flowDefinitionId: definition.flowDefinition.id,
             applicantId: user?.username || 'anonymous',
@@ -231,10 +254,17 @@ export default function ApplicationFormPage() {
              return;
         }
 
+        // 既存のAIチャットIDがあれば引き継ぐ
+        const conversationId = initialData?.__conversationId || existingApp?.inputData?.__conversationId;
+        const submitData = {
+            ...formData,
+            ...(conversationId ? { __conversationId: conversationId } : {})
+        };
+
         submitMutation.mutate({
             definitionId: definition.id, // Pass as string (UUID)
             title: title.trim(),
-            inputData: formData,
+            inputData: submitData,
             formDefinitionId: definition.formDefinition.id,
             flowDefinitionId: definition.flowDefinition.id,
             applicantId: user?.username || 'anonymous',

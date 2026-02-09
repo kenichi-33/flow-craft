@@ -20,6 +20,7 @@ import { NotificationsModule } from '../../notifications/notifications.module';
 import { UsersModule } from '../../users/users.module';
 import { ForEachNodeProcessor } from './processors/foreach-node.processor';
 import { AiBranchNodeProcessor } from './processors/ai-branch-node.processor';
+import { AiFlowRouterNodeProcessor } from './processors/ai-flow-router-node.processor';
 
 @Module({
   imports: [
@@ -47,6 +48,7 @@ import { AiBranchNodeProcessor } from './processors/ai-branch-node.processor';
 
     ForEachNodeProcessor,
     AiBranchNodeProcessor,
+    AiFlowRouterNodeProcessor,
   ],
   exports: [WorkflowExecutorService, DelayPollService, NodeProcessorRegistry],
 })
@@ -64,6 +66,7 @@ export class WorkflowExecutorModule implements OnModuleInit {
     private subProcessProcessor: SubProcessProcessor,
     private forEachProcessor: ForEachNodeProcessor,
     private aiBranchProcessor: AiBranchNodeProcessor,
+    private aiFlowRouterProcessor: AiFlowRouterNodeProcessor,
   ) {}
 
   onModuleInit() {
@@ -88,6 +91,7 @@ export class WorkflowExecutorModule implements OnModuleInit {
     // New Processors
     this.registry.register(this.forEachProcessor);
     this.registry.register(this.aiBranchProcessor);
+    this.registry.register(this.aiFlowRouterProcessor);
   }
 
   private serviceProcessorTypes() {

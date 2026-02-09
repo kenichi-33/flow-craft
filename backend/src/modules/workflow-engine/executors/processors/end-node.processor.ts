@@ -47,14 +47,16 @@ export class EndNodeProcessor implements INodeProcessor {
       },
     });
 
-    // 2. Check for Parent Application (Sub-Process Resumption)
-    if ((currentApp as any)?.parentId) {
-      const parentId = (currentApp as any).parentId;
+    // 2. Check for Parent Application (Sub-Process Resumption OR AI Child App)
+    const parentId = (currentApp as any)?.parentId;
+    console.log(`[EndNodeProcessor] applicationId=${applicationId}, parentId=${parentId}, currentApp.status=${currentApp.status}`);
 
-      // Fetch Parent to get its Current Node (The SubProcess Node)
+    if (parentId) {
+
+      // Fetch Parent
       const parentApp = await tx.application.findUnique({
         where: { id: parentId },
-        include: { flowDefinition: true }, // Need flow definition to find node config
+        include: { flowDefinition: true },
       });
 
       if (parentApp) {
@@ -62,10 +64,11 @@ export class EndNodeProcessor implements INodeProcessor {
           parentApp.flowDefinition.nodes ||
           []) as any[];
         const parentNodeId = parentApp.currentNodeId;
-        const subProcessNode = flowNodes.find((n) => n.id === parentNodeId);
+        const currentNode = flowNodes.find((n) => n.id === parentNodeId);
 
-        if (subProcessNode && subProcessNode.type === 'subProcess') {
-          const config = subProcessNode.data || {};
+        // Case A: SubProcess Node
+        if (currentNode && currentNode.type === 'subProcess') {
+          const config = currentNode.data || {};
 
           // Output Mapping
           // config.outputMapping = { parentField: '{{childField}}' }
@@ -112,10 +115,65 @@ export class EndNodeProcessor implements INodeProcessor {
                 parentNodeId || undefined,
               );
             });
-          } else {
-            // For async sub-processes, we might want to notify or log, but NOT resume flow as it already moved on.
-            // We can optionally trigger a "SubProcess Completed" event here if we support event listeners later.
           }
+        } 
+        // Case B: AI Chat Parent (Regular Parent-Child)
+        // Check if all siblings are completed
+        else {
+           console.log(`[EndNodeProcessor] AI Chat Parent Check: parentId=${parentId}, currentAppId=${applicationId}, status=${status}`);
+           const siblings = await tx.application.findMany({
+             where: { parentId: parentId },
+             select: { id: true, status: true }
+           });
+           
+           // 自分自身も含めてチェック（自分は今更新したばかりなのでstatusは更新後の値になっているはずだが、
+           // tx内でのfindManyが更新を反映するかは隔離レベルによる。
+           // Prismaのデフォルトではトランザクション内の更新は見えない場合があるが、
+           // ここでは findMany で取得しているので、もし更新が見えなければ currentApp.statusを使う必要がある。
+           // 安全のため、siblingsの中に自分が含まれていてステータスが古ければcurrentApp.statusを使うロジックにする、
+           // または単純にすべてのsiblingが終了状態かチェックする。
+           
+           const allCompleted = siblings.every(app => {
+             // 自分自身の場合は更新後のステータスを使用
+             if (app.id === applicationId) {
+                return ['COMPLETED', 'APPROVED', 'REJECTED', 'CANCELED'].includes(status);
+             }
+             return ['COMPLETED', 'APPROVED', 'REJECTED', 'CANCELED'].includes(app.status);
+           });
+
+           if (allCompleted) {
+              console.log(`[EndNodeProcessor] All siblings completed! parentApp.status=${parentApp.status}, parentNodeId=${parentNodeId}`);
+              // 親アプリが進める状態か確認 (IN_PROGRESS)
+              if (parentApp.status === 'IN_PROGRESS') {
+                 // ログ記録
+                  await tx.approvalHistory.create({
+                    data: {
+                      applicationId: parentId,
+                      actorId: 'SYSTEM',
+                      action: 'CHILD_APPS_COMPLETED',
+                      stepId: parentNodeId || '',
+                      comment: `全ての子申請が完了しました。`,
+                    },
+                  });
+                  
+                  // 親のタスク（AI Startタスクなど）を完了させる
+                  await tx.workflowTask.updateMany({
+                      where: {
+                          applicationId: parentId,
+                          stepId: parentNodeId || '',
+                          status: 'PENDING',
+                      },
+                      data: {
+                          status: 'COMPLETED',
+                      }
+                  });
+
+                  // 親を進める
+                  context.postCommitActions?.push(async () => {
+                      await this.helper.advanceToNextNode(parentId, parentNodeId || undefined);
+                  });
+              }
+           }
         }
       }
     }

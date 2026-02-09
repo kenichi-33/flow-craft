@@ -593,13 +593,19 @@ export class WorkflowEngineService {
       applicationId: task.applicationId,
     });
 
-    return this.prisma.application.findUnique({
+    const result = await this.prisma.application.findUnique({
       where: { id: task.applicationId },
       include: {
         applicationDefinition: true,
         workflowTasks: { orderBy: { createdAt: 'desc' } },
       },
     });
+
+    if (result?.parentId) {
+      await this.checkParentCompletion(result.parentId);
+    }
+
+    return result;
   }
 
   /**
@@ -609,7 +615,7 @@ export class WorkflowEngineService {
     const actorInfo =
       await this.usersService.getUserSnapshotByUsername(actorId);
 
-    return this.prisma.$transaction(async (tx) => {
+    const result = await this.prisma.$transaction(async (tx) => {
       // 0. Cancel Child Applications Process
       const children = await tx.application.findMany({
         where: { parentId: applicationId, status: 'IN_PROGRESS' },
@@ -701,7 +707,13 @@ export class WorkflowEngineService {
       this.logger.log(
         `Application ${applicationId} has been canceled by ${actorId}.`,
       );
+      
+      return { parentId: app?.parentId };
     });
+
+    if (result?.parentId) {
+      await this.checkParentCompletion(result.parentId);
+    }
   }
 
   /**
@@ -711,7 +723,7 @@ export class WorkflowEngineService {
     const actorInfo =
       await this.usersService.getUserSnapshotByUsername(actorId);
 
-    return this.prisma.$transaction(async (tx) => {
+    const result = await this.prisma.$transaction(async (tx) => {
       // Cancel Active Children First
       const children = await tx.application.findMany({
         where: { parentId: applicationId, status: 'IN_PROGRESS' },
@@ -799,7 +811,15 @@ export class WorkflowEngineService {
       this.logger.log(
         `Application ${applicationId} has been withdrawn by ${actorId}.`,
       );
+      
+      return { parentId: app.parentId };
     });
+    
+    if (result?.parentId) {
+      await this.checkParentCompletion(result.parentId);
+    }
+    
+    return result;
   }
 
   /**
@@ -934,5 +954,37 @@ export class WorkflowEngineService {
 
   async getRemandableSteps(applicationId: string, currentTaskId?: string) {
     return this.queryService.getRemandableSteps(applicationId, currentTaskId);
+  }
+
+  /**
+   * 親Applicationの完了チェック
+   * 子Applicationが全て終了していたら、親Applicationを次に進める
+   */
+  async checkParentCompletion(parentId: string) {
+    if (!parentId) return;
+
+    this.logger.log(`Checking parent completion for ${parentId}`);
+
+    // 同じ親を持つ全ての子Applicationを取得
+    const siblings = await this.prisma.application.findMany({
+      where: { parentId },
+      select: { id: true, status: true },
+    });
+
+    if (siblings.length === 0) return;
+
+    // 全てが終了状態（COMPLETED, REJECTED, CANCELED）かチェック
+    // REMANDEDは再提出待ちなので終了とはみなさない
+    const allCompleted = siblings.every((app) =>
+      ['COMPLETED', 'REJECTED', 'CANCELED'].includes(app.status),
+    );
+
+    if (allCompleted) {
+      this.logger.log(
+        `All child applications for parent ${parentId} are finished. Advancing parent flow.`,
+      );
+      // 親Applicationを次に進める
+      await this.helper.advanceToNextNode(parentId);
+    }
   }
 }

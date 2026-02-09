@@ -11,11 +11,14 @@ import { AiCoreController } from './ai-core.controller';
 
 import { AiFormFillerService } from './services/ai-form-filler.service';
 import { ApplicationsModule } from '../applications/applications.module';
+import { AgentService } from './services/agent.service';
+import { ChatController } from './chat.controller';
+import { UsersModule } from '../users/users.module';
 
 @Global()
 @Module({
-  imports: [ConfigModule, WorkflowCoreModule, QueueModule, ApplicationsModule],
-  controllers: [AiCoreController],
+  imports: [ConfigModule, WorkflowCoreModule, QueueModule, ApplicationsModule, UsersModule],
+  controllers: [AiCoreController, ChatController],
   providers: [
     LlmGatewayService,
     OpenAIProvider,
@@ -23,6 +26,7 @@ import { ApplicationsModule } from '../applications/applications.module';
     AiBranchService,
     AiGeneratorService,
     AiFormFillerService,
+    AgentService,
     {
       provide: 'LLM_PROVIDERS',
       useFactory: (openai: OpenAIProvider, ollama: OllamaProvider) => [
@@ -32,6 +36,6 @@ import { ApplicationsModule } from '../applications/applications.module';
       inject: [OpenAIProvider, OllamaProvider],
     },
   ],
-  exports: [LlmGatewayService, AiBranchService, AiGeneratorService, AiFormFillerService],
+  exports: [LlmGatewayService, AiBranchService, AiGeneratorService, AiFormFillerService, AgentService],
 })
 export class AiCoreModule {}

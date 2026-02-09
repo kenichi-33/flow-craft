@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
-import { Search, Loader2, FileText, Sparkles, ArrowRight, Layers } from 'lucide-react';
+import { Search, Loader2, FileText, Sparkles, ArrowRight, Layers, MessageCircle } from 'lucide-react';
 import { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -14,6 +14,10 @@ interface AppDefinition {
     name: string;
     description?: string;
     tags?: string[];
+    flowDefinitionId?: string;
+    flowDefinition?: {
+        nodes: any[];
+    };
 }
 
 export default function NewApplicationPage() {
@@ -197,13 +201,52 @@ export default function NewApplicationPage() {
                                                         {app.description || '説明なし'}
                                                     </CardDescription>
                                                 </CardHeader>
-                                                <CardFooter className="pt-2">
-                                                    <Button 
-                                                        className="w-full gap-2 group-hover:bg-primary group-hover:text-primary-foreground transition-all" 
-                                                        onClick={() => navigate(`/applications/new/${app.id}`)}
-                                                    >
-                                                        作成する <ArrowRight className="h-4 w-4 group-hover:translate-x-1 transition-transform" />
-                                                    </Button>
+                                                <CardFooter className="pt-2 flex gap-2">
+                                                    {(() => {
+                                                        const hasAiStart = app.flowDefinition?.nodes?.some((n: any) => n.type === 'aiStart');
+                                                        const hasStart = app.flowDefinition?.nodes?.some((n: any) => n.type === 'start');
+                                                        
+                                                        if (hasAiStart && hasStart) {
+                                                            // 両方ある場合
+                                                            return (
+                                                                <>
+                                                                    <Button 
+                                                                        variant="outline"
+                                                                        className="flex-1 gap-2" 
+                                                                        onClick={() => navigate(`/applications/new/${app.id}`)}
+                                                                    >
+                                                                        フォーム <ArrowRight className="h-4 w-4" />
+                                                                    </Button>
+                                                                    <Button 
+                                                                        className="flex-1 gap-2 bg-purple-600 hover:bg-purple-700" 
+                                                                        onClick={() => navigate(`/chat/${app.flowDefinitionId}`)}
+                                                                    >
+                                                                        <MessageCircle className="h-4 w-4" /> AIチャット
+                                                                    </Button>
+                                                                </>
+                                                            );
+                                                        } else if (hasAiStart) {
+                                                            // AIスタートのみ
+                                                            return (
+                                                                <Button 
+                                                                    className="w-full gap-2 bg-purple-600 hover:bg-purple-700" 
+                                                                    onClick={() => navigate(`/chat/${app.flowDefinitionId}`)}
+                                                                >
+                                                                    <MessageCircle className="h-4 w-4" /> AIチャットで開始
+                                                                </Button>
+                                                            );
+                                                        } else {
+                                                            // 従来のStartのみ (または何もない場合)
+                                                            return (
+                                                                <Button 
+                                                                    className="w-full gap-2 group-hover:bg-primary group-hover:text-primary-foreground transition-all" 
+                                                                    onClick={() => navigate(`/applications/new/${app.id}`)}
+                                                                >
+                                                                    作成する <ArrowRight className="h-4 w-4 group-hover:translate-x-1 transition-transform" />
+                                                                </Button>
+                                                            );
+                                                        }
+                                                    })()}
                                                 </CardFooter>
                                             </Card>
                                         </motion.div>

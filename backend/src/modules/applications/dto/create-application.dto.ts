@@ -17,11 +17,13 @@ export class CreateApplicationDto {
 
   @IsUUID()
   @IsNotEmpty()
+  @IsUUID()
+  @IsNotEmpty()
   flowDefinitionId: string;
 
   @IsString()
-  @IsNotEmpty()
-  title: string;
+  @IsOptional()
+  title?: string;
 
   @IsString()
   @IsNotEmpty()
