@@ -203,6 +203,7 @@ describe('WorkflowEngineService', () => {
         type: 'approval',
         applicationId: 'app-1',
         stepId: 'step-1',
+        claimedBy: 'user-1',
         application: { formSchema: {} },
       };
       mockPrisma.workflowTask.findUnique.mockResolvedValue(task);
@@ -238,6 +239,7 @@ describe('WorkflowEngineService', () => {
         type: 'approval',
         applicationId: 'app-1',
         stepId: 'step-1',
+        claimedBy: 'user-1',
         application: { formSchema: {} },
       };
       mockPrisma.workflowTask.findUnique.mockResolvedValue(task);

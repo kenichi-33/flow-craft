@@ -1,6 +1,7 @@
 import { Injectable, Logger, Inject, forwardRef } from '@nestjs/common';
 import { ITaskHandler, TaskContext, TaskResult } from '../task-handler.interface';
-import { AgentService } from '../../../ai-core/services/agent.service';
+import { AiIntentService } from '../../../ai-core/services/ai-intent.service';
+import { AiSlotFillingService } from '../../../ai-core/services/ai-slot-filling.service';
 import { WorkflowHelperService } from '../../workflow-helper.service';
 import { PrismaService } from '../../../../prisma/prisma.service';
 import { ApplicationsService } from '../../../applications/applications.service';
@@ -12,7 +13,8 @@ export class AiFlowRouterHandler implements ITaskHandler {
   private readonly logger = new Logger(AiFlowRouterHandler.name);
 
   constructor(
-    private readonly agentService: AgentService,
+    private readonly aiIntentService: AiIntentService,
+    private readonly aiSlotFillingService: AiSlotFillingService,
     private readonly workflowHelper: WorkflowHelperService,
     private readonly prisma: PrismaService,
     @Inject(forwardRef(() => ApplicationsService))
@@ -75,7 +77,7 @@ export class AiFlowRouterHandler implements ITaskHandler {
       }
 
       // 4. Detect apps using AgentService
-      const detection = await this.agentService.detectApps({
+      const detection = await this.aiIntentService.detectApps({
         message: inputText,
         availableApps: appDefs.map((app) => ({
           id: app.id,
@@ -144,11 +146,12 @@ export class AiFlowRouterHandler implements ITaskHandler {
         let extractedInfo = {};
         if (formFields.length > 0) {
           try {
-            const slotResult = await this.agentService.performSlotFilling({
-              sessionId: 'ai-router-temp', // Temporary session for slot filling
-              userMessage: inputText,
-              appId: detectedApp.appId,
-            });
+            const slotResult = await this.aiSlotFillingService.performSlotFilling(
+              detectedApp.appId,
+              inputText,
+              {},
+              [],
+            );
 
             extractedInfo = slotResult.extractedInfo || {};
           } catch (error) {

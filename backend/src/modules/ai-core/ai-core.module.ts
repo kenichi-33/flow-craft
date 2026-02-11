@@ -11,9 +11,13 @@ import { AiCoreController } from './ai-core.controller';
 
 import { AiFormFillerService } from './services/ai-form-filler.service';
 import { ApplicationsModule } from '../applications/applications.module';
-import { AgentService } from './services/agent.service';
 import { ChatController } from './chat.controller';
 import { UsersModule } from '../users/users.module';
+import { AiIntentService } from './services/ai-intent.service';
+import { AiSlotFillingService } from './services/ai-slot-filling.service';
+import { AiValidatorService } from './services/ai-validator.service';
+import { AiExecutionService } from './services/ai-execution.service';
+import { AiConversationService } from './services/ai-conversation.service';
 
 @Global()
 @Module({
@@ -26,7 +30,11 @@ import { UsersModule } from '../users/users.module';
     AiBranchService,
     AiGeneratorService,
     AiFormFillerService,
-    AgentService,
+    AiIntentService,
+    AiSlotFillingService,
+    AiValidatorService,
+    AiExecutionService,
+    AiConversationService,
     {
       provide: 'LLM_PROVIDERS',
       useFactory: (openai: OpenAIProvider, ollama: OllamaProvider) => [
@@ -36,6 +44,16 @@ import { UsersModule } from '../users/users.module';
       inject: [OpenAIProvider, OllamaProvider],
     },
   ],
-  exports: [LlmGatewayService, AiBranchService, AiGeneratorService, AiFormFillerService, AgentService],
+  exports: [
+    LlmGatewayService, 
+    AiBranchService, 
+    AiGeneratorService, 
+    AiFormFillerService,
+    AiIntentService,
+    AiSlotFillingService,
+    AiValidatorService,
+    AiExecutionService,
+    AiConversationService
+  ],
 })
 export class AiCoreModule {}

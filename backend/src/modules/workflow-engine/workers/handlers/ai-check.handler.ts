@@ -1,6 +1,6 @@
 import { Injectable, Logger, Inject, forwardRef } from '@nestjs/common';
 import { ITaskHandler, TaskContext, TaskResult } from '../task-handler.interface';
-import { AgentService } from '../../../ai-core/services/agent.service';
+import { AiValidatorService } from '../../../ai-core/services/ai-validator.service';
 import { WorkflowEngineService } from '../../workflow-engine.service';
 import { PrismaService } from '../../../../prisma/prisma.service';
 
@@ -10,7 +10,7 @@ export class AiCheckHandler implements ITaskHandler {
   private readonly logger = new Logger(AiCheckHandler.name);
 
   constructor(
-    private readonly agentService: AgentService,
+    private readonly aiValidatorService: AiValidatorService,
     private readonly prisma: PrismaService,
     @Inject(forwardRef(() => WorkflowEngineService))
     private readonly workflowEngineService: WorkflowEngineService,
@@ -41,7 +41,7 @@ export class AiCheckHandler implements ITaskHandler {
       }
 
       // Perform AI Check
-      const checkResult = await this.agentService.performCheck(checkData, criteria);
+      const checkResult = await this.aiValidatorService.performCheck(checkData, criteria);
       
       this.logger.log(`[DEBUG] AI Check result: ${JSON.stringify(checkResult)}`);
       this.logger.log(`[DEBUG] Action on fail: ${actionOnFail}, Remand to: ${remandTo}`);

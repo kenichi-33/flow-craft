@@ -3,14 +3,14 @@ import { AiGeneratorService } from './services/ai-generator.service';
 import type { GenerationRequest } from './services/ai-generator.service';
 import { AiFormFillerService } from './services/ai-form-filler.service';
 import type { FillFormRequest } from './services/ai-form-filler.service';
-import { AgentService } from './services/agent.service';
+import { AiValidatorService } from './services/ai-validator.service';
 
 @Controller('ai')
 export class AiCoreController {
   constructor(
     private readonly generatorService: AiGeneratorService,
     private readonly formFillerService: AiFormFillerService,
-    private readonly agentService: AgentService,
+    private readonly aiValidatorService: AiValidatorService,
   ) {}
 
   @Post('generate')
@@ -40,6 +40,7 @@ export class AiCoreController {
     if (!body.type || !body.definition) {
       throw new BadRequestException('Type and definition are required');
     }
-    return this.agentService.reviewDefinition(body.type, body.definition, body.requirements);
+    return this.aiValidatorService.reviewDefinition(body.type, body.definition, body.requirements);
   }
 }
+

@@ -8,7 +8,7 @@ import {
   Res,
 } from '@nestjs/common';
 import type { Response } from 'express';
-import { AgentService } from './services/agent.service';
+import { AiConversationService } from './services/ai-conversation.service';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../../auth/decorators/current-user.decorator';
 import type { AuthUser } from '../../auth/types/user.interface';
@@ -27,7 +27,7 @@ interface SendMessageRequest {
 @Controller('ai/chat')
 @UseGuards(JwtAuthGuard)
 export class ChatController {
-  constructor(private readonly agentService: AgentService) {}
+  constructor(private readonly aiConversationService: AiConversationService) {}
 
   /**
    * 新規会話セッション開始
@@ -37,7 +37,7 @@ export class ChatController {
     @Body() body: StartChatRequest,
     @CurrentUser() user: AuthUser,
   ) {
-    const session = await this.agentService.startConversation(
+    const session = await this.aiConversationService.startConversation(
       body.flowId,
       user.username, // user.idではなくusernameを使用
       {
@@ -64,7 +64,7 @@ export class ChatController {
     @Res() res: Response,
   ) {
     // セッション確認
-    const session = await this.agentService.getSession(sessionId);
+    const session = await this.aiConversationService.getSession(sessionId);
 
     if (session.userId !== user.username) {
       throw new Error('Unauthorized access to session');
@@ -79,7 +79,7 @@ export class ChatController {
 
     try {
       // チャット処理
-      const response = await this.agentService.chat({
+      const response = await this.aiConversationService.chat({
         sessionId,
         message: body.message,
         userId: user.username, // user.idではなくusernameを使用
@@ -109,7 +109,7 @@ export class ChatController {
     @Param('sessionId') sessionId: string,
     @CurrentUser() user: AuthUser,
   ) {
-    const session = await this.agentService.getSession(sessionId);
+    const session = await this.aiConversationService.getSession(sessionId);
 
     // デバッグ用ログ
     if (session.userId !== user.username && session.userId !== user.id) {

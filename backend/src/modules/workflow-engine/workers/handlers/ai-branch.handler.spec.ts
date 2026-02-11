@@ -82,9 +82,13 @@ describe('AiBranchHandler', () => {
             branchRules: [
                 { id: 'rule-1', label: 'Rule 1', aiCondition: 'cond 1' },
                 { id: 'rule-2', label: 'Rule 2', aiCondition: 'cond 2' },
+                { id: 'default', label: 'その他 (Default)', aiCondition: 'If none of the above conditions are met.' },
             ],
             model: 'model-a',
             temperature: 0.7,
+            provider: undefined,
+            apiKey: undefined,
+            baseUrl: undefined,
         });
 
         expect(mockWorkflowHelper.advanceToNextNode).toHaveBeenCalledWith(
