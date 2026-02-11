@@ -489,7 +489,13 @@ export class TasksService {
 
     const [data, total] = await Promise.all([
       this.prisma.workflowTask.findMany({
-        where,
+        where: {
+          ...where,
+          application: {
+            ...((where.application as any) || {}),
+            status: 'IN_PROGRESS',
+          },
+        },
         include: {
           application: {
             include: {
@@ -502,7 +508,15 @@ export class TasksService {
         skip: (page - 1) * limit,
         take: limit,
       }),
-      this.prisma.workflowTask.count({ where }),
+      this.prisma.workflowTask.count({
+        where: {
+          ...where,
+          application: {
+            ...((where.application as any) || {}),
+            status: 'IN_PROGRESS',
+          },
+        },
+      }),
     ]);
 
     return {

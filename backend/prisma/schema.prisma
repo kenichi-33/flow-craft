@@ -355,3 +355,24 @@ enum ConversationStatus {
   COMPLETED  // 完了
   CANCELED   // キャンセル
 }
+
+// AI Copilot: グローバル会話セッション
+model CopilotSession {
+  id        String        @id @default(uuid())
+  userId    String        @map("user_id")
+  status    CopilotStatus @default(ACTIVE)
+  history   Json          @default("[]") // [{role, content, timestamp, action?}]
+  context   Json          @default("{}") // 現在のページ情報など
+  
+  agentName String?       @map("agent_name")
+  
+  createdAt DateTime      @default(now()) @map("created_at")
+  updatedAt DateTime      @updatedAt @map("updated_at")
+
+  @@map("copilot_sessions")
+}
+
+enum CopilotStatus {
+  ACTIVE
+  ARCHIVED
+}

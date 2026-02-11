@@ -13,9 +13,11 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Badge } from '@/components/ui/badge';
-import { Menu, Home, FileText, ClipboardList, LayoutDashboard, Database, Settings, Users, FolderOpen, LogOut, ChevronRight, PieChart, RefreshCw, Link as LinkIcon } from 'lucide-react';
+import { Menu, Home, FileText, ClipboardList, LayoutDashboard, Database, Settings, Users, FolderOpen, LogOut, ChevronRight, PieChart, RefreshCw, Link as LinkIcon, Bot } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
+import { useUiStore } from '@/stores/useUiStore';
+import { AiCopilotSidebar } from '@/components/layout/AiCopilotSidebar';
 
 export default function AppLayout() {
     const { user } = useAuthStore(); // Only needed for header badge logic now?
@@ -59,6 +61,10 @@ export default function AppLayout() {
                     </div>
 
                     <div className="flex items-center gap-3">
+                        <Button variant="ghost" size="icon" onClick={() => useUiStore.getState().toggleCopilot()} className="relative">
+                           <Bot className="h-5 w-5 text-indigo-500" />
+                        </Button>
+
                         {user?.roles?.includes('wf_admin') && (
                             <Badge variant="destructive" className="shadow-sm">管理者</Badge>
                         )}
@@ -70,10 +76,11 @@ export default function AppLayout() {
                 </header>
 
                 {/* Main Content */}
-                <main className="flex-1 overflow-auto bg-muted/30">
+                <main className="flex-1 overflow-auto bg-muted/30 relative">
                     <div className="container mx-auto p-6 md:p-8 max-w-7xl">
                         <Outlet />
                     </div>
+                    <AiCopilotSidebar />
                 </main>
             </div>
         </div>

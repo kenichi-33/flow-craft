@@ -140,8 +140,10 @@ Extract available parameters and identify missing ones.
     userMessage: string,
     currentSlots: Record<string, any>,
     history: Array<{ role: string; content: string }> = [],
+    appName?: string,
+    appDescription?: string,
   ): Promise<SlotFillingResponse> {
-    this.logger.log(`Performing slot filling for app ${appId}`);
+    this.logger.log(`Performing slot filling for app ${appId} (${appName})`);
 
     const fields = await this.extractFormFields(appId);
     this.logger.log(`Extracted fields count: ${fields.length}`);
@@ -149,6 +151,11 @@ Extract available parameters and identify missing ones.
     const systemPrompt = `
 あなたは情報収集アシスタントです。
 ユーザーとの会話から必要な情報を抽出してください。
+
+## 対象アプリケーション:
+- アプリ名: ${appName || '不明'}
+- 説明: ${appDescription || 'なし'}
+- **重要**: ユーザーの入力がこのアプリケーションに関連するかどうかを判断し、関連する場合のみ情報を抽出してください。
 
 ## 必要な情報フィールド:
 ${fields.map(f => `- ${f.label} (${f.id}): ${f.type}${f.required ? ' [必須]' : ' [任意]'}${f.description ? ` - ${f.description}` : ''}`).join('\n')}
@@ -280,8 +287,9 @@ ${historyText}
       case 'boolean':
          if (typeof value === 'boolean') return value;
          if (typeof value === 'string') {
-             if (value.toLowerCase() === 'true') return true;
-             if (value.toLowerCase() === 'false') return false;
+             const lower = value.toLowerCase().trim();
+             if (['true', 'yes', 'on', '1'].includes(lower)) return true;
+             if (['false', 'no', 'off', '0'].includes(lower)) return false;
          }
          return value;
 

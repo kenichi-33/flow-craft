@@ -187,6 +187,33 @@ export default function TaskDetailPage() {
         }
     });
 
+    // Confirmation Dialog State
+    const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
+    const [confirmAction, setConfirmAction] = useState<{ action: string; comment?: string; inputData?: any } | null>(null);
+
+    const getConfirmMessage = (action: string) => {
+        switch (action) {
+            case 'APPROVE':
+            case 'SUBMIT':
+                return 'このタスクを完了（承認）しますか？';
+            case 'REJECT':
+                return 'この申請を却下しますか？';
+            default:
+                return '実行しますか？';
+        }
+    };
+
+    const executeAction = () => {
+        if (!confirmAction) return;
+        setConfirmDialogOpen(false);
+        setActionInProgress(confirmAction.action);
+        actionMutation.mutate({ 
+            action: confirmAction.action, 
+            comment: confirmAction.comment, 
+            inputData: confirmAction.inputData 
+        });
+    };
+
     const handleAction = async (action: string, actionComment?: string) => {
         const commentToUse = actionComment ?? '';
         if (action === 'REJECT' && !commentToUse.trim()) {
@@ -231,8 +258,9 @@ export default function TaskDetailPage() {
             console.log('Submitting with data:', inputData);
         }
 
-        setActionInProgress(action);
-        actionMutation.mutate({ action, comment: commentToUse.trim() || undefined, inputData });
+        // Open Confirmation Dialog
+        setConfirmAction({ action, comment: commentToUse.trim() || undefined, inputData });
+        setConfirmDialogOpen(true);
     };
     // Handle remand with selected step
     const handleRemandWithStep = () => {
@@ -518,12 +546,8 @@ export default function TaskDetailPage() {
                             onConfirmWarnings={(inputData) => {
                                 // Process pending action after user confirms warnings
                                 if (pendingAction) {
-                                    setActionInProgress(pendingAction.action);
-                                    actionMutation.mutate({ 
-                                        action: pendingAction.action, 
-                                        comment: undefined, 
-                                        inputData 
-                                    });
+                                    setConfirmAction({ action: pendingAction.action, inputData });
+                                    setConfirmDialogOpen(true);
                                     setPendingAction(null);
                                 }
                             }}
@@ -607,6 +631,31 @@ export default function TaskDetailPage() {
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
+
+            {/* Confirmation Dialog */}
+            <AlertDialog open={confirmDialogOpen} onOpenChange={setConfirmDialogOpen}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>確認</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            {confirmAction && getConfirmMessage(confirmAction.action)}
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <div className="flex w-full justify-end gap-2">
+                             <Button variant="outline" onClick={() => setConfirmDialogOpen(false)}>
+                                キャンセル
+                             </Button>
+                             <Button 
+                                variant={confirmAction?.action === 'REJECT' ? 'destructive' : 'default'}
+                                onClick={executeAction}
+                             >
+                                実行する
+                             </Button>
+                        </div>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
 
             {/* Error Dialog */}
             <AlertDialog open={errorDialogOpen} onOpenChange={setErrorDialogOpen}>

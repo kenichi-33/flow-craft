@@ -113,6 +113,33 @@ export default function ApplicationFormPage() {
         }
     }, [existingApp, navigate]);
 
+    // AI Copilot Action Listener
+    useEffect(() => {
+        const handleAiFill = (event: Event) => {
+            const customEvent = event as CustomEvent;
+            const data = customEvent.detail;
+            console.log('AI Fill Form Event received:', data);
+
+            if (formRef.current?.reset) {
+                // Determine if we should merge or replace. 
+                // For now, let's assume valid form data payload.
+                // We might need to get current values and merge if partial update is desired,
+                // but reset() usually replaces. 
+                // Let's try to merge if possible or just reset.
+                // RJSF/React-Hook-Form reset usually sets the values.
+                
+                const currentValues = formRef.current.getValues();
+                const newValues = { ...currentValues, ...data };
+                formRef.current.reset(newValues);
+                
+                toast.success('AI Copilotによりフォームが入力されました');
+            }
+        };
+
+        window.addEventListener('ai-fill-form', handleAiFill);
+        return () => window.removeEventListener('ai-fill-form', handleAiFill);
+    }, []);
+
     // Populate initial data when editing
     if (isEditMode && existingApp && !dataLoaded) {
         setTitle(existingApp.title);

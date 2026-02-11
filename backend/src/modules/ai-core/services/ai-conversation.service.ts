@@ -256,6 +256,8 @@ export class AiConversationService {
       message,
       {}, // 初期スロットは空
       session.history as any[],
+      firstApp.appName,
+      firstApp.description,
     );
 
     // スロット更新
@@ -292,7 +294,8 @@ export class AiConversationService {
       const appSlots = slots[app.appId] || {};
       const fields = await this.aiSlotFillingService.extractFormFields(app.appId);
       const requiredFields = fields.filter(f => f.required);
-      const missingCount = requiredFields.filter(f => !appSlots[f.id]).length;
+      // Fix: Check for strictly undefined or null, allow false/0
+      const missingCount = requiredFields.filter(f => appSlots[f.id] === undefined || appSlots[f.id] === null || appSlots[f.id] === '').length;
 
       if (missingCount > 0) {
         targetAppId = app.appId;
@@ -306,6 +309,8 @@ export class AiConversationService {
       return 'アプリケーションが見つかりません。';
     }
 
+    const targetApp = detectedApps.find(a => a.appId === appIdToUse);
+
     // 情報収集を実行（ユーザーメッセージを処理し、スロットを更新）
     // 必須項目が揃っていても、任意項目の追加や値の修正のために呼び出す必要がある
     const slotResponse = await this.aiSlotFillingService.performSlotFilling(
@@ -313,6 +318,8 @@ export class AiConversationService {
       message,
       slots[appIdToUse] || {},
       session.history as any[],
+      targetApp?.appName,
+      targetApp?.description,
     );
 
     // スロット更新
@@ -335,7 +342,8 @@ export class AiConversationService {
       const appSlots = updatedSlots[app.appId] || {};
       const fields = await this.aiSlotFillingService.extractFormFields(app.appId);
       const requiredFields = fields.filter(f => f.required);
-      const missingCount = requiredFields.filter(f => !appSlots[f.id]).length;
+      // Fix: Check for strictly undefined or null, allow false/0
+      const missingCount = requiredFields.filter(f => appSlots[f.id] === undefined || appSlots[f.id] === null || appSlots[f.id] === '').length;
 
       if (missingCount > 0) {
         allComplete = false;
@@ -363,7 +371,7 @@ export class AiConversationService {
     for (const app of detectedApps) {
       const appSlots = updatedSlots[app.appId] || {};
       const fields = await this.aiSlotFillingService.extractFormFields(app.appId);
-      const requiredFields = fields.filter(f => f.required && !appSlots[f.id]);
+      const requiredFields = fields.filter(f => f.required && (appSlots[f.id] === undefined || appSlots[f.id] === null || appSlots[f.id] === ''));
       if (requiredFields.length > 0) {
         missingFieldLabels.push(...requiredFields.map(f => f.label));
       }

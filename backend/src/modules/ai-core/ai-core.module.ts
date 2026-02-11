@@ -18,11 +18,13 @@ import { AiSlotFillingService } from './services/ai-slot-filling.service';
 import { AiValidatorService } from './services/ai-validator.service';
 import { AiExecutionService } from './services/ai-execution.service';
 import { AiConversationService } from './services/ai-conversation.service';
+import { AiCopilotService } from './services/ai-copilot.service';
+import { CopilotController } from './copilot.controller';
 
 @Global()
 @Module({
   imports: [ConfigModule, WorkflowCoreModule, QueueModule, ApplicationsModule, UsersModule],
-  controllers: [AiCoreController, ChatController],
+  controllers: [AiCoreController, ChatController, CopilotController],
   providers: [
     LlmGatewayService,
     OpenAIProvider,
@@ -35,6 +37,7 @@ import { AiConversationService } from './services/ai-conversation.service';
     AiValidatorService,
     AiExecutionService,
     AiConversationService,
+    AiCopilotService,
     {
       provide: 'LLM_PROVIDERS',
       useFactory: (openai: OpenAIProvider, ollama: OllamaProvider) => [
@@ -53,7 +56,8 @@ import { AiConversationService } from './services/ai-conversation.service';
     AiSlotFillingService,
     AiValidatorService,
     AiExecutionService,
-    AiConversationService
+    AiConversationService,
+    AiCopilotService
   ],
 })
 export class AiCoreModule {}

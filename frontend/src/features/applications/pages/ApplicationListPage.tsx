@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import {
@@ -85,6 +85,37 @@ export default function ApplicationListPage() {
     const [myApplications, setMyApplications] = useState(true);
     const [showTestMode, setShowTestMode] = useState(false);
     const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 15 });
+
+    // AI Copilot Filter Listener
+    useEffect(() => {
+        const handleAiFilter = (event: Event) => {
+            const customEvent = event as CustomEvent;
+            const payload = customEvent.detail;
+            console.log('AI Filter Application List:', payload);
+
+            if (payload.keyword !== undefined) {
+                setGlobalFilter(payload.keyword);
+            }
+            if (payload.status) {
+                // Map status to tab values
+                if (['in_progress', 'completed', 'rejected', 'all'].includes(payload.status)) {
+                    setActiveTab(payload.status);
+                } else if (payload.status === 'APPROVED') {
+                    setActiveTab('completed');
+                } else if (['REJECTED', 'REMANDED', 'CANCELED'].includes(payload.status)) {
+                    setActiveTab('rejected');
+                } else {
+                    setActiveTab('all');
+                }
+            }
+            if (payload.sortBy) {
+                 setSorting([{ id: payload.sortBy, desc: true }]); // Default to desc for now
+            }
+        };
+
+        window.addEventListener('ai-filter-list', handleAiFilter);
+        return () => window.removeEventListener('ai-filter-list', handleAiFilter);
+    }, []);
     
     // Server-side fetching
     const { data: applicationsResponse, isLoading, error } = useQuery<ApplicationsResponse>({

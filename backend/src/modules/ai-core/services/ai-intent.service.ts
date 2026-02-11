@@ -22,6 +22,7 @@ export interface DetectedApp {
   confidence: number;
   reason: string;
   requiredSlots?: string[];
+  description?: string;
 }
 
 export interface AppDetectionRequest {
@@ -142,8 +143,16 @@ ${request.availableApps.map(app => `- ${app.name} (ID: ${app.id})${app.descripti
 
       const parsed = JSON.parse(response.rawContent);
       
+      const detectedApps: DetectedApp[] = (parsed.detectedApps || []).map((d: any) => {
+        const appDef = request.availableApps.find(a => a.id === d.appId);
+        return {
+          ...d,
+          description: appDef?.description
+        };
+      });
+
       return {
-        detectedApps: parsed.detectedApps || [],
+        detectedApps,
         reasoning: parsed.reasoning || '',
       };
     } catch (error) {

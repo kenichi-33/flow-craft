@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { 
     useReactTable, 
@@ -81,17 +81,54 @@ export default function TaskListPage() {
     const [globalFilter, setGlobalFilter] = useState('');
     const [dateFrom, setDateFrom] = useState('');
     const [dateTo, setDateTo] = useState('');
+    const [status, setStatus] = useState<string>('PENDING');
 
     const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 10 });
 
+    // AI Copilot Filter Listener
+    useEffect(() => {
+        const handleAiFilter = (event: Event) => {
+            const customEvent = event as CustomEvent;
+            const payload = customEvent.detail;
+            console.log('AI Filter Task List:', payload);
+
+            if (payload.keyword !== undefined) {
+                setGlobalFilter(payload.keyword);
+            }
+            if (payload.dateFrom !== undefined) {
+                setDateFrom(payload.dateFrom);
+            }
+            if (payload.dateTo !== undefined) {
+                setDateTo(payload.dateTo);
+            }
+            if (payload.status) {
+                if (payload.status === 'COMPLETED') {
+                   setStatus('COMPLETED');
+                } else if (payload.status === 'PENDING') {
+                   setStatus('PENDING');
+                } else if (payload.status === 'all') {
+                   setStatus(''); // API needs to handle empty or we might need logic
+                }
+            }
+            if (payload.sortBy) {
+                 setSorting([{ id: payload.sortBy, desc: true }]); // Default to desc for now
+            }
+        };
+
+        window.addEventListener('ai-filter-list', handleAiFilter);
+        return () => window.removeEventListener('ai-filter-list', handleAiFilter);
+    }, []);
+
     const { data: tasksResponse, isLoading, error } = useQuery<TasksResponse>({
-        queryKey: ['tasks', { myTasks: 'true', status: 'PENDING', globalFilter, dateFrom, dateTo, sorting, pagination }],
+        queryKey: ['tasks', { myTasks: 'true', status, globalFilter, dateFrom, dateTo, sorting, pagination }],
         queryFn: () => {
             const params: any = { 
-                status: 'PENDING', 
+                status, 
                 limit: pagination.pageSize,
                 page: pagination.pageIndex + 1,
             };
+            if (!status) delete params.status; // Remove if empty (all)
+
             if (globalFilter) params.search = globalFilter;
             if (dateFrom) params.dateFrom = new Date(dateFrom).toISOString();
             if (dateTo) params.dateTo = new Date(dateTo).toISOString();
