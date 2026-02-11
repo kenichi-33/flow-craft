@@ -156,5 +156,52 @@ AIチャット機能の挙動を制御する環境変数です。
 ### 3. ファイルアップロード
 チャットインターフェースからファイルをアップロードできます。アップロードされたファイルは `StorageService` を介してオブジェクトストレージに保存され、そのIDがフォームの `attachment` や `file` 型フィールドに自動的にマッピングされます。
 
+## AI Copilot (Sidebar)
+
+画面右側に常駐するAIアシスタント機能（Copilot）の実装詳細は以下の通りです。
+
+### Dynamic Context & System Prompt
+Copilotは、ユーザーが現在閲覧している画面（URLパス、データ）に基づいて、システムプロンプトと利用可能なツールを動的に切り替えます。
+
+- **`NAVIGATE`**: 全画面で利用可能。指定パスへの遷移。
+- **`FILL_FORM`**: フォーム画面（`/applications/new`, `/applications/:id/edit`）でのみ利用可能。入力代行。
+- **`FILTER_LIST`**: 一覧画面（`/applications`, `/tasks`）でのみ利用可能。リストのフィルタリング。
+- **`SEARCH_PAST_DATA`**: 全画面で利用可能だが、**承認画面**や**申請画面**では、コンテキスト（`applicantId`, `applicationDefinitionId`）に基づき自動的に検索対象を絞り込みます。
+
+### Context-Aware Search
+- **承認画面**: 申請者の過去データを優先的に検索（「この人の過去の経費は？」）。
+- **申請画面**: 自分（ログインユーザー）の同種アプリケーションの過去データを検索（「前回の交通費は？」）。
+
+### Copilot Interaction Flow
+
+```mermaid
+sequenceDiagram
+    participant U as User (UI)
+    participant F as Frontend (Sidebar)
+    participant A as AiCopilotService
+    participant S as ApplicationsService
+    participant L as LLM
+
+    U->>F: "この人の過去の経費は？"
+    F->>F: Collect Context (Page: Approval, ApplicantId: "kenichi")
+    F->>A: POST /chat (Msg + Context)
+    
+    A->>A: Build Dynamic System Prompt
+    Note right of A: Include "SEARCH_PAST_DATA" tool<br/>Exclude "FILL_FORM" (not on form)
+    
+    A->>L: Generate Response
+    L-->>A: Action: SEARCH_PAST_DATA { keyword: "経費" }
+    
+    A->>A: Extract TargetUserId from Context
+    A->>S: searchApplications(targetUserId="kenichi", keyword="経費")
+    S-->>A: Result: [App A, App B...]
+    
+    A->>L: Generate Answer with Search Result
+    L-->>A: "過去に3件の申請があります..."
+    
+    A-->>F: Response (Text)
+    F-->>U: Display Answer
+```
+
 
 

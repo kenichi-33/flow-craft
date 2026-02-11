@@ -4,6 +4,7 @@ import { PrismaService } from '../../../prisma/prisma.service';
 import { LlmGatewayService } from '../llm-gateway/llm-gateway.service';
 import { CopilotStatus } from '@prisma/client';
 import { AiSlotFillingService } from './ai-slot-filling.service';
+import { ApplicationsService } from '../../applications/applications.service';
 
 export interface CopilotChatRequest {
   sessionId: string;
@@ -15,7 +16,7 @@ export interface CopilotChatRequest {
 export interface CopilotChatResponse {
   message: string;
   action?: {
-    type: 'NAVIGATE' | 'FILL_FORM' | 'FILTER_LIST' | 'SHOW_ALERT';
+    type: 'NAVIGATE' | 'FILL_FORM' | 'FILTER_LIST' | 'SHOW_ALERT' | 'SEARCH_PAST_DATA';
     payload: any;
   };
 }
@@ -29,6 +30,7 @@ export class AiCopilotService {
     private readonly configService: ConfigService,
     private readonly llmGateway: LlmGatewayService,
     private readonly aiSlotFillingService: AiSlotFillingService,
+    private readonly applicationsService: ApplicationsService,
   ) {}
 
   /**
@@ -91,60 +93,83 @@ export class AiCopilotService {
     });
 
     // Prepare system prompt for Copilot
-    let systemPrompt = `
+    const baseSystemPrompt = `
 You are "Flow-craft AI Copilot", a helpful assistant residing in the sidebar of the workflow application.
 Your goal is to assist users with navigation, form filling, and understanding the application.
 
 Current User Context:
 ${JSON.stringify(currentContext, null, 2)}
 
-You have access to the following TOOLS. If the user's request requires an action, you MUST respond with a JSON object in the following format ONLY, with no other text:
-
+You have access to the following TOOLS. If the user's request requires an action, you MUST respond with a JSON object in the following format:
 {
   "type": "ACTION_RESPONSE",
   "action": {
-    "type": "NAVIGATE" | "FILL_FORM" | "FILTER_LIST" | "SHOW_ALERT",
+    "type": "TOOL_NAME",
     "payload": object
   },
-  "message": "Brief explanation of what you are doing"
+  "message": "Brief explanation"
 }
+`;
 
-TOOLS:
+    const toolsDocs: string[] = [];
+
+    // 1. NAVIGATE (Always available)
+    toolsDocs.push(`
 1. NAVIGATE: Go to a specific page.
    - Payload: { "path": "/applications/new" } for new application
    - Payload: { "path": "/tasks" } for task list
    - Payload: { "path": "/settings" } for settings
-   
+`);
+
+    // 2. FILL_FORM (Only on form pages)
+    // Check if path indicates a form page (new or edit)
+    const isFormPage = currentContext.path?.includes('/new') || currentContext.path?.includes('/edit');
+    if (isFormPage) {
+        toolsDocs.push(`
 2. FILL_FORM: Fill the current form with data.
    - Payload: { "data": { "field": "value", ... } }
    - Use this when the user provides data for the currently open form.
    - Infer field names from the user's intent or the provided schema in context.
-   - CRITICAL: Respect the schema types!
-     - e.g. "amount": 10000 (number), NOT "10000" (string)
-     - e.g. "isUrgent": true (boolean), NOT "true" (string)
-     - e.g. "date": "2024-01-01" (ISO string)
+   - CRITICAL: Respect the schema type. If the schema says "number", provide a JSON number (e.g. 1000, NOT "1000"). If boolean, provide true/false (NOT "true").
+   - IMPORTANT: The 'Current User Context' contains the 'formSchema'. You MUST use the exact keys (property names) defined in 'formSchema.properties' as the field IDs in your payload.
+   - DO NOT use the label text as the key.
+   - Look at the 'formSchema.properties' object. Find the property where the 'title' matches the user's intent (e.g. "交通費", "日付"). Use the KEY of that property.
+   - Example: If the schema has a property "field_123" with title "交通費", you MUST use "field_123".
+   - SPECIAL KEY: Use "_title" to set the main Application Title (件名). This is separate from the form fields. Example: { "_title": "1月分交通費", ... }
+`);
+    }
 
-3. FILTER_LIST: Filter the current list view (Application List or Task List).
-   - "keyword": search term (e.g. "travel", "urgent")
-   - "status": 
-     - For Applications: "in_progress", "completed", "rejected", "all"
-     - For Tasks: "PENDING", "COMPLETED", "all"
-   - "dateFrom": ISO date string (YYYY-MM-DD or YYYY-MM-DDTHH:mm:ss.sssZ)
-   - "dateTo": ISO date string (YYYY-MM-DD or YYYY-MM-DDTHH:mm:ss.sssZ)
-   - "sortBy": field name to sort by (e.g. "createdAt", "updatedAt")
+    // 3. FILTER_LIST (Only on list pages)
+    const isListPage = currentContext.path === '/applications' || currentContext.path === '/tasks';
+    if (isListPage) {
+        toolsDocs.push(`
+3. FILTER_LIST: Filter the CURRENT list view you are looking at.
+   - Use this ONLY when the user asks to "filter this list", "show only pending items", "search in this list".
+   - DO NOT use this when the user asks general questions about past data or "tell me about..." (Use SEARCH_PAST_DATA for that).
    - Payload: { "keyword": "...", "status": "...", "dateFrom": "...", "dateTo": "...", "sortBy": "..." }
-   - Use this when the user asks to "search", "filter", "show me", "find" items in a list.
-   - Infer the context (Application vs Task) from the current page path or user intent.
-   
-   IMPORTANT: Ensuring Correct Data Types is CRITICAL.
-   - Boolean fields MUST be true/false literals, NOT strings like "true".
-   - Number fields MUST be numbers, NOT strings like "10000".
-   - Date fields MUST be valid ISO 8601 strings (e.g., "2024-01-01T00:00:00.000Z").
+   - Status values: "PENDING", "COMPLETED", "APPROVED", "REJECTED", "all"
+`);
+    }
 
-4. SHOW_ALERT: Display a warning or information alert to the user.
-   - Payload: { "type": "info" | "warning" | "error", "message": "The alert message" }
-   - Use this when you detect a policy violation based on the "Company Policies" below.
-   - Example: If user asks "Can I spend 60000 yen on travel?", check the policy limit. If it's 50000, use SHOW_ALERT to warn them.
+    // 4. SHOW_ALERT (Always available)
+    toolsDocs.push(`
+4. SHOW_ALERT: Display a warning or information alert.
+   - Payload: { "type": "info" | "warning" | "error", "message": "..." }
+`);
+
+    // 5. SEARCH_PAST_DATA (Always available)
+    toolsDocs.push(`
+5. SEARCH_PAST_DATA: Search for past applications to answer user questions.
+   - Payload: { "keyword": "...", "status": "APPROVED" | "all", "limit": 5 }
+   - Use this when user asks about past applications, history, or "what did I do last time?".
+   - This tool will return a list of applications. You MUST then use that information to answer the user's question in natural language.
+   - NOTE: Return this tool action when you need to *get* information. After you get the information, you will be called again to provide the answer.
+`);
+
+    let systemPrompt = `${baseSystemPrompt}
+
+TOOLS:
+${toolsDocs.join('\n')}
 
 If no tool is needed, just respond with a helpful text message.
     `;
@@ -162,28 +187,83 @@ If no tool is needed, just respond with a helpful text message.
       .join('\n');
 
     const response = await this.llmGateway.generate({
-      model: this.configService.get('AI_CHAT_MODEL', 'qwen2.5:14b'),
+      model: this.configService.get('AI_CHAT_MODEL', 'qwen2.5-coder:14b'),
       systemPrompt,
       userPrompt: conversationContext,
       temperature: 0.5, // Lower temperature for more deterministic actions
     });
 
     let assistantMessage = response.rawContent;
-    let action = undefined;
+    let action: CopilotChatResponse['action'] | undefined = undefined;
 
     // Try to parse JSON action
     try {
       const jsonMatch = assistantMessage.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
         const parsed = JSON.parse(jsonMatch[0]);
+        
+        // Case 1: Wrapped in ACTION_RESPONSE
         if (parsed.type === 'ACTION_RESPONSE' && parsed.action) {
           action = parsed.action;
           assistantMessage = parsed.message;
+        } 
+        // Case 2: Direct Action Object (Fallback - e.g. user reported issue)
+        else if (['NAVIGATE', 'FILL_FORM', 'FILTER_LIST', 'SHOW_ALERT', 'SEARCH_PAST_DATA'].includes(parsed.type)) {
+             action = {
+                 type: parsed.type,
+                 payload: parsed.action || parsed.payload || parsed 
+             };
+             // If payload is nested in 'action' key (like the user saw: { type: FILTER_LIST, action: {...} })
+             if (parsed.action && !parsed.payload) {
+                 action.payload = parsed.action;
+             }
+             
+             assistantMessage = parsed.message || "実行しました。";
         }
       }
     } catch (e) {
       // Failed to parse, treat as normal text
       this.logger.warn('Failed to parse Copilot JSON response', e);
+    }
+
+    // Handle Server-Side Tools (search_past_data)
+    if (action && action.type === 'SEARCH_PAST_DATA') {
+        // If we have an applicantId in context (e.g. from TaskDetailPage), use it as the target.
+        // Otherwise search the caller's data.
+        const targetUserId = (currentContext.applicantId as string) || request.userId;
+        
+        const searchResult = await this.applicationsService.searchApplications(request.userId, {
+            keyword: action.payload.keyword,
+            status: action.payload.status === 'all' ? undefined : action.payload.status,
+            limit: action.payload.limit || 5,
+            targetUserId: targetUserId,
+            // Filter by applicationDefinitionId if in context (e.g. from TaskDetailPage)
+            applicationDefinitionId: (currentContext.applicationDefinitionId as string), 
+        });
+
+        // Add tool output to history
+        const toolOutputMessage = `
+[System] Tool 'SEARCH_PAST_DATA' Execution Result:
+Target User: ${targetUserId}
+${JSON.stringify(searchResult, null, 2)}
+
+User Question: ${request.message}
+
+Please use the above search results to answer the user's question. 
+Summarize the findings. If specific details are found, mention them.
+If no relevant data is found, state that.
+`;
+        
+        // 2nd Turn: Call LLM with Tool Output
+        const secondResponse = await this.llmGateway.generate({
+            model: this.configService.get('AI_CHAT_MODEL', 'qwen2.5-coder:14b'),
+            systemPrompt: systemPrompt + "\n\nYou have just executed a search tool. Use the results to answer the user.",
+            userPrompt: conversationContext + "\n" + `Assistant: ${assistantMessage}` + "\n" + toolOutputMessage,
+            temperature: 0.5,
+        });
+
+        assistantMessage = secondResponse.rawContent;
+        action = undefined; // Clear action since we handled it server-side and now have a text answer
     }
 
     // Append assistant message to history

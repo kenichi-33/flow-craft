@@ -57,6 +57,7 @@ export class AiFormFillerService {
 1. ユーザーの指示(User Input)にある情報は最優先で使用する。
 2. 指示にない項目は、過去の申請履歴(History)から最も類似するものを探して補完する。
 3. 日付は基準日(Context)を元に計算する。
+4. 【重要】出力するJSONのキーは、必ず提供された「Form Schema」のプロパティ名と完全に一致させること。勝手にキー名を変更したり、Schemaにないキーを追加してはならない（例外: _title）。
 
 【Context】
 Current Date: ${new Date().toISOString().split('T')[0]}
@@ -67,12 +68,13 @@ User Dept: ${currentUser.departmentName || 'Unknown'}
 ${JSON.stringify(minifiedHistory, null, 2)}
 
 【Form Schema】
-入力すべきフィールド定義:
+入力すべきフィールド定義（このSchemaのkeyを正確に使用すること）:
 ${JSON.stringify(formSchema, null, 2)}
 
 【Output Restriction】
 回答はJSON形式のみ。以下のキーを含むこと:
 - "data": フォーム入力値のJSONオブジェクト
+- "_title": 申請の件名 (string, e.g. "2024年1月分 交通費精算")。入力内容から自動生成すること。
 - "referenced_history_id": 参照した履歴のID (なければ null)
 - "reasoning": 思考過程 (日本語)
 `;
@@ -89,7 +91,7 @@ ${JSON.stringify(formSchema, null, 2)}
     const content = response.content;
 
     return {
-      data: content.data || {},
+      data: { ...content.data, _title: content._title },
       referenced_history_id: content.referenced_history_id || null,
       reasoning: content.reasoning || '',
     };

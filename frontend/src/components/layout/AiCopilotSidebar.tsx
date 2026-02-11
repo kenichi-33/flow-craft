@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import { useUiStore } from '@/stores/useUiStore';
 import { useAiCopilot } from '@/hooks/useAiCopilot';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { X, Send, User, Bot, Loader2, Paperclip, File as FileIcon } from 'lucide-react';
@@ -55,10 +54,14 @@ export function AiCopilotSidebar() {
       if (type === 'NAVIGATE' && payload.path) {
         navigate(payload.path);
         toast.info(`ページを移動しました: ${payload.path}`);
-      } else if (type === 'FILL_FORM' && payload.data) {
-        // Dispatch event for form page to catch
-        window.dispatchEvent(new CustomEvent('ai-fill-form', { detail: payload.data }));
-        toast.success('フォームに入力データを送信しました');
+      } else if (type === 'FILL_FORM') {
+        const formData = payload.data || payload;
+        if (formData && Object.keys(formData).length > 0) {
+            // Remove system keys if present in flat payload
+            const { type, message, ...cleanData } = formData;
+            window.dispatchEvent(new CustomEvent('ai-fill-form', { detail: cleanData }));
+            toast.success('フォームに入力データを送信しました');
+        }
       } else if (type === 'FILTER_LIST') {
         // Dispatch filter event for list pages
         window.dispatchEvent(new CustomEvent('ai-filter-list', { detail: payload }));
@@ -103,8 +106,10 @@ export function AiCopilotSidebar() {
       }
 
       // Get context from current page
+      const { copilotContext } = useUiStore.getState();
       const context = {
         path: window.location.pathname,
+        ...copilotContext,
         // Potentially add more context about the current view here in the future
       };
       await sendMessage(finalMessage, context);
@@ -243,18 +248,7 @@ export function AiCopilotSidebar() {
             className="hidden" 
             onChange={handleFileChange} 
         />
-        <div className="flex gap-2 items-end">
-          <Button 
-            variant="ghost" 
-            size="icon" 
-            onClick={handleFileClick} 
-            disabled={isLoading || isFileUploading}
-            className="mb-0.5 text-muted-foreground hover:text-foreground shrink-0"
-            title="ファイルを添付"
-          >
-            <Paperclip className="h-5 w-5" />
-          </Button>
-
+        <div className="flex flex-col gap-2">
           <Textarea
             value={input}
             onChange={(e) => {
@@ -265,12 +259,27 @@ export function AiCopilotSidebar() {
             onKeyDown={handleKeyDown}
             placeholder="メッセージを入力..."
             disabled={isLoading || isFileUploading}
-            className="flex-1 min-h-[40px] max-h-[120px] resize-none overflow-y-auto py-2 px-3 text-sm"
-            rows={1}
+            className="w-full min-h-[60px] max-h-[150px] resize-none overflow-y-auto py-2 px-3 text-sm"
+            rows={2}
           />
-          <Button size="icon" onClick={handleSend} disabled={isLoading || isFileUploading || (!input.trim() && !selectedFile)} className="shrink-0 mb-0.5">
-            {isLoading || isFileUploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-          </Button>
+          
+          <div className="flex justify-between items-center">
+            <Button 
+                variant="ghost" 
+                size="icon" 
+                onClick={handleFileClick} 
+                disabled={isLoading || isFileUploading}
+                className="text-muted-foreground hover:text-foreground"
+                title="ファイルを添付"
+            >
+                <Paperclip className="h-5 w-5" />
+            </Button>
+            
+            <Button size="sm" onClick={handleSend} disabled={isLoading || isFileUploading || (!input.trim() && !selectedFile)} className="px-4">
+                {isLoading || isFileUploading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Send className="h-4 w-4 mr-2" />}
+                送信
+            </Button>
+          </div>
         </div>
       </div>
     </div>

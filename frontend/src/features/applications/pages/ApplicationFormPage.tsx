@@ -10,6 +10,7 @@ import { ArrowLeft, Loader2, CheckCircle, GitFork, XCircle, Sparkles } from 'luc
 import { toast } from 'sonner';
 import FlowVisualization from '@/components/designer/flow/FlowVisualization';
 import { useAuthStore } from '@/stores/useAuthStore';
+import { useUiStore } from '@/stores/useUiStore';
 import AiFormDialog from '../components/AiFormDialog';
 import {
     AlertDialog,
@@ -96,6 +97,17 @@ export default function ApplicationFormPage() {
 
     const [initialData, setInitialData] = useState<any>(null); // For DynamicForm
     const [dataLoaded, setDataLoaded] = useState(false);
+    const { setCopilotContext } = useUiStore();
+
+    useEffect(() => {
+        if (user?.username) {
+            setCopilotContext({ 
+                applicantId: user.username,
+                applicationDefinitionId: definition?.id,
+                formSchema: definition?.formDefinition?.schema // Provide schema for AI to infer field IDs
+            });
+        }
+    }, [user, definition, setCopilotContext]);
 
     // AI Chat Redirect Logic
     useEffect(() => {
@@ -117,20 +129,46 @@ export default function ApplicationFormPage() {
     useEffect(() => {
         const handleAiFill = (event: Event) => {
             const customEvent = event as CustomEvent;
-            const data = customEvent.detail;
+            const data = { ...customEvent.detail };
             console.log('AI Fill Form Event received:', data);
 
-            if (formRef.current?.reset) {
-                // Determine if we should merge or replace. 
-                // For now, let's assume valid form data payload.
-                // We might need to get current values and merge if partial update is desired,
-                // but reset() usually replaces. 
-                // Let's try to merge if possible or just reset.
-                // RJSF/React-Hook-Form reset usually sets the values.
-                
-                const currentValues = formRef.current.getValues();
-                const newValues = { ...currentValues, ...data };
-                formRef.current.reset(newValues);
+            // Handle Title if present
+            if (data._title && typeof data._title === 'string') {
+                setTitle(data._title);
+                delete data._title; // Remove from form data
+            }
+
+            if (formRef.current?.setValue) {
+                const schemaProps = definition?.formDefinition?.schema?.properties || {};
+
+                // Use setValue for each field to ensure proper state updates and validation triggers
+                Object.entries(data).forEach(([key, rawValue]) => {
+                    let value = rawValue;
+                    const propDef = schemaProps[key];
+
+                    // 1. Cast Number
+                    if (propDef && (propDef.type === 'number' || propDef.type === 'integer')) {
+                        if (typeof rawValue === 'string') {
+                            // Removing commas if present (e.g. "1,000")
+                            const cleaned = rawValue.replace(/,/g, '');
+                            if (!isNaN(Number(cleaned))) {
+                                value = Number(cleaned);
+                            }
+                        }
+                    } 
+                    // 2. Cast Boolean
+                    else if (propDef && propDef.type === 'boolean') {
+                        if (typeof rawValue === 'string') {
+                            value = rawValue.toLowerCase() === 'true';
+                        }
+                    }
+
+                    formRef.current.setValue(key, value, { 
+                        shouldValidate: true, 
+                        shouldDirty: true, 
+                        shouldTouch: true 
+                    });
+                });
                 
                 toast.success('AI Copilotによりフォームが入力されました');
             }
@@ -138,7 +176,7 @@ export default function ApplicationFormPage() {
 
         window.addEventListener('ai-fill-form', handleAiFill);
         return () => window.removeEventListener('ai-fill-form', handleAiFill);
-    }, []);
+    }, [definition]); // Add definition to dependencies to access schema
 
     // Populate initial data when editing
     if (isEditMode && existingApp && !dataLoaded) {

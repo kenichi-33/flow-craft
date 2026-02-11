@@ -33,7 +33,7 @@ export function useAiCopilot() {
 
     try {
       setState(prev => ({ ...prev, isLoading: true }));
-      const response = await api.post('/ai/copilot/start', {});
+      const response = await api.post<{ sessionId: string }>('/ai/copilot/start', {});
       
       setState(prev => ({
         ...prev,
@@ -48,7 +48,6 @@ export function useAiCopilot() {
       throw error;
     }
   }, [state.sessionId]);
-
   // Send Message
   const sendMessage = useCallback(async (message: string, context?: any) => {
     let currentSessionId = state.sessionId;
@@ -73,17 +72,8 @@ export function useAiCopilot() {
     }));
 
     try {
-      // Regular POST request for now, assuming non-streaming response from controller 
-      // (Controller implementation suggests simple POST, not SSE yet, based on provided snippet. 
-      // If SSE is desired, we need to adjust controller and this hook. 
-      // For Phase 1 simple implementation, let's stick to simple request-response first as per controller code).
-      
-      // Wait, the controller code calls aiCopilotService.chat which calls llmGateway.generate.
-      // llmGateway.generate returns a promise, so it's not streaming by default unless configured.
-      // The previous plan mentioned SSE, but the provided controller code was simple POST.
-      // I will implement simple POST first for robustness, as per the code I just wrote.
-      
-      const response = await api.post(`/ai/copilot/${currentSessionId}/chat`, {
+      // Regular POST request for now
+      const response = await api.post<{ message: string; action?: any }>(`/ai/copilot/${currentSessionId}/chat`, {
         message,
         context
       });

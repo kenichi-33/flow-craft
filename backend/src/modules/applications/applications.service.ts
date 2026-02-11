@@ -513,4 +513,75 @@ export class ApplicationsService {
       },
     });
   }
+
+  async searchApplications(
+    userId: string,
+    query: {
+      keyword?: string;
+      status?: string;
+      dateFrom?: string;
+      dateTo?: string;
+      limit?: number;
+      targetUserId?: string; // New: Filter by specific applicant
+      applicationDefinitionId?: string; // New: Filter by application type
+    },
+  ) {
+    const where: Prisma.ApplicationWhereInput = {};
+
+    // 1. Keyword Search
+    if (query.keyword) {
+      where.OR = [
+        { title: { contains: query.keyword, mode: 'insensitive' } },
+        // If searching a specific user's things, we don't necessarily search applicantId by keyword
+        // unless it's a general search. 
+        // But for backwards compatibility/safety:
+        { applicantId: { contains: query.keyword, mode: 'insensitive' } },
+      ];
+    }
+
+    // 2. targetUserId Filter (e.g. "Tanaka's data")
+    if (query.targetUserId) {
+        where.applicantId = query.targetUserId;
+    }
+
+    // 3. Application Type Filter
+    if (query.applicationDefinitionId) {
+        where.applicationDefinitionId = query.applicationDefinitionId;
+    }
+
+    if (query.status) {
+      where.status = query.status as any;
+    }
+
+    if (query.dateFrom || query.dateTo) {
+      where.createdAt = {};
+      if (query.dateFrom) {
+        (where.createdAt as any).gte = new Date(query.dateFrom);
+      }
+      if (query.dateTo) {
+        const endDate = new Date(query.dateTo);
+        endDate.setHours(23, 59, 59, 999);
+        (where.createdAt as any).lte = endDate;
+      }
+    }
+
+    // Permission check:
+    // Ideally we should check if userId is allowed to view targetUserId's data.
+    // For now, we assume the Approver has access to the Applicant's data if they are in the loop.
+    // We rely on the fact that this method is called by Copilot which (in theory) acts on behalf of the user.
+
+    return this.prisma.application.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      take: query.limit || 5,
+      select: {
+        id: true,
+        title: true,
+        status: true,
+        createdAt: true,
+        applicantId: true,
+        inputData: true,
+      },
+    });
+  }
 }

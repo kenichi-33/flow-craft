@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
@@ -33,6 +33,7 @@ import {
 } from '@/components/ui/dialog';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { useAuthStore } from '@/stores/useAuthStore';
+import { useUiStore } from '@/stores/useUiStore';
 
 interface TaskDetail {
     id: string;
@@ -128,11 +129,22 @@ export default function TaskDetailPage() {
     // Ref to capture form data
     const formMethodsRef = useRef<any>(null);
 
+    const { setCopilotContext } = useUiStore();
+
     const { data: task, isLoading, error } = useQuery<TaskDetail>({
         queryKey: ['task', id],
         queryFn: () => api.get<TaskDetail>(`/tasks/${id}`),
         enabled: !!id,
     });
+
+    useEffect(() => {
+        if (task?.application) {
+            setCopilotContext({ 
+                applicantId: task.application.applicantId,
+                applicationDefinitionId: task.application.applicationDefinition?.id || (task.application as any).applicationDefinitionId
+            });
+        }
+    }, [task, setCopilotContext]);
 
     // Fetch remandable steps when task is loaded
     const { data: remandableSteps = [] } = useQuery<RemandableStep[]>({
