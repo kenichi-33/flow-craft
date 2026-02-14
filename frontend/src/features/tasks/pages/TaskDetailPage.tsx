@@ -137,14 +137,7 @@ export default function TaskDetailPage() {
         enabled: !!id,
     });
 
-    useEffect(() => {
-        if (task?.application) {
-            setCopilotContext({ 
-                applicantId: task.application.applicantId,
-                applicationDefinitionId: task.application.applicationDefinition?.id || (task.application as any).applicationDefinitionId
-            });
-        }
-    }, [task, setCopilotContext]);
+
 
     // Fetch remandable steps when task is loaded
     const { data: remandableSteps = [] } = useQuery<RemandableStep[]>({
@@ -187,6 +180,31 @@ export default function TaskDetailPage() {
             toast.error(error?.response?.data?.message || '着手に失敗しました');
         }
     });
+
+    const { mutate: claimTask, isPending: isClaiming, isSuccess: isClaimed } = claimMutation;
+
+    useEffect(() => {
+        if (task?.application) {
+            setCopilotContext({ 
+                applicantId: task.application.applicantId,
+                applicationDefinitionId: task.application.applicationDefinition?.id || (task.application as any).applicationDefinitionId
+            });
+        }
+    }, [task, setCopilotContext]);
+
+    // Auto-claim effect
+    useEffect(() => {
+        if (
+            task && 
+            task.status === 'PENDING' && 
+            !task.claimedBy && 
+            !isLoading &&
+            !isClaiming &&
+            !isClaimed
+        ) {
+            claimTask();
+        }
+    }, [task?.id, task?.status, task?.claimedBy, isLoading, isClaiming, isClaimed, claimTask]);
 
     const releaseMutation = useMutation({
         mutationFn: () => api.post(`/tasks/${id}/release`, {}),

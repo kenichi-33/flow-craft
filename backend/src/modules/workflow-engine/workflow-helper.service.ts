@@ -95,15 +95,38 @@ export class WorkflowHelperService {
       }
     }
 
+    // Check Application Test Mode
+    const application = await db.application.findUnique({
+      where: { id: applicationId },
+      select: { isTestMode: true, applicantId: true },
+    });
+
+    let finalAssignedTo = assignedTo || null;
+    let finalAssignedToDisplay = assignedToDisplay || null;
+    let finalAssignedToInfo = assignedToInfo || null;
+
+    if (
+      application?.isTestMode &&
+      ['approval', 'input', 'userInput'].includes(node.type)
+    ) {
+      this.logger.log(
+        `[TestMode] Overriding assignment for task ${node.id} to applicant ${application.applicantId}`,
+      );
+      finalAssignedTo = `user:${application.applicantId}`;
+      finalAssignedToDisplay = 'Test Executor';
+      // info will be resolved later or null is fine for now (UI handles fallback)
+      finalAssignedToInfo = null; 
+    }
+
     const task = await db.workflowTask.create({
       data: {
         applicationId,
         stepId: node.id,
         type: node.type,
         status: 'QUEUED', // Initial status is QUEUED
-        assignedTo: assignedTo || null,
-        assignedToDisplay: assignedToDisplay || null,
-        assignedToInfo: assignedToInfo || null,
+        assignedTo: finalAssignedTo,
+        assignedToDisplay: finalAssignedToDisplay,
+        assignedToInfo: finalAssignedToInfo,
         config: node.data || {},
         slaDueAt,
         reminderDueAt,

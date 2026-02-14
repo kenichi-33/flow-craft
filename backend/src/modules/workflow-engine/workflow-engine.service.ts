@@ -126,10 +126,16 @@ export class WorkflowEngineService {
     }
 
     if (input.isTestMode) {
+      this.logger.log(
+        `[TestMode Permission Debug] Applicant: ${input.applicantId}, CreatedBy: ${appDef.createdBy}, AdminIds: ${JSON.stringify(appDef.adminIds)}, Roles: ${JSON.stringify((applicantInfo as any).roles)}`
+      );
+      
       const isAdmin =
         appDef.adminIds?.includes(input.applicantId) ||
+        appDef.createdBy === input.applicantId || // Allow creator
         (applicantInfo as any).roles?.includes('admin') ||
-        (applicantInfo as any).roles?.includes('sys_admin'); // Assuming role names
+        (applicantInfo as any).roles?.includes('sys_admin') ||
+        (applicantInfo as any).roles?.includes('wf_admin'); // Include Keycloak role check
 
       if (!isAdmin) {
         throw new BadRequestException(

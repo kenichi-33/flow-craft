@@ -198,6 +198,17 @@ export default function ApplicationDetailPage() {
         }
     };
 
+    const handleRelease = async (taskId: string) => {
+        try {
+            await api.post(`/tasks/${taskId}/release`, {});
+            queryClient.invalidateQueries({ queryKey: ['application', id] });
+            toast.success('タスクの担当を解除しました');
+        } catch (e: any) {
+            console.error(e);
+            toast.error(e?.response?.data?.message || '解除に失敗しました');
+        }
+    };
+
     return (
         <div className="max-w-4xl mx-auto space-y-6">
             {/* Header */}
@@ -297,15 +308,34 @@ export default function ApplicationDetailPage() {
                                             <Button disabled className="gap-2 opacity-70" variant="outline" size="sm">
                                                 <Lock className="h-3 w-3" /> ロック中
                                             </Button>
+                                        ) : isClaimedByMe ? (
+                                            <div className="flex gap-2">
+                                                <Button 
+                                                    onClick={() => handleRelease(task.id)}
+                                                    variant="outline"
+                                                    size="sm"
+                                                    title="担当を解除して他の人が着手できるようにします"
+                                                >
+                                                    解除
+                                                </Button>
+                                                <Button 
+                                                    onClick={() => navigate(`/tasks/${task.id}`)}
+                                                    className="gap-2"
+                                                    size="sm"
+                                                    variant="secondary"
+                                                >
+                                                    <Edit className="h-3 w-3" />
+                                                    再開する
+                                                </Button>
+                                            </div>
                                         ) : (
                                             <Button 
                                                 onClick={() => navigate(`/tasks/${task.id}`)}
-                                                className={isClaimedByMe ? "gap-2" : "bg-blue-600 hover:bg-blue-700 text-white shadow-sm gap-2"}
+                                                className="bg-blue-600 hover:bg-blue-700 text-white shadow-sm gap-2"
                                                 size="sm"
-                                                variant={isClaimedByMe ? "secondary" : "default"}
+                                                variant="default"
                                             >
-                                                {isClaimedByMe ? <Edit className="h-3 w-3" /> : null}
-                                                {isClaimedByMe ? '再開する' : (isInput ? '入力画面へ' : '承認画面へ')}
+                                                {isInput ? '入力画面へ' : '承認画面へ'}
                                             </Button>
                                         )
                                     )}

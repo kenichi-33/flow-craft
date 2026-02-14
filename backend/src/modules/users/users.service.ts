@@ -10,6 +10,7 @@ export interface UserSnapshot {
   email?: string;
   department?: string;
   type?: 'user' | 'group' | 'role' | 'other';
+  roles?: string[];
 }
 
 interface KeycloakUser {
@@ -316,12 +317,25 @@ export class UsersService {
         department = deptMap[group.path] || group.name;
       }
 
+      // Fetch Roles
+      let roles: string[] = [];
+      try {
+          const rolesResponse = await axios.get<any[]>(
+              `${this.keycloakUrl}/admin/realms/${this.realm}/users/${userId}/role-mappings/realm`,
+              { headers: { Authorization: `Bearer ${token}` } },
+          );
+          roles = rolesResponse.data.map((r: any) => r.name);
+      } catch (e) {
+          console.warn(`Failed to fetch roles for user ${userId}`, e);
+      }
+
       return {
         username: user.username,
         firstName: user.firstName,
         lastName: user.lastName,
         email: user.email,
         department,
+        roles, // Include roles
         type: 'user',
       };
     } catch (error) {
