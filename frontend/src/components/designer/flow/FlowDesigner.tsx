@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
 import { Loader2, Save, Trash2, Sparkles, CheckCircle } from 'lucide-react';
 import { toast } from 'sonner';
+import { useUiStore } from '@/stores/useUiStore';
 
 import {
     ReactFlow,
@@ -317,6 +318,21 @@ function FlowDesignerContent({ appId, isStatsMode, statsOverlay }: { appId: stri
 
     // ... (rest of imports/state) ...
 
+    // Sync to UiStore for Copilot Context
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            useUiStore.getState().setDesignerContext({
+                type: 'flow',
+                data: {
+                    nodes: nodes.map(n => ({ id: n.id, type: n.type, data: n.data, position: n.position })),
+                    edges: edges.map(e => ({ id: e.id, source: e.source, target: e.target, label: e.label }))
+                }
+            });
+        }, 1000); // Debounce 1s
+
+        return () => clearTimeout(timer);
+    }, [nodes, edges]);
+
     useEffect(() => {
         if (versionId && versions && !isStatsMode) {
              const version = versions.find((v: any) => String(v.id) === String(versionId));
@@ -412,7 +428,7 @@ function FlowDesignerContent({ appId, isStatsMode, statsOverlay }: { appId: stri
         setRequirementsDialogOpen(true);
     };
 
-    const handleAiReviewConfirm = async () => {
+    const handleAiReviewConfirm = async (overrideRequirements?: string) => {
         setRequirementsDialogOpen(false);
         setAiReviewOpen(true);
         setIsReviewing(true);
@@ -422,7 +438,7 @@ function FlowDesignerContent({ appId, isStatsMode, statsOverlay }: { appId: stri
                 name: flowName,
                 nodes: nodes.map(n => ({ id: n.id, type: n.type, data: n.data })), // Minify payload
                 edges: edges.map(e => ({ source: e.source, target: e.target, label: e.label })),
-                requirements: requirements
+                requirements: typeof overrideRequirements === 'string' ? overrideRequirements : requirements
             };
             const result = await api.post('/ai/review-definition', { type: 'flow', definition: flowDef });
             setAiReviewResult(result as any);
@@ -440,6 +456,9 @@ function FlowDesignerContent({ appId, isStatsMode, statsOverlay }: { appId: stri
         setPermissionMatrixOpen(false);
         toast.success('権限設定を反映しました');
     };
+
+    const [aiPrompt, setAiPrompt] = useState('');
+    const [aiGeneratedResult, setAiGeneratedResult] = useState<any>(null);
 
     const handleAiGenerated = (data: any) => {
         if (data && Array.isArray(data.nodes) && Array.isArray(data.edges)) {
@@ -462,12 +481,59 @@ function FlowDesignerContent({ appId, isStatsMode, statsOverlay }: { appId: stri
             setNodes(newNodes);
             setEdges(newEdges);
             setTimeout(() => fitView({ padding: 0.2 }), 50);
+            setAiGeneratedResult(null);
             toast.success('AIによりフローを生成しました');
         } else {
             console.error('Invalid AI response format:', data);
             toast.error('AI生成データの形式が不正です');
         }
     };
+
+    // Listen for AI Copilot Events
+    const handleAiReviewConfirmRef = useRef(handleAiReviewConfirm);
+    useEffect(() => {
+        handleAiReviewConfirmRef.current = handleAiReviewConfirm;
+    });
+
+    useEffect(() => {
+        const handleReviewDesign = (e: CustomEvent) => {
+            const { requirements } = e.detail;
+            setRequirements(requirements);
+            handleAiReviewConfirmRef.current(requirements);
+        };
+
+        const handleGenerateDesign = (e: CustomEvent) => {
+            const { prompt } = e.detail;
+            setAiPrompt(prompt);
+            setAiDialogOpen(true);
+        };
+
+        const handleShowReview = (e: CustomEvent) => {
+            const result = e.detail;
+            setAiReviewResult(result);
+            setAiReviewOpen(true);
+        };
+
+        const handlePreviewDesign = (e: CustomEvent) => {
+            const { nodes, edges } = e.detail;
+             // Temporarily hold result to pass to dialog
+             setAiGeneratedResult({ nodes, edges });
+             setAiReviewResult(null);
+             setAiDialogOpen(true);
+        };
+
+        window.addEventListener('ai-review-design', handleReviewDesign as EventListener);
+        window.addEventListener('ai-generate-design', handleGenerateDesign as EventListener);
+        window.addEventListener('ai-show-review', handleShowReview as EventListener);
+        window.addEventListener('ai-preview-design', handlePreviewDesign as EventListener);
+
+        return () => {
+            window.removeEventListener('ai-review-design', handleReviewDesign as EventListener);
+            window.removeEventListener('ai-generate-design', handleGenerateDesign as EventListener);
+            window.removeEventListener('ai-show-review', handleShowReview as EventListener);
+            window.removeEventListener('ai-preview-design', handlePreviewDesign as EventListener);
+        };
+    }, []);
 
     useEffect(() => {
         const handler = (e: KeyboardEvent) => {
@@ -607,7 +673,7 @@ function FlowDesignerContent({ appId, isStatsMode, statsOverlay }: { appId: stri
                                         <Sparkles className="h-4 w-4 mr-1" />
                                         AI生成
                                     </Button>
-                                    <Button variant="outline" size="sm" onClick={handleAiReviewClick} className="border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100">
+                                    <Button variant="outline" size="sm" onClick={() => handleAiReviewClick()} className="border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100">
                                         <CheckCircle className="h-4 w-4 mr-1" />
                                         AIレビュー
                                     </Button>
@@ -664,7 +730,7 @@ function FlowDesignerContent({ appId, isStatsMode, statsOverlay }: { appId: stri
                     </div>
                     <DialogFooter>
                         <Button variant="outline" onClick={() => setRequirementsDialogOpen(false)}>キャンセル</Button>
-                        <Button onClick={handleAiReviewConfirm} className="gap-2">
+                        <Button onClick={() => handleAiReviewConfirm()} className="gap-2">
                             <Sparkles className="h-4 w-4" />
                             レビュー実行
                         </Button>
@@ -677,6 +743,8 @@ function FlowDesignerContent({ appId, isStatsMode, statsOverlay }: { appId: stri
                 onOpenChange={setAiDialogOpen} 
                 onGenerated={handleAiGenerated} 
                 type="flow" 
+                initialPrompt={aiPrompt}
+                initialResult={aiGeneratedResult}
             />
 
             <AiReviewDialog 

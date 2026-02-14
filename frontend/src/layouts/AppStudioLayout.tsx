@@ -9,12 +9,14 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import {
     LayoutDashboard, FileEdit, GitBranch, Search, History,
-    ArrowLeft, Menu, Rocket, Loader2
+    ArrowLeft, Menu, Rocket, Loader2, Bot
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
+import { AiCopilotSidebar } from '@/components/layout/AiCopilotSidebar';
+import { useUiStore } from '@/stores/useUiStore';
 
-const DRAWER_WIDTH = 240;
+
 
 interface AppDefinition {
     id: number;
@@ -31,7 +33,6 @@ interface AppDefinition {
 export default function AppStudioLayout() {
     const { id } = useParams();
     const location = useLocation();
-    const navigate = useNavigate();
     const queryClient = useQueryClient();
     const [sidebarOpen, setSidebarOpen] = useState(true);
     const [publishDialogOpen, setPublishDialogOpen] = useState(false);
@@ -149,15 +150,25 @@ export default function AppStudioLayout() {
                             最終保存: {new Date(app.updatedAt).toLocaleString('ja-JP')}
                         </span>
                     </div>
-                    <Button
-                        size="sm"
-                        className="bg-emerald-600 hover:bg-emerald-700"
-                        onClick={() => setPublishDialogOpen(true)}
-                        disabled={publishMutation.isPending || !canPublish}
-                    >
-                        <Rocket className="h-4 w-4 mr-1" />
-                        新バージョン公開
-                    </Button>
+                    <div className="flex items-center gap-2">
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => useUiStore.getState().toggleCopilot()}
+                            title="AI Copilot"
+                        >
+                            <Bot className="h-5 w-5 text-muted-foreground" />
+                        </Button>
+                        <Button
+                            size="sm"
+                            className="bg-emerald-600 hover:bg-emerald-700"
+                            onClick={() => setPublishDialogOpen(true)}
+                            disabled={publishMutation.isPending || !canPublish}
+                        >
+                            <Rocket className="h-4 w-4 mr-1" />
+                            新バージョン公開
+                        </Button>
+                    </div>
                 </header>
 
                 {/* Content */}
@@ -204,6 +215,8 @@ export default function AppStudioLayout() {
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
+            {/* Copilot */}
+            <AiCopilotSidebar />
         </div>
     );
 }

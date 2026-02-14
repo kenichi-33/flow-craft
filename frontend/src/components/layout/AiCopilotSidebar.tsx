@@ -74,6 +74,14 @@ export function AiCopilotSidebar() {
         } else {
             toast.info(payload.message);
         }
+      } else if (type === 'SHOW_REVIEW_RESULT') {
+        const result = payload.result || payload;
+        window.dispatchEvent(new CustomEvent('ai-show-review', { detail: result }));
+        toast.info('AIレビュー結果を表示します');
+      } else if (type === 'PREVIEW_DESIGN') {
+        const schema = payload.schema || payload;
+        window.dispatchEvent(new CustomEvent('ai-preview-design', { detail: schema }));
+        toast.info('生成案のプレビューを表示します');
       }
     }
   }, [messages, navigate]);
@@ -106,11 +114,11 @@ export function AiCopilotSidebar() {
       }
 
       // Get context from current page
-      const { copilotContext } = useUiStore.getState();
+      const { copilotContext, designerContext } = useUiStore.getState();
       const context = {
         path: window.location.pathname,
         ...copilotContext,
-        // Potentially add more context about the current view here in the future
+        designerContext, // Send current design snapshot
       };
       await sendMessage(finalMessage, context);
     } catch (error) {

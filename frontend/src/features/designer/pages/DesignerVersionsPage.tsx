@@ -1,4 +1,4 @@
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 // import { useAuthStore } from '@/stores/useAuthStore';
 import { api } from '@/lib/api';
@@ -28,6 +28,7 @@ interface Version {
 
 export default function DesignerVersionsPage() {
     const { id } = useParams();
+    const navigate = useNavigate();
     const queryClient = useQueryClient();
     const [restoreDialogOpen, setRestoreDialogOpen] = useState(false);
     const [selectedVersionForRestore, setSelectedVersionForRestore] = useState<number | null>(null);
@@ -63,7 +64,7 @@ export default function DesignerVersionsPage() {
     
     const handleTestRun = (version: number) => {
         if (confirm(`バージョン v${version} をテストモードで実行しますか？\n（申請入力画面へ移動します。外部連携はスキップされます）`)) {
-             window.location.href = `/applications/new/${id}?version=${version}&mode=test`;
+             navigate(`/applications/new/${id}?version=${version}&mode=test`);
         }
     };
 
@@ -179,7 +180,7 @@ export default function DesignerVersionsPage() {
                             <div className="flex gap-2">
                                 <Button variant="default" size="sm" onClick={() => {
                                     if (confirm('現在の下書きをテストモードで実行しますか？')) {
-                                        window.location.href = `/applications/new/${id}?mode=test&draft=true`;
+                                        navigate(`/applications/new/${id}?mode=test&draft=true`);
                                     }
                                 }}>
                                     <PlayCircle className="h-4 w-4 mr-2" />

@@ -4,6 +4,7 @@ import { LlmGatewayService } from '../llm-gateway/llm-gateway.service';
 export interface GenerationRequest {
   prompt: string;
   type: 'form' | 'flow';
+  currentDefinition?: any;
 }
 
 @Injectable()
@@ -13,12 +14,25 @@ export class AiGeneratorService {
   constructor(private readonly llmGateway: LlmGatewayService) {}
 
   async generate(request: GenerationRequest): Promise<any> {
-    const { prompt, type } = request;
+    const { prompt, type, currentDefinition } = request;
     const systemPrompt = this.getSystemPrompt(type);
+
+    let userPrompt = prompt;
+    if (currentDefinition) {
+      userPrompt = `
+Current Definition:
+${JSON.stringify(currentDefinition, null, 2)}
+
+User Instruction:
+${prompt}
+
+Task: Update the Current Definition based on the User Instruction. Return the FULL updated definition.
+`;
+    }
 
     const response = await this.llmGateway.generate({
       systemPrompt,
-      userPrompt: prompt,
+      userPrompt: userPrompt,
       responseFormat: 'json_object',
       model: 'qwen2.5-coder:14b', // Or gpt-4o
       temperature: 0.7,
@@ -85,6 +99,7 @@ ${commonRules}
 4. Always end paths with an 'end' node.
 5. CRITICAL: Ensure every "source" and "target" in edges matches a valid "id" in nodes.
 6. Auto-layout nodes with reasonable x, y coordinates (e.g. left to right flow, x += 200).
+7. CRITICAL: Do NOT include "formFields" or any form schema definition inside "nodes[].data". Form schema is defined separately.
 
 Available Node Types:
 - start, end

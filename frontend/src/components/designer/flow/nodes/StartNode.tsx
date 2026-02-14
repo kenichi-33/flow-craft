@@ -157,10 +157,10 @@ export default function StartNode({ id, data }: { id: string, data: any }) {
                                     <Label>Webhook URL</Label>
                                     <div className="flex items-center gap-2">
                                         <div className="flex-1 p-2 bg-muted rounded text-xs text-muted-foreground break-all font-mono border">
-                                           {data.webhookToken 
-                                             ? `${window.location.origin}/api/webhooks/${data.webhookToken}`
-                                             : `${window.location.origin}/api/webhooks/${data.applicationId || '<AppID>'}`
-                                           }
+                                            {data.webhookToken 
+                                              ? `${import.meta.env.VITE_API_URL || 'http://localhost:8080'}/webhooks/${data.webhookToken}`
+                                              : `${import.meta.env.VITE_API_URL || 'http://localhost:8080'}/webhooks/${data.applicationId || '<AppID>'}`
+                                            }
                                         </div>
                                         <Button 
                                             variant="ghost" 
@@ -168,8 +168,8 @@ export default function StartNode({ id, data }: { id: string, data: any }) {
                                             className="h-8 w-8"
                                             onClick={() => {
                                                 const url = data.webhookToken 
-                                                    ? `${window.location.origin}/api/webhooks/${data.webhookToken}`
-                                                    : `${window.location.origin}/api/webhooks/${data.applicationId || '<AppID>'}`;
+                                                    ? `${import.meta.env.VITE_API_URL || 'http://localhost:8080'}/webhooks/${data.webhookToken}`
+                                                    : `${import.meta.env.VITE_API_URL || 'http://localhost:8080'}/webhooks/${data.applicationId || '<AppID>'}`;
                                                 navigator.clipboard.writeText(url);
                                             }}
                                         >

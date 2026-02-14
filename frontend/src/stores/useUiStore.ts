@@ -6,6 +6,8 @@ interface UiState {
   setCopilotOpen: (open: boolean) => void;
   copilotContext: Record<string, any>;
   setCopilotContext: (context: Record<string, any>) => void;
+  designerContext: { type: 'form' | 'flow'; data: any } | null;
+  setDesignerContext: (context: { type: 'form' | 'flow'; data: any } | null) => void;
 }
 
 export const useUiStore = create<UiState>((set) => ({
@@ -14,4 +16,6 @@ export const useUiStore = create<UiState>((set) => ({
   setCopilotOpen: (open) => set({ isCopilotOpen: open }),
   copilotContext: {},
   setCopilotContext: (context) => set({ copilotContext: context }),
+  designerContext: null,
+  setDesignerContext: (context) => set({ designerContext: context }),
 }));

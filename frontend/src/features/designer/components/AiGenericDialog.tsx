@@ -11,6 +11,8 @@ interface AiGenericDialogProps {
   onOpenChange: (open: boolean) => void;
   onGenerated: (data: any) => void;
   type: 'form' | 'flow';
+  initialPrompt?: string;
+  initialResult?: any;
 }
 
 interface AiGenerationResponse {
@@ -18,7 +20,7 @@ interface AiGenerationResponse {
   data: any;
 }
 
-export default function AiGenericDialog({ open, onOpenChange, onGenerated, type }: AiGenericDialogProps) {
+export default function AiGenericDialog({ open, onOpenChange, onGenerated, type, initialPrompt, initialResult }: AiGenericDialogProps) {
   /* Animation messages */
   const LOADING_MESSAGES = [
     "要件を分析しています...",
@@ -46,6 +48,24 @@ export default function AiGenericDialog({ open, onOpenChange, onGenerated, type 
     }
     return () => clearInterval(interval);
   }, [loading]);
+
+  useEffect(() => {
+      if (open) {
+          if (initialResult) {
+              // Direct Preview Mode
+              setGeneratedResult({
+                  reasoning: "AI Copilotが生成したデザイン案です。内容を確認して「反映する」ボタンを押してください。",
+                  data: initialResult
+              });
+          } else if (initialPrompt) {
+              setPrompt(initialPrompt);
+              setGeneratedResult(null);
+          } else {
+              setPrompt('');
+              setGeneratedResult(null);
+          }
+      }
+  }, [open, initialPrompt, initialResult]);
 
   const handleGenerate = async () => {
     if (!prompt.trim()) return;

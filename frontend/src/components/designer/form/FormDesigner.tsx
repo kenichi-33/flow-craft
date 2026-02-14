@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { 
@@ -33,6 +33,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import type { FormField, ValidationRule } from './types';
 import { generateId, findFieldRecursive, updateFieldRecursive, deleteFieldRecursive, getAllFieldsFlattened, findParentId } from './utils';
+import { useUiStore } from '@/stores/useUiStore';
 
 export default function FormDesigner({ appId }: { appId: string }) {
     const { versionId } = useParams();
@@ -117,6 +118,9 @@ export default function FormDesigner({ appId }: { appId: string }) {
         }
     });
 
+    const [aiPrompt, setAiPrompt] = useState('');
+    const [aiGeneratedResult, setAiGeneratedResult] = useState<any>(null);
+
     const handleAiGenerated = (data: any) => {
         if (!data || !data.properties) return;
         const schema = data;
@@ -134,8 +138,12 @@ export default function FormDesigner({ appId }: { appId: string }) {
         }));
 
         setFields(allFields);
+        setAiGeneratedResult(null); // Clear result
         toast.success('AIによりフォームを生成しました');
     };
+
+    // Listen for AI Copilot Events
+
 
     useEffect(() => {
         let targetSchema = null;
@@ -477,6 +485,19 @@ export default function FormDesigner({ appId }: { appId: string }) {
         };
     };
 
+    // Sync to UiStore for Copilot Context
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            const { schema } = generatePreviewSchema();
+            useUiStore.getState().setDesignerContext({
+                type: 'form',
+                data: schema
+            });
+        }, 1000); // Debounce 1s
+
+        return () => clearTimeout(timer);
+    }, [fields, validationRules, layoutType, theme]);
+
     const [requirements, setRequirements] = useState('');
     const [requirementsDialogOpen, setRequirementsDialogOpen] = useState(false);
 
@@ -485,7 +506,7 @@ export default function FormDesigner({ appId }: { appId: string }) {
         setRequirementsDialogOpen(true);
     };
 
-    const handleAiReviewConfirm = async () => {
+    const handleAiReviewConfirm = async (overrideRequirements?: string) => {
         setRequirementsDialogOpen(false);
         setAiReviewOpen(true);
         setIsReviewing(true);
@@ -495,7 +516,7 @@ export default function FormDesigner({ appId }: { appId: string }) {
             const result = await api.post('/ai/review-definition', { 
                 type: 'form', 
                 definition: schema,
-                requirements: requirements 
+                requirements: typeof overrideRequirements === 'string' ? overrideRequirements : requirements 
             });
             setAiReviewResult(result as any);
         } catch (error) {
@@ -506,6 +527,51 @@ export default function FormDesigner({ appId }: { appId: string }) {
             setIsReviewing(false);
         }
     };
+
+    // Listen for AI Copilot Events
+    const handleAiReviewConfirmRef = useRef(handleAiReviewConfirm);
+    useEffect(() => {
+        handleAiReviewConfirmRef.current = handleAiReviewConfirm;
+    });
+
+    useEffect(() => {
+        const handleReviewDesign = (e: CustomEvent) => {
+            const { requirements } = e.detail;
+            setRequirements(requirements);
+            handleAiReviewConfirmRef.current(requirements);
+        };
+
+        const handleGenerateDesign = (e: CustomEvent) => {
+            const { prompt } = e.detail;
+            setAiPrompt(prompt);
+            setAiDialogOpen(true);
+        };
+
+        const handleShowReview = (e: CustomEvent) => {
+            const result = e.detail;
+            setAiReviewResult(result);
+            setAiReviewOpen(true);
+        };
+
+        const handlePreviewDesign = (e: CustomEvent) => {
+            const schema = e.detail;
+            setAiReviewResult(null); // Clear previous review result if any
+            setAiGeneratedResult(schema); // Set result for dialog
+            setAiDialogOpen(true);
+        };
+
+        window.addEventListener('ai-review-design', handleReviewDesign as EventListener);
+        window.addEventListener('ai-generate-design', handleGenerateDesign as EventListener);
+        window.addEventListener('ai-show-review', handleShowReview as EventListener);
+        window.addEventListener('ai-preview-design', handlePreviewDesign as EventListener);
+
+        return () => {
+            window.removeEventListener('ai-review-design', handleReviewDesign as EventListener);
+            window.removeEventListener('ai-generate-design', handleGenerateDesign as EventListener);
+            window.removeEventListener('ai-show-review', handleShowReview as EventListener);
+            window.removeEventListener('ai-preview-design', handlePreviewDesign as EventListener);
+        };
+    }, []);
 
     const handleSave = () => {
         if (isReadOnly) return;
@@ -564,7 +630,7 @@ export default function FormDesigner({ appId }: { appId: string }) {
                             </Button>
                         )}
                         {!isReadOnly && (
-                            <Button variant="outline" size="sm" onClick={handleAiReviewClick} className="gap-2 border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100">
+                            <Button variant="outline" size="sm" onClick={() => handleAiReviewClick()} className="gap-2 border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100">
                                 <CheckCircle className="h-4 w-4" />
                                 AIレビュー
                             </Button>
@@ -656,6 +722,8 @@ export default function FormDesigner({ appId }: { appId: string }) {
                     onOpenChange={setAiDialogOpen} 
                     onGenerated={handleAiGenerated} 
                     type="form" 
+                    initialPrompt={aiPrompt}
+                    initialResult={aiGeneratedResult}
                 />
 
                 <Dialog open={requirementsDialogOpen} onOpenChange={setRequirementsDialogOpen}>
@@ -679,7 +747,7 @@ export default function FormDesigner({ appId }: { appId: string }) {
                         </div>
                         <DialogFooter>
                             <Button variant="outline" onClick={() => setRequirementsDialogOpen(false)}>キャンセル</Button>
-                            <Button onClick={handleAiReviewConfirm} className="gap-2">
+                            <Button onClick={() => handleAiReviewConfirm()} className="gap-2">
                                 <Sparkles className="h-4 w-4" />
                                 レビュー実行
                             </Button>
