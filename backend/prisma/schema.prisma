@@ -36,7 +36,6 @@ model RagDocument {
 
   ragSource RagSource @relation(fields: [ragSourceId], references: [id], onDelete: Cascade)
 
-  @@index([embedding])
   @@map("rag_documents")
 }
 
@@ -142,6 +141,10 @@ model ApprovalHistory {
   comment       String?
   stepId        String   @map("step_id")
   actedAt       DateTime @default(now()) @map("acted_at")
+
+  // Audit fields for Proxy/Override actions
+  isProxy         Boolean  @default(false) @map("is_proxy")
+  originalActorId String?  @map("original_actor_id")
 
   application Application @relation(fields: [applicationId], references: [id])
 

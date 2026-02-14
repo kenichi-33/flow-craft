@@ -30,6 +30,8 @@ const mockPrisma = {
 const mockUsersService = {
   getUserSnapshotByUsername: jest.fn(),
   getUserGroupsWithDeptCode: jest.fn(),
+  getManager: jest.fn(),
+  resolveAssignedToSnapshot: jest.fn(),
 };
 const mockQueueService = {
   enqueue: jest.fn(),
@@ -315,6 +317,76 @@ describe('WorkflowEngineService', () => {
         expect.objectContaining({
           where: { id: 'app-parent' },
           data: expect.objectContaining({ status: 'CANCELED' }),
+        }),
+      );
+    });
+  });
+
+  describe('changeTaskAssignee', () => {
+    it('should change assignee if authorized', async () => {
+      const task = {
+        id: 'task-1',
+        status: 'PENDING',
+        assignedTo: 'user-1',
+        applicationId: 'app-1',
+        stepId: 'step-1',
+        application: { applicationDefinitionId: 'def-1' },
+      };
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
+      mockPrisma.workflowTask.findUnique.mockResolvedValue(task);
+      mockPrisma.applicationDefinition.findUnique.mockResolvedValue({
+        id: 'def-1',
+        adminIds: [],
+        createdBy: 'creator-1',
+      });
+      mockUsersService.getUserSnapshotByUsername.mockResolvedValue({
+        id: 'user-2', // new assignee
+        username: 'user-2',
+      });
+      mockUsersService.resolveAssignedToSnapshot.mockResolvedValue({
+        id: 'user-2',
+        name: 'User 2',
+      });
+
+      // Mock authorization (operator has admin role)
+      // When checking global roles, we fetch operator snapshot
+      mockUsersService.getUserSnapshotByUsername.mockImplementation((username) => {
+        if (username === 'admin-1') {
+            return Promise.resolve({
+                id: 'admin-1',
+                username: 'admin-1',
+                roles: ['wf_admin'],
+            });
+        }
+        return Promise.resolve({ id: username, username });
+      });
+
+      await service.changeTaskAssignee({
+        taskId: 'task-1',
+        operatorId: 'admin-1',
+        newAssigneeId: 'user-2',
+        reason: 'Reassignment',
+      });
+
+      expect(mockPrisma.workflowTask.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'task-1' },
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+          data: expect.objectContaining({
+            assignedTo: 'user-2',
+            claimedBy: null,
+          }),
+        }),
+      );
+      expect(mockPrisma.approvalHistory.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+          data: expect.objectContaining({
+            action: 'CHANGE_ASSIGNEE',
+            isProxy: true,
+            originalActorId: 'user-1',
+            comment: 'Reassignment',
+          }),
         }),
       );
     });

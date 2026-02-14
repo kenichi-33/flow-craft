@@ -42,8 +42,8 @@ export class TasksController {
   }
 
   @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.tasksService.findOne(id);
+  findOne(@Param('id') id: string, @CurrentUser() user: AuthUser) {
+    return this.tasksService.findOne(id, user.username);
   }
 
   @Get('admin/failed')

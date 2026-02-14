@@ -41,6 +41,16 @@ class CompleteTaskDto {
   remandTargetStepId?: string; // 任意ステップへの差し戻し用
 }
 
+class ChangeAssigneeDto {
+  @IsString()
+  @IsNotEmpty()
+  newAssigneeId: string;
+
+  @IsString()
+  @IsNotEmpty()
+  reason: string;
+}
+
 @Controller('workflow')
 export class WorkflowEngineController {
   constructor(private readonly workflowService: WorkflowEngineService) {}
@@ -121,4 +131,21 @@ export class WorkflowEngineController {
   ) {
     return this.workflowService.getRemandableSteps(applicationId, taskId);
   }
+
+
+  @Post('tasks/:id/assignee')
+  changeAssignee(
+    @Param('id') taskId: string,
+    @Body() dto: ChangeAssigneeDto,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.workflowService.changeTaskAssignee({
+      taskId,
+      newAssigneeId: dto.newAssigneeId,
+      reason: dto.reason,
+      operatorId: user.username,
+    });
+  }
 }
+
+

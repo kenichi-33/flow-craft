@@ -22,6 +22,7 @@ import {
     AlertDialogFooter,
     AlertDialogHeader,
     AlertDialogTitle,
+    AlertDialogCancel,
 } from '@/components/ui/alert-dialog';
 import {
     Dialog,
@@ -34,6 +35,15 @@ import {
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useUiStore } from '@/stores/useUiStore';
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { Textarea } from '@/components/ui/textarea';
+import { UserSelector } from '@/components/common/UserSelector';
+import { MoreVertical, UserCog } from 'lucide-react';
 
 interface TaskDetail {
     id: string;
@@ -115,7 +125,7 @@ export default function TaskDetailPage() {
     const { id } = useParams();
     const navigate = useNavigate();
     const queryClient = useQueryClient();
-    const { user } = useAuthStore();
+    const { user, hasRole } = useAuthStore();
     const [actionInProgress, setActionInProgress] = useState<string | null>(null);
     const [errorDialogOpen, setErrorDialogOpen] = useState(false);
     const [errorMessage, setErrorMessage] = useState('');
@@ -128,6 +138,15 @@ export default function TaskDetailPage() {
     
     // Ref to capture form data
     const formMethodsRef = useRef<any>(null);
+
+    // Assignee Change State
+    const [assigneeDialogOpen, setAssigneeDialogOpen] = useState(false);
+    const [selectedNewAssignee, setSelectedNewAssignee] = useState<string>('');
+    const [assigneeChangeReason, setAssigneeChangeReason] = useState('');
+
+    // Proxy Dialog State
+    const [proxyDialogOpen, setProxyDialogOpen] = useState(false);
+    const [proxyComment, setProxyComment] = useState('');
 
     const { setCopilotContext } = useUiStore();
 
@@ -170,7 +189,7 @@ export default function TaskDetailPage() {
         },
     });
 
-    const claimMutation = useMutation({
+     const claimMutation = useMutation({
         mutationFn: () => api.post(`/tasks/${id}/claim`, {}),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['task', id] });
@@ -191,6 +210,16 @@ export default function TaskDetailPage() {
             });
         }
     }, [task, setCopilotContext]);
+
+    // Auto-claim effect for override users
+    useEffect(() => {
+        const isPending = task?.status === 'PENDING';
+        const isUnclaimed = !task?.claimedBy;
+        if (task && isPending && isUnclaimed && task.userPermissions?.canOverride) {
+            // Auto-claim for users with override permissions  
+            claimTask();
+        }
+    }, [task, claimTask]);
 
     // Auto-claim effect
     useEffect(() => {
@@ -214,6 +243,21 @@ export default function TaskDetailPage() {
         },
         onError: (error: any) => {
             toast.error(error?.response?.data?.message || '解除に失敗しました');
+        }
+    });
+
+    const changeAssigneeMutation = useMutation({
+        mutationFn: (data: { newAssigneeId: string; reason: string }) =>
+            api.post(`/workflow/tasks/${id}/assignee`, data),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['task', id] });
+            toast.success('担当者を変更しました');
+            setAssigneeDialogOpen(false);
+            setSelectedNewAssignee('');
+            setAssigneeChangeReason('');
+        },
+        onError: (error: any) => {
+            toast.error(error?.response?.data?.message || '変更に失敗しました');
         }
     });
 
@@ -347,6 +391,17 @@ export default function TaskDetailPage() {
         }
     };
 
+    const handleProxyApprove = () => {
+        const action = confirmAction?.action || 'APPROVE';
+        setProxyDialogOpen(false);
+        setActionInProgress(action);
+        actionMutation.mutate({ 
+            action: action, 
+            comment: proxyComment,
+        });
+        setConfirmAction(null);
+    };
+
     if (isLoading) {
         return (
             <div className="flex items-center justify-center h-64">
@@ -383,6 +438,8 @@ export default function TaskDetailPage() {
     const isTestMode = application.isTestMode;
 
     const isReadOnly = !isPending || !!isClaimedByOther;
+    // const isProxyMode = isPending && !isClaimedByMe; // Old definition, replaced above
+
 
     return (
         <div className="max-w-4xl mx-auto space-y-6">
@@ -437,6 +494,24 @@ export default function TaskDetailPage() {
                             </Button>
                         )}
                     </div>
+                )}
+
+
+                    {/* Admin/Proxy Actions */}
+                {isPending && task?.userPermissions?.canOverride && (
+                    <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon">
+                                <MoreVertical className="h-4 w-4" />
+                            </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => setAssigneeDialogOpen(true)}>
+                                <UserCog className="mr-2 h-4 w-4" />
+                                担当者を変更
+                            </DropdownMenuItem>
+                        </DropdownMenuContent>
+                    </DropdownMenu>
                 )}
             </div>
 
@@ -601,14 +676,55 @@ export default function TaskDetailPage() {
 
             {/* Action Area */}
             {isPending && (isClaimedByMe || isUnclaimed) && (
-                <ApprovalAction
-                    taskType={task.type}
-                    allowRemand={(task as any).config?.allowRemand === true}
-                    actionInProgress={actionInProgress}
-                    onAction={handleAction}
-                    onRemand={openRemandDialog}
-                    disabled={isUnclaimed}
-                />
+                task.userPermissions?.canOverride ? (
+                    <Card className="border-0 shadow-md">
+                        <CardContent className="pt-6">
+                            <div className="flex justify-end gap-2">
+                                <Button 
+                                    onClick={() => setProxyDialogOpen(true)}
+                                    disabled={!!actionInProgress || !isClaimedByMe}
+                                    className="gap-2 bg-orange-600 hover:bg-orange-700 text-white"
+                                >
+                                    {actionInProgress === 'APPROVE' ? <Loader2 className="h-4 w-4 animate-spin"/> : <UserCog className="h-4 w-4"/>}
+                                    代理承認
+                                </Button>
+                                {(task as any).config?.allowRemand && (
+                                    <Button 
+                                        onClick={openRemandDialog}
+                                        disabled={!!actionInProgress || !isClaimedByMe}
+                                        variant="outline"
+                                        className="gap-2"
+                                    >
+                                        {actionInProgress === 'REMAND' ? <Loader2 className="h-4 w-4 animate-spin"/> : <CornerDownLeft className="h-4 w-4"/>}
+                                        差し戻し
+                                    </Button>
+                                )}
+                                <Button 
+                                    onClick={() => {
+                                        setProxyComment('');
+                                        setConfirmAction({ action: 'REJECT' });
+                                        setProxyDialogOpen(true);
+                                    }}
+                                    disabled={!!actionInProgress || !isClaimedByMe}
+                                    variant="destructive"
+                                    className="gap-2"
+                                >
+                                    {actionInProgress === 'REJECT' ? <Loader2 className="h-4 w-4 animate-spin"/> : <XCircle className="h-4 w-4"/>}
+                                    却下
+                                </Button>
+                            </div>
+                        </CardContent>
+                    </Card>
+                ) : (
+                    <ApprovalAction
+                        taskType={task.type}
+                        allowRemand={(task as any).config?.allowRemand === true}
+                        actionInProgress={actionInProgress}
+                        onAction={handleAction}
+                        onRemand={openRemandDialog}
+                        disabled={isUnclaimed && !hasRole('wf_admin')}
+                    />
+                )
             )}
 
             {/* Remand Step Selection Dialog */}
@@ -706,6 +822,97 @@ export default function TaskDetailPage() {
                     </AlertDialogFooter>
                 </AlertDialogContent>
             </AlertDialog>
+            {/* Proxy Dialog */}
+            <AlertDialog open={proxyDialogOpen} onOpenChange={setProxyDialogOpen}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>
+                            {confirmAction?.action === 'REJECT' ? '代理却下' : '代理承認'}
+                        </AlertDialogTitle>
+                        <AlertDialogDescription>
+                            {confirmAction?.action === 'REJECT' 
+                                ? '代理としてこのタスクを却下します。理由（コメント）は必須です。'
+                                : '代理としてこのタスクを承認します。理由（コメント）は必須です。'}
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <div className="py-2">
+                        <Label>
+                            {confirmAction?.action === 'REJECT' ? '却下理由' : '承認コメント'} 
+                            <span className="text-destructive">*</span>
+                        </Label>
+                        <Textarea 
+                            placeholder={confirmAction?.action === 'REJECT' ? '却下理由を入力してください' : '代理承認の理由を入力してください'}
+                            value={proxyComment}
+                            onChange={(e) => setProxyComment(e.target.value)}
+                            className="mt-2"
+                        />
+                    </div>
+                    <AlertDialogFooter>
+                        <Button variant="outline" onClick={() => {
+                            setProxyDialogOpen(false);
+                            setConfirmAction(null);
+                        }}>キャンセル</Button>
+                        <Button 
+                            onClick={handleProxyApprove} 
+                            disabled={!proxyComment.trim()}
+                            variant={confirmAction?.action === 'REJECT' ? 'destructive' : 'default'}
+                        >
+                            {confirmAction?.action === 'REJECT' ? '却下実行' : '承認実行'}
+                        </Button>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+
+            {/* Assignee Change Dialog */}
+            <AlertDialog open={assigneeDialogOpen} onOpenChange={setAssigneeDialogOpen}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>担当者の変更</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            このタスクの担当者を変更します。
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <div className="py-2 space-y-4">
+                        <div>
+                            <Label>新しい担当者</Label>
+                            <div className="mt-2">
+                                <UserSelector
+                                    value={selectedNewAssignee}
+                                    onChange={(val) => setSelectedNewAssignee(val)}
+                                />
+                            </div>
+                        </div>
+                        <div>
+                            <Label>変更理由</Label>
+                            <Textarea 
+                                placeholder="担当者変更の理由を入力してください"
+                                value={assigneeChangeReason}
+                                onChange={(e) => setAssigneeChangeReason(e.target.value)}
+                                className="mt-2"
+                            />
+                        </div>
+                    </div>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel onClick={() => setAssigneeDialogOpen(false)}>キャンセル</AlertDialogCancel>
+                        <AlertDialogAction 
+                            onClick={(e) => {
+                                e.preventDefault();
+                                if (!selectedNewAssignee) return;
+                                changeAssigneeMutation.mutate({
+                                    newAssigneeId: selectedNewAssignee,
+                                    reason: assigneeChangeReason
+                                });
+                            }}
+                            disabled={!selectedNewAssignee || changeAssigneeMutation.isPending}
+                        >
+                            {changeAssigneeMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                            変更を実行
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+
+
         </div>
     );
 }

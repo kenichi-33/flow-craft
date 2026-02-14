@@ -71,11 +71,17 @@ export class ApplicationsService {
     const enrichedTasks = await Promise.all(
       (appData.workflowTasks || []).map(async (task: any) => {
         let isExecutable = false;
+        let canOverride = false;
         if (requestUserId && task.status === 'PENDING') {
           try {
             isExecutable = await this.workflowEngineService.canUserExecuteTask(
               task,
               requestUserId,
+            );
+            canOverride = await this.workflowEngineService.canUserOverrideTask(
+              task,
+              requestUserId,
+              task.assignedTo || '',
             );
           } catch {
             // Ignore errors, default to false
@@ -84,7 +90,7 @@ export class ApplicationsService {
         const claimedByInfo = task.claimedBy
           ? await this.usersService.getUserSnapshotByUsername(task.claimedBy)
           : undefined;
-        return { ...task, isExecutable, claimedByInfo };
+        return { ...task, isExecutable, claimedByInfo, userPermissions: { canOverride } };
       }),
     );
 

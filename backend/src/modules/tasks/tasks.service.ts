@@ -27,17 +27,56 @@ export interface FindAllOptions {
   userGroupCodes?: string[];
 }
 
+import { WorkflowEngineService } from '../workflow-engine/workflow-engine.service';
+
 @Injectable()
 export class TasksService {
   constructor(
     private prisma: PrismaService,
     private usersService: UsersService,
     private teamsService: TeamsService,
+    private workflowEngineService: WorkflowEngineService,
   ) {}
 
-  /**
-   * ユーザーがタスクを実行可能かチェック（クライアントサイドフィルタ用）
-   */
+  // ... existing canUserAccessTask ...
+
+  // ... existing findAll ...
+
+  async findOne(id: string, userId?: string) {
+    const task = await this.prisma.workflowTask.findUnique({
+      where: { id },
+      include: {
+        application: {
+          include: {
+            applicationDefinition: true,
+            formDefinition: true,
+            flowDefinition: true,
+            workflowTasks: {
+              where: { type: 'approval' },
+            }, // 並行タスクの状況を知るためにタスク一覧を追加
+            history: {
+              orderBy: { actedAt: 'asc' },
+            }, // 承認履歴を含める（フローの完了状態判定に必要）
+          },
+        },
+      },
+    });
+
+    if (!task) {
+      throw new NotFoundException(`Task with ID ${id} not found`);
+    }
+
+    const claimedByInfo = task.claimedBy
+      ? await this.usersService.getUserSnapshotByUsername(task.claimedBy)
+      : undefined;
+
+    let canOverride = false;
+    if (userId) {
+        canOverride = await this.workflowEngineService.canUserOverrideTask(task, userId, task.assignedTo || '');
+    }
+
+    return { ...task, claimedByInfo, userPermissions: { canOverride } };
+  }
   private canUserAccessTask(
     task: any,
     userId: string,
@@ -409,36 +448,7 @@ export class TasksService {
     };
   }
 
-  async findOne(id: string) {
-    const task = await this.prisma.workflowTask.findUnique({
-      where: { id },
-      include: {
-        application: {
-          include: {
-            applicationDefinition: true,
-            formDefinition: true,
-            flowDefinition: true,
-            workflowTasks: {
-              where: { type: 'approval' },
-            }, // 並行タスクの状況を知るためにタスク一覧を追加
-            history: {
-              orderBy: { actedAt: 'asc' },
-            }, // 承認履歴を含める（フローの完了状態判定に必要）
-          },
-        },
-      },
-    });
 
-    if (!task) {
-      throw new NotFoundException(`Task with ID ${id} not found`);
-    }
-
-    const claimedByInfo = task.claimedBy
-      ? await this.usersService.getUserSnapshotByUsername(task.claimedBy)
-      : undefined;
-
-    return { ...task, claimedByInfo };
-  }
 
   async findPending(assignedTo?: string) {
     return this.prisma.workflowTask.findMany({
@@ -548,8 +558,18 @@ export class TasksService {
       user.groups,
       user.groupCodes,
     );
-    if (!canAccess)
-      throw new ForbiddenException('User is not assigned to this task');
+    
+    // If normal access fails, check override permissions (admin/supervisor)
+    if (!canAccess) {
+      const canOverride = await this.workflowEngineService.canUserOverrideTask(
+        task,
+        user.username,
+        task.assignedTo || '',
+      );
+      if (!canOverride) {
+        throw new ForbiddenException('User is not assigned to this task');
+      }
+    }
 
     if (task.claimedBy && task.claimedBy !== user.username) {
       throw new ConflictException(

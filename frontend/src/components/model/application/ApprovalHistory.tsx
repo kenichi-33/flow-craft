@@ -1,6 +1,6 @@
 // ApprovalHistory - Shared component for displaying workflow history
 import { UserDisplay, type UserSnapshot } from '@/components/common/UserDisplay';
-import { CheckCircle, XCircle, RotateCcw, GitBranch, Settings, Check, Info, Play, CheckCheck } from 'lucide-react';
+import { CheckCircle, XCircle, RotateCcw, GitBranch, Settings, Check, Info, Play, CheckCheck, UserCog } from 'lucide-react';
 
 export interface HistoryItem {
     id: string;
@@ -12,6 +12,8 @@ export interface HistoryItem {
     nodeName?: string;
     actedAt?: string;
     createdAt?: string;
+    isProxy?: boolean;
+    originalActorId?: string;
 }
 
 interface ApprovalHistoryProps {
@@ -29,6 +31,7 @@ const getIcon = (action: string) => {
         case 'SERVICE_TASK': return <Settings className={`${iconClass} text-slate-500`} />;
         case 'SERVICE_TASK_COMPLETE': return <Check className={`${iconClass} text-emerald-500`} />;
         case 'APPLICATION_COMPLETE': return <CheckCheck className={`${iconClass} text-emerald-500`} />;
+        case 'CHANGE_ASSIGNEE': return <UserCog className={`${iconClass} text-yellow-600`} />;
         case 'CANCEL': return <XCircle className={`${iconClass} text-muted-foreground`} />;
         default: return <Info className={`${iconClass} text-muted-foreground`} />;
     }
@@ -46,6 +49,7 @@ const getLabel = (action: string) => {
         case 'SERVICE_TASK_COMPLETE': return 'システム処理完了';
         case 'APPLICATION_COMPLETE': return '申請完了';
         case 'CANCEL': return '取下げ';
+        case 'CHANGE_ASSIGNEE': return '担当変更';
         default: return action;
     }
 };
@@ -76,19 +80,31 @@ export default function ApprovalHistory({ history }: ApprovalHistoryProps) {
                             {h.nodeName && (
                                 <span className="text-xs px-2 py-0.5 bg-muted rounded-full">{h.nodeName}</span>
                             )}
+                            {h.isProxy && (
+                                <span className="text-xs px-1.5 py-0.5 bg-amber-100 text-amber-800 rounded border border-amber-200">
+                                    代行
+                                </span>
+                            )}
                         </div>
                         {h.comment && (
                             <p className="text-sm text-muted-foreground mt-1 truncate">{h.comment}</p>
                         )}
-                        <p className="text-xs text-muted-foreground mt-1">
+                        <div className="text-xs text-muted-foreground mt-1 flex items-center gap-1 flex-wrap">
                             {h.actorId === 'SYSTEM' ? (
                                 'システム'
                             ) : (
-                                <UserDisplay user={h.actorInfo} fallback={h.actorId} />
+                                <div className="flex items-center gap-1">
+                                    <UserDisplay user={h.actorInfo} fallback={h.actorId} />
+                                    {h.isProxy && h.originalActorId && (
+                                        <span className="text-muted-foreground/70 flex items-center gap-1">
+                                            (本来: <UserDisplay user={undefined} fallback={h.originalActorId} />)
+                                        </span>
+                                    )}
+                                </div>
                             )}
                             <span className="mx-1">•</span>
                             {formatDate(h.actedAt || h.createdAt)}
-                        </p>
+                        </div>
                     </div>
                 </div>
             ))}

@@ -25,6 +25,17 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { Textarea } from '@/components/ui/textarea';
+import { UserSelector } from '@/components/common/UserSelector';
+import { MoreVertical, UserCog } from 'lucide-react';
+import { useMutation } from '@tanstack/react-query';
+import { Label } from '@/components/ui/label';
 
 interface ApplicationDetail {
     id: string;
@@ -109,12 +120,39 @@ const statusConfig: Record<string, { label: string; variant: 'default' | 'second
 export default function ApplicationDetailPage() {
     const { id } = useParams();
     const navigate = useNavigate();
-    const { user } = useAuthStore();
+    const { user, hasRole } = useAuthStore();
     const queryClient = useQueryClient();
     const [retryDialogOpen, setRetryDialogOpen] = useState(false);
     const [retryTargetId, setRetryTargetId] = useState<string | null>(null);
     const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
     const [withdrawDialogOpen, setWithdrawDialogOpen] = useState(false);
+
+    // Admin Action State
+    const [selectedTaskForAction, setSelectedTaskForAction] = useState<any>(null);
+    const [assigneeDialogOpen, setAssigneeDialogOpen] = useState(false);
+    const [selectedNewAssignee, setSelectedNewAssignee] = useState<string>('');
+    const [assigneeChangeReason, setAssigneeChangeReason] = useState('');
+
+    const changeAssigneeMutation = useMutation({
+        mutationFn: (data: { taskId: string; newAssigneeId: string; reason: string }) =>
+            api.post(`/workflow/tasks/${data.taskId}/assignee`, {
+                newAssigneeId: data.newAssigneeId,
+                reason: data.reason
+            }),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['application', id] });
+            toast.success('担当者を変更しました');
+            setAssigneeDialogOpen(false);
+            setSelectedTaskForAction(null);
+            setSelectedNewAssignee('');
+            setAssigneeChangeReason('');
+        },
+        onError: (error: any) => {
+            toast.error(error?.response?.data?.message || '変更に失敗しました');
+        }
+    });
+
+
 
     const { data: application, isLoading, error } = useQuery<ApplicationDetail>({
         queryKey: ['application', id],
@@ -303,42 +341,70 @@ export default function ApplicationDetailPage() {
                                             )}
                                         </div>
                                     </div>
-                                    {isAssigned && (
-                                        isClaimedByOther ? (
-                                            <Button disabled className="gap-2 opacity-70" variant="outline" size="sm">
-                                                <Lock className="h-3 w-3" /> ロック中
-                                            </Button>
-                                        ) : isClaimedByMe ? (
-                                            <div className="flex gap-2">
-                                                <Button 
-                                                    onClick={() => handleRelease(task.id)}
-                                                    variant="outline"
-                                                    size="sm"
-                                                    title="担当を解除して他の人が着手できるようにします"
-                                                >
-                                                    解除
+                                    <div className="flex items-center gap-2">
+                                        {isAssigned && (
+                                            isClaimedByOther ? (
+                                                <Button disabled className="gap-2 opacity-70" variant="outline" size="sm">
+                                                    <Lock className="h-3 w-3" /> ロック中
                                                 </Button>
-                                                <Button 
-                                                    onClick={() => navigate(`/tasks/${task.id}`)}
-                                                    className="gap-2"
-                                                    size="sm"
-                                                    variant="secondary"
-                                                >
-                                                    <Edit className="h-3 w-3" />
-                                                    再開する
-                                                </Button>
-                                            </div>
-                                        ) : (
-                                            <Button 
-                                                onClick={() => navigate(`/tasks/${task.id}`)}
-                                                className="bg-blue-600 hover:bg-blue-700 text-white shadow-sm gap-2"
-                                                size="sm"
-                                                variant="default"
-                                            >
-                                                {isInput ? '入力画面へ' : '承認画面へ'}
-                                            </Button>
-                                        )
-                                    )}
+                                            ) : isClaimedByMe ? (
+                                                <div className="flex gap-2">
+                                                    <Button 
+                                                        onClick={() => handleRelease(task.id)}
+                                                        variant="outline"
+                                                        size="sm"
+                                                        title="担当を解除して他の人が着手できるようにします"
+                                                    >
+                                                        解除
+                                                    </Button>
+                                                    <Button 
+                                                        onClick={() => navigate(`/tasks/${task.id}`)}
+                                                        className="gap-2"
+                                                        size="sm"
+                                                        variant="secondary"
+                                                    >
+                                                        <Edit className="h-3 w-3" />
+                                                        再開する
+                                                    </Button>
+                                                </div>
+                                            ) : (
+                                                !((task as any).userPermissions?.canOverride) && (
+                                                    <Button 
+                                                        onClick={() => navigate(`/tasks/${task.id}`)}
+                                                        className="bg-blue-600 hover:bg-blue-700 text-white shadow-sm gap-2"
+                                                        size="sm"
+                                                        variant="default"
+                                                    >
+                                                        {isInput ? '入力画面へ' : '承認画面へ'}
+                                                    </Button>
+                                                )
+                                            )
+                                        )}
+                                   
+                                        {/* Admin Actions Menu */}
+                                        {(task as any).userPermissions?.canOverride && (
+                                            <DropdownMenu>
+                                                <DropdownMenuTrigger asChild>
+                                                    <Button variant="ghost" size="icon" className="h-8 w-8">
+                                                        <MoreVertical className="h-4 w-4" />
+                                                    </Button>
+                                                </DropdownMenuTrigger>
+                                                <DropdownMenuContent align="end">
+                                                    <DropdownMenuItem onClick={() => navigate(`/tasks/${task.id}`)}>
+                                                        <UserCog className="mr-2 h-4 w-4" />
+                                                        代理承認
+                                                    </DropdownMenuItem>
+                                                    <DropdownMenuItem onClick={() => {
+                                                        setSelectedTaskForAction(task);
+                                                        setAssigneeDialogOpen(true);
+                                                    }}>
+                                                        <UserCog className="mr-2 h-4 w-4" />
+                                                        担当者を変更
+                                                    </DropdownMenuItem>
+                                                </DropdownMenuContent>
+                                            </DropdownMenu>
+                                        )}
+                                    </div>
                                 </div>
                             );
                         })}
@@ -694,6 +760,58 @@ export default function ApplicationDetailPage() {
                     </AlertDialogFooter>
                 </AlertDialogContent>
             </AlertDialog>
+
+            {/* Assignee Change Dialog */}
+            <AlertDialog open={assigneeDialogOpen} onOpenChange={setAssigneeDialogOpen}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>担当者の変更</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            タスクの担当者を変更します。変更理由を入力してください。
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <div className="space-y-4 py-2">
+                        <div className="space-y-2">
+                            <Label>新しい担当者</Label>
+                            <UserSelector 
+                                value={selectedNewAssignee}
+                                onChange={(value) => setSelectedNewAssignee(value)}
+                                placeholder="ユーザー名で検索..."
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <Label>変更理由 <span className="text-destructive">*</span></Label>
+                            <Textarea 
+                                placeholder="例：担当者不在のため引き継ぎ"
+                                value={assigneeChangeReason}
+                                onChange={(e) => setAssigneeChangeReason(e.target.value)}
+                            />
+                        </div>
+                    </div>
+                    <AlertDialogFooter>
+                        <AlertDialogAction
+                            disabled={!selectedNewAssignee || !assigneeChangeReason.trim() || changeAssigneeMutation.isPending}
+                            onClick={(e) => {
+                                e.preventDefault();
+                                if (!selectedTaskForAction) return;
+                                changeAssigneeMutation.mutate({
+                                    taskId: selectedTaskForAction.id,
+                                    newAssigneeId: selectedNewAssignee,
+                                    reason: assigneeChangeReason
+                                });
+                            }}
+                        >
+                            {changeAssigneeMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                            変更を実行
+                        </AlertDialogAction>
+                        <Button variant="outline" onClick={() => setAssigneeDialogOpen(false)}>
+                            キャンセル
+                        </Button>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+
+
         </div>
     );
 }

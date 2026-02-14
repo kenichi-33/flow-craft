@@ -28,6 +28,8 @@ export default function DesignerRagPage() {
   const { id } = useParams();
   const queryClient = useQueryClient();
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [detailDialogOpen, setDetailDialogOpen] = useState(false);
+  const [selectedSource, setSelectedSource] = useState<RagSource | null>(null);
   
   // Form State
   const [name, setName] = useState('');
@@ -230,7 +232,14 @@ export default function DesignerRagPage() {
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         {sources?.map((source) => (
-          <Card key={source.id} className="relative group">
+          <Card 
+            key={source.id} 
+            className="relative group cursor-pointer hover:shadow-md transition-shadow"
+            onClick={() => {
+              setSelectedSource(source);
+              setDetailDialogOpen(true);
+            }}
+          >
             <CardHeader className="pb-2">
                 <div className="flex justify-between items-start">
                     <div className="space-y-1">
@@ -253,7 +262,8 @@ export default function DesignerRagPage() {
                         variant="ghost" 
                         size="icon" 
                         className="h-8 w-8 text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
-                        onClick={() => {
+                        onClick={(e) => {
+                            e.stopPropagation();
                             if (confirm('本当に削除しますか？')) {
                                 deleteSourceMutation.mutate(source.id);
                             }
@@ -274,6 +284,83 @@ export default function DesignerRagPage() {
             </div>
         )}
       </div>
+
+      {/* Detail Dialog */}
+      <Dialog open={detailDialogOpen} onOpenChange={setDetailDialogOpen}>
+        <DialogContent className="sm:max-w-[700px] max-h-[80vh]">
+          <DialogHeader>
+            <DialogTitle>RAGソース詳細</DialogTitle>
+            <DialogDescription>
+              登録された知識ベースの詳細情報
+            </DialogDescription>
+          </DialogHeader>
+          
+          {selectedSource && (
+            <div className="space-y-4 py-4">
+              <div className="grid grid-cols-2 gap-4 text-sm">
+                <div>
+                  <Label className="text-muted-foreground">ソース名</Label>
+                  <div className="font-medium">{selectedSource.name}</div>
+                </div>
+                <div>
+                  <Label className="text-muted-foreground">タイプ</Label>
+                  <div className="font-medium">
+                    {selectedSource.type === 'file' ? 'ファイル' : 'テキスト'}
+                  </div>
+                </div>
+                <div>
+                  <Label className="text-muted-foreground">作成日</Label>
+                  <div className="font-medium">
+                    {new Date(selectedSource.createdAt).toLocaleString('ja-JP')}
+                  </div>
+                </div>
+                {selectedSource.type === 'file' && selectedSource.file && (
+                  <div>
+                    <Label className="text-muted-foreground">ファイル名</Label>
+                    <div className="font-medium">{selectedSource.file.originalName}</div>
+                  </div>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <Label>内容</Label>
+                {selectedSource.type === 'text' ? (
+                  <Textarea 
+                    value={selectedSource.content || ''} 
+                    readOnly
+                    className="min-h-[300px] font-mono text-sm resize-none"
+                  />
+                ) : (
+                  <div className="border rounded-lg p-6 text-center space-y-4">
+                    <FileText className="h-12 w-12 mx-auto text-muted-foreground" />
+                    <div className="space-y-2">
+                      <p className="font-medium">{selectedSource.file?.originalName}</p>
+                      <p className="text-sm text-muted-foreground">
+                        このファイルは既にベクトル化され、知識ベースに登録されています。
+                      </p>
+                      {selectedSource.fileId && (
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={() => {
+                            window.open(`/api/storage/download/${selectedSource.fileId}`, '_blank');
+                          }}
+                        >
+                          ファイルをダウンロード
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDetailDialogOpen(false)}>閉じる</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

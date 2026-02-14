@@ -2,6 +2,7 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
+  ForbiddenException,
   Logger,
 } from '@nestjs/common';
 import { QueueService } from '../queue/queue.service';
@@ -365,17 +366,63 @@ export class WorkflowEngineService {
       throw new BadRequestException('Task is already completed');
     }
 
-    // Claim Requirement Check
-    if (!task.claimedBy) {
-      throw new BadRequestException(
-        'You must start (claim) the task before completing it',
+    // Claim Requirement Check (Modified for Proxy)
+    const isSelfAction = task.claimedBy === input.actorId;
+    let isProxy = false;
+    let originalActorId: string | null = null;
+
+    // Check if user is the original assignee (not claiming on behalf of someone else)
+    const isOriginalAssignee = task.assignedTo === input.actorId || 
+                                 task.assignedTo === `user:${input.actorId}` ||
+                                 task.assignedTo === 'applicant'; // Will be checked separately
+
+    // If user has claimed but is NOT the original assignee, they must have override permissions
+    if (isSelfAction && !isOriginalAssignee) {
+      // User claimed the task - check if they have override permission
+      const canOverride = await this.canUserOverrideTask(
+        task,
+        input.actorId,
+        task.assignedTo || '',
       );
-    }
-    if (task.claimedBy !== input.actorId) {
-      throw new BadRequestException(
-        `Task is claimed by ${task.claimedBy}, not you`,
+      if (!canOverride) {
+        throw new BadRequestException(
+          `You claimed this task but are not the original assignee and don't have proxy permissions`,
+        );
+      }
+      isProxy = true;
+      originalActorId = task.assignedTo;
+
+      // Compulsory Comment for Proxy
+      if (!input.comment) {
+        throw new BadRequestException('Proxy actions require a comment');
+      }
+    } else if (!isSelfAction) {
+      // Someone else claimed it or it's unclaimed - check override permission
+      const canOverride = await this.canUserOverrideTask(
+        task,
+        input.actorId,
+        task.assignedTo || task.claimedBy || '',
       );
+      if (!canOverride) {
+        if (!task.claimedBy) {
+             throw new BadRequestException(
+                'You must start (claim) the task before completing it',
+              );
+        }
+        throw new BadRequestException(
+          `Task is claimed by ${task.claimedBy}, not you, and you don't have proxy permissions`,
+        );
+      }
+      // User has override permission - allow proxy approval
+      isProxy = true;
+      originalActorId = task.assignedTo || task.claimedBy;
+
+      // Compulsory Comment for Proxy
+      if (!input.comment) {
+        throw new BadRequestException('Proxy actions require a comment');
+      }
     }
+
 
     // Allow approval and input tasks
     if (
@@ -388,14 +435,17 @@ export class WorkflowEngineService {
       );
     }
 
-    const canExecute = await this.queryService.canUserExecuteTask(
-      task,
-      input.actorId,
-    );
-    if (!canExecute) {
-      throw new BadRequestException(
-        `User ${input.actorId} is not authorized to execute this task`,
-      );
+    // Reuse queryService for normal check, but for proxy we trust canOverrideTask
+    if (!isProxy) {
+        const canExecute = await this.queryService.canUserExecuteTask(
+            task,
+            input.actorId,
+        );
+        if (!canExecute) {
+            throw new BadRequestException(
+                `User ${input.actorId} is not authorized to execute this task`,
+            );
+        }
     }
 
     // Validate Input
@@ -427,6 +477,8 @@ export class WorkflowEngineService {
             action: input.action,
             comment: input.comment,
             inputData: input.inputData,
+            isProxy: isProxy, // Record in JSON as well
+            operatorId: input.actorId,
           },
         },
       });
@@ -456,6 +508,8 @@ export class WorkflowEngineService {
           action: input.action,
           comment: input.comment,
           stepId: task.stepId,
+          isProxy: isProxy,
+          originalActorId: originalActorId,
         },
       });
 
@@ -624,6 +678,122 @@ export class WorkflowEngineService {
 
     return result;
   }
+
+  /**
+   * Change Task Assignee (Override)
+   */
+  async changeTaskAssignee(input: {
+    taskId: string;
+    operatorId: string;
+    newAssigneeId: string;
+    reason: string;
+  }) {
+    const task = await this.prisma.workflowTask.findUnique({
+      where: { id: input.taskId },
+      include: { application: true },
+    });
+
+    if (!task) {
+      throw new NotFoundException('Task not found');
+    }
+
+    if (task.status !== 'PENDING') {
+      throw new BadRequestException('Task is not pending');
+    }
+
+    // Permission Check
+    const canOverride = await this.canUserOverrideTask(
+        task,
+        input.operatorId,
+        task.assignedTo || task.claimedBy || '',
+    );
+    if (!canOverride) {
+        throw new BadRequestException(
+            `User ${input.operatorId} is not authorized to change assignee for this task`,
+        );
+    }
+
+    // Resolve New Assignee Info
+    const newAssigneeSnapshot = await this.usersService.resolveAssignedToSnapshot(input.newAssigneeId);
+    const operatorInfo = await this.usersService.getUserSnapshotByUsername(input.operatorId);
+
+    await this.prisma.$transaction(async (tx) => {
+        // Update Task
+        await tx.workflowTask.update({
+            where: { id: task.id },
+            data: {
+                assignedTo: input.newAssigneeId,
+                assignedToDisplay: newAssigneeSnapshot.username || input.newAssigneeId,
+                assignedToInfo: newAssigneeSnapshot as any,
+                claimedBy: null, // Reset claim
+                claimedAt: null,
+            }
+        });
+
+        // Log History
+        await tx.approvalHistory.create({
+            data: {
+                applicationId: task.applicationId,
+                actorId: input.operatorId,
+                actorInfo: operatorInfo as any,
+                action: 'CHANGE_ASSIGNEE',
+                comment: input.reason,
+                stepId: task.stepId,
+                isProxy: true,
+                originalActorId: task.assignedTo || task.claimedBy,
+            }
+        });
+    });
+
+    return this.prisma.workflowTask.findUnique({
+        where: { id: task.id },
+    });
+  }
+
+  /**
+   * Check if operator needs to override the task (Proxy/Admin)
+   */
+  public async canUserOverrideTask(
+    task: any, // WorkflowTask & { application: Application }
+    operatorId: string,
+    targetUserId?: string,
+  ): Promise<boolean> {
+    // 1. Check if Operator is Application Admin or Creator
+    const appDefId = task.application?.applicationDefinitionId;
+    if (appDefId) {
+      const appDef = await this.prisma.applicationDefinition.findUnique({
+        where: { id: appDefId },
+      });
+      if (appDef) {
+        if (appDef.adminIds.includes(operatorId) || appDef.createdBy === operatorId) {
+          return true;
+        }
+      }
+    }
+
+    // 2. Check Global Roles (wf_admin)
+    const operatorSnapshot = await this.usersService.getUserSnapshotByUsername(operatorId);
+    if (operatorSnapshot.roles?.includes('wf_admin') || operatorSnapshot.roles?.includes('admin') || operatorSnapshot.roles?.includes('sys_admin')) {
+      return true;
+    }
+
+    // 3. Check Supervisor Relationship
+    if (!targetUserId) return false;
+
+    // Extract actual user ID from assignedTo format (e.g., "user:user007" -> "user007")
+    let actualUserId = targetUserId;
+    if (targetUserId.startsWith('user:')) {
+      actualUserId = targetUserId.substring(5);
+    }
+
+    const manager = await this.usersService.getManager(actualUserId);
+    if (manager && (manager.username === operatorId || (manager as any).id === operatorId)) {
+      return true;
+    }
+
+    return false;
+  }
+
 
   /**
    * Cancel an application
@@ -966,7 +1136,10 @@ export class WorkflowEngineService {
   }
 
   async canUserExecuteTask(task: any, userId: string) {
-    return this.queryService.canUserExecuteTask(task, userId);
+    const canExecute = await this.queryService.canUserExecuteTask(task, userId);
+    if (canExecute) return true;
+    // Also check if user has override permissions (admin/manager)
+    return this.canUserOverrideTask(task, userId, task.assignedTo || '');
   }
 
   async getRemandableSteps(applicationId: string, currentTaskId?: string) {

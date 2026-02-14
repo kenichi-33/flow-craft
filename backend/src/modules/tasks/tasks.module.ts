@@ -4,8 +4,10 @@ import { TasksService } from './tasks.service';
 import { UsersModule } from '../users/users.module';
 import { TeamsModule } from '../teams/teams.module';
 
+import { WorkflowCoreModule } from '../workflow-engine/workflow-core.module';
+
 @Module({
-  imports: [UsersModule, TeamsModule],
+  imports: [UsersModule, TeamsModule, WorkflowCoreModule],
   controllers: [TasksController],
   providers: [TasksService],
 })
