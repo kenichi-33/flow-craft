@@ -86,17 +86,21 @@ export class ChatController {
       });
 
       // メッセージ送信
-      res.write(`data: ${JSON.stringify({
-        type: 'message',
-        content: response.message,
-        isComplete: response.isComplete,
-      })}\n\n`);
+      res.write(
+        `data: ${JSON.stringify({
+          type: 'message',
+          content: response.message,
+          isComplete: response.isComplete,
+        })}\n\n`,
+      );
 
       // 完了通知
       res.write(`data: ${JSON.stringify({ type: 'done' })}\n\n`);
       res.end();
     } catch (e) {
-      res.write(`data: ${JSON.stringify({ type: 'error', error: e.message })}\n\n`);
+      res.write(
+        `data: ${JSON.stringify({ type: 'error', error: e.message })}\n\n`,
+      );
       res.end();
     }
   }
@@ -113,11 +117,15 @@ export class ChatController {
 
     // デバッグ用ログ
     if (session.userId !== user.username && session.userId !== user.id) {
-       console.error(`Session Access Error: session.userId=${session.userId}, user.username=${user.username}, user.id=${user.id}`);
+      console.error(
+        `Session Access Error: session.userId=${session.userId}, user.username=${user.username}, user.id=${user.id}`,
+      );
     }
 
     const history = session.history as any[];
-    console.log(`[ChatController] getSession: sessionId=${sessionId}, historyLength=${history?.length}, historyType=${typeof session.history}, isArray=${Array.isArray(session.history)}`);
+    console.log(
+      `[ChatController] getSession: sessionId=${sessionId}, historyLength=${history?.length}, historyType=${typeof session.history}, isArray=${Array.isArray(session.history)}`,
+    );
 
     // usernameまたはidのいずれかが一致すればOKとする
     if (session.userId !== user.username && session.userId !== user.id) {

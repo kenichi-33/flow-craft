@@ -16,7 +16,8 @@ export class LlmGatewayService {
   }
 
   async generate(request: LLMRequest): Promise<LLMResponse> {
-    const providerName = request.provider || process.env.AI_PROVIDER || 'ollama'; // Use request provider first
+    const providerName =
+      request.provider || process.env.AI_PROVIDER || 'ollama'; // Use request provider first
     const provider = this.providers.get(providerName);
 
     if (!provider) {
@@ -34,5 +35,20 @@ export class LlmGatewayService {
 
   getAvailableProviders(): string[] {
     return Array.from(this.providers.keys());
+  }
+
+  async embed(text: string, providerName?: string): Promise<number[]> {
+    const name = providerName || process.env.AI_PROVIDER || 'ollama';
+    const provider = this.providers.get(name);
+
+    if (!provider) {
+      throw new Error(`LLM Model Provider not found: ${name}`);
+    }
+
+    if (!provider.embed) {
+      throw new Error(`Provider ${name} does not support embedding`);
+    }
+
+    return await provider.embed(text);
   }
 }

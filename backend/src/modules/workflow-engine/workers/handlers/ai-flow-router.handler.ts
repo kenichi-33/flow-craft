@@ -1,5 +1,9 @@
 import { Injectable, Logger, Inject, forwardRef } from '@nestjs/common';
-import { ITaskHandler, TaskContext, TaskResult } from '../task-handler.interface';
+import {
+  ITaskHandler,
+  TaskContext,
+  TaskResult,
+} from '../task-handler.interface';
 import { AiIntentService } from '../../../ai-core/services/ai-intent.service';
 import { AiSlotFillingService } from '../../../ai-core/services/ai-slot-filling.service';
 import { WorkflowHelperService } from '../../workflow-helper.service';
@@ -58,10 +62,10 @@ export class AiFlowRouterHandler implements ITaskHandler {
       // 3. Fetch application definitions
       const appDefs = await this.prisma.applicationDefinition.findMany({
         where: { id: { in: allowedApps } },
-        select: { 
-          id: true, 
-          name: true, 
-          description: true, 
+        select: {
+          id: true,
+          name: true,
+          description: true,
           formDefinition: true,
           formDefinitionId: true,
           flowDefinitionId: true,
@@ -134,24 +138,27 @@ export class AiFlowRouterHandler implements ITaskHandler {
         confidence: number;
         extractedInfo: any;
       }> = [];
-      
+
       for (const detectedApp of appsToExecute) {
         const appDef = appDefs.find((a) => a.id === detectedApp.appId);
         if (!appDef) continue;
 
         // Extract form fields from schema
-        const formFields = this.extractFormFields(appDef.formDefinition?.schema);
+        const formFields = this.extractFormFields(
+          appDef.formDefinition?.schema,
+        );
 
         // Use LLM to extract information for this app
         let extractedInfo = {};
         if (formFields.length > 0) {
           try {
-            const slotResult = await this.aiSlotFillingService.performSlotFilling(
-              detectedApp.appId,
-              inputText,
-              {},
-              [],
-            );
+            const slotResult =
+              await this.aiSlotFillingService.performSlotFilling(
+                detectedApp.appId,
+                inputText,
+                {},
+                [],
+              );
 
             extractedInfo = slotResult.extractedInfo || {};
           } catch (error) {
@@ -239,7 +246,7 @@ export class AiFlowRouterHandler implements ITaskHandler {
    */
   private extractFormFields(schema: any): string[] {
     if (!schema || !schema.fields) return [];
-    
+
     return schema.fields
       .filter((field: any) => field.required)
       .map((field: any) => field.id);

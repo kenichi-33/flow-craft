@@ -69,8 +69,8 @@ export class AiBranchNodeProcessor implements INodeProcessor {
       applicationId,
       enrichedNode,
       inputData,
-      'system', // Applicant ID not strictly needed for system task but good to have context if available? 
-      // Actually Context provides applicantId. But here in Processor `process` method we don't have applicantId strictly passed? 
+      'system', // Applicant ID not strictly needed for system task but good to have context if available?
+      // Actually Context provides applicantId. But here in Processor `process` method we don't have applicantId strictly passed?
       // `NodeProcessorContext` has `inputData`. Does it have `applicantId`?
       // Let's check `NodeProcessorContext`.
       // It has `applicantId`? No, let's assume 'system' or try to get from context if added.
@@ -78,11 +78,11 @@ export class AiBranchNodeProcessor implements INodeProcessor {
       // `enqueueTask` requires `applicantId`.
       // We can fetch application to get applicantId, OR just pass 'system' as it is an automated task.
     );
-    
+
     // Note: The context doesn't expose `applicantId` directly in `NodeProcessorContext` interface currently.
     // But `enqueueTask` needs it for `assignedTo: applicant`. AI Branch is not assigned to user.
     // So 'system' or empty string is fine.
-    
+
     this.logger.log(`Enqueued AI Branch Task for Node ${nodeId}`);
   }
 }

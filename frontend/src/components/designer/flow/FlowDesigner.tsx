@@ -515,9 +515,9 @@ function FlowDesignerContent({ appId, isStatsMode, statsOverlay }: { appId: stri
         };
 
         const handlePreviewDesign = (e: CustomEvent) => {
-            const { nodes, edges } = e.detail;
-             // Temporarily hold result to pass to dialog
-             setAiGeneratedResult({ nodes, edges });
+            const payload = e.detail;
+             // Pass the full payload (which might include reasoning and nested data)
+             setAiGeneratedResult(payload);
              setAiReviewResult(null);
              setAiDialogOpen(true);
         };

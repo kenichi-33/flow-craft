@@ -17,6 +17,12 @@
 - `GET /application-definitions/:id/versions`: バージョン履歴取得
 - `POST /application-definitions/:id/restore/:version`: 特定バージョンの復元
 
+### 知識ベース (RAG)
+- `GET /application-definitions/:id/rag/sources`: 登録済みソース一覧取得
+- `POST /application-definitions/:id/rag/sources`: テキストソースの作成
+- `POST /application-definitions/:id/rag/sources/upload`: ファイルソースの作成
+- `DELETE /application-definitions/:id/rag/sources/:sourceId`: ソースの削除
+
 ### 申請 (Applications)
 - `POST /applications`: 新規申請（下書きまたは申請）
 - `GET /applications`: 申請一覧取得 (検索・フィルタリング可)

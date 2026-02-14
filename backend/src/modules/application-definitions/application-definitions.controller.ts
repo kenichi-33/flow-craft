@@ -158,8 +158,11 @@ export class ApplicationDefinitionsController {
   ) {
     const data = await this.appDefsService.export(id, parseInt(version, 10));
     const filename = `${data.appName}_v${data.version}_${new Date().toISOString().split('T')[0]}.json`;
-    
-    res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(filename)}"`);
+
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="${encodeURIComponent(filename)}"`,
+    );
     res.setHeader('Content-Type', 'application/json');
     res.send(JSON.stringify(data, null, 2));
   }

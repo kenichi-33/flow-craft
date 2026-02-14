@@ -20,7 +20,10 @@ export class AiValidatorService {
     requirements?: string,
   ): Promise<{
     score: number;
-    issues: Array<{ severity: 'critical' | 'warning' | 'info'; message: string }>;
+    issues: Array<{
+      severity: 'critical' | 'warning' | 'info';
+      message: string;
+    }>;
     suggestions: string[];
     summary: string;
   }> {
@@ -59,7 +62,7 @@ Output JSON Format:
         temperature: 0.2,
       });
 
-      return response.content as any;
+      return response.content;
     } catch (error) {
       this.logger.error('Failed to review definition', error);
       throw error;
@@ -112,7 +115,7 @@ Output JSON:
         temperature: 0.1,
       });
 
-      return response.content as any;
+      return response.content;
     } catch (error) {
       this.logger.error('Failed to perform AI check', error);
       throw error;

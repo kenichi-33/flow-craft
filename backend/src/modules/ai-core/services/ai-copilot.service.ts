@@ -7,6 +7,7 @@ import { AiSlotFillingService } from './ai-slot-filling.service';
 import { AiValidatorService } from './ai-validator.service';
 import { AiGeneratorService } from './ai-generator.service';
 import { ApplicationsService } from '../../applications/applications.service';
+import { RagService } from './rag.service';
 
 export interface CopilotChatRequest {
   sessionId: string;
@@ -18,7 +19,16 @@ export interface CopilotChatRequest {
 export interface CopilotChatResponse {
   message: string;
   action?: {
-    type: 'NAVIGATE' | 'FILL_FORM' | 'FILTER_LIST' | 'SHOW_ALERT' | 'SEARCH_PAST_DATA' | 'REVIEW_DESIGN' | 'GENERATE_DESIGN' | 'SHOW_REVIEW_RESULT' | 'PREVIEW_DESIGN';
+    type:
+      | 'NAVIGATE'
+      | 'FILL_FORM'
+      | 'FILTER_LIST'
+      | 'SHOW_ALERT'
+      | 'SEARCH_PAST_DATA'
+      | 'REVIEW_DESIGN'
+      | 'GENERATE_DESIGN'
+      | 'SHOW_REVIEW_RESULT'
+      | 'PREVIEW_DESIGN';
     payload: any;
   };
 }
@@ -35,6 +45,7 @@ export class AiCopilotService {
     private readonly applicationsService: ApplicationsService,
     private readonly aiValidatorService: AiValidatorService,
     private readonly aiGeneratorService: AiGeneratorService,
+    private readonly ragService: RagService,
   ) {}
 
   /**
@@ -96,6 +107,68 @@ export class AiCopilotService {
       context: currentContext,
     });
 
+    // Determine Application Context for RAG
+    let applicationDefinitionId: string | undefined =
+      currentContext.applicationDefinitionId;
+
+    // If not explicit, try to derive from path or other params
+    if (!applicationDefinitionId) {
+      const path = currentContext.path as string;
+      // Case 1: New Application (/applications/new/:id -> id is appDefId)
+      const newAppMatch = path?.match(/\/applications\/new\/([^/]+)/);
+      if (newAppMatch) {
+        applicationDefinitionId = newAppMatch[1];
+      }
+
+      // Case 2: Existing Application (/applications/:id -> id is appId)
+      // Need to fetch application to get appDefId.
+      // Optimization: If we have applicationId in context, use it.
+      const appId =
+        currentContext.applicationId ||
+        (path?.match(/\/applications\/([^/]+)/)
+          ? path?.match(/\/applications\/([^/]+)/)![1]
+          : null);
+      if (appId && !applicationDefinitionId && appId !== 'new') {
+        // 'new' check just in case
+        try {
+          const app = await this.prisma.application.findUnique({
+            where: { id: appId },
+            select: { applicationDefinitionId: true },
+          });
+          if (app?.applicationDefinitionId) {
+            applicationDefinitionId = app.applicationDefinitionId;
+          }
+        } catch (e) {
+          // ignore
+        }
+      }
+
+      // Case 3: Designer (/designer/apps/:id -> id is appDefId)
+      const designerMatch = path?.match(/\/designer\/apps\/([^/]+)/);
+      if (designerMatch) {
+        applicationDefinitionId = designerMatch[1];
+      }
+    }
+
+    // Retrieve RAG Context
+    let ragContextString = '';
+    if (applicationDefinitionId) {
+      try {
+        const relevantDocs = await this.ragService.retrieve(
+          applicationDefinitionId,
+          request.message,
+        );
+        if (relevantDocs.length > 0) {
+          ragContextString = `\n\nRelevant Knowledge Base:\n${relevantDocs.join('\n---\n')}`;
+          this.logger.log(
+            `RAG retrieved ${relevantDocs.length} docs for appDef ${applicationDefinitionId}`,
+          );
+        }
+      } catch (e) {
+        this.logger.warn(`RAG retrieval failed: ${e.message}`);
+      }
+    }
+
     // Prepare system prompt for Copilot
     const baseSystemPrompt = `
 You are "Flow-craft AI Copilot", a helpful assistant residing in the sidebar of the workflow application.
@@ -103,6 +176,7 @@ Your goal is to assist users with navigation, form filling, and understanding th
 
 Current User Context:
 ${JSON.stringify(currentContext, null, 2)}
+${ragContextString}
 
 You have access to the following TOOLS. If the user's request requires an action, you MUST respond with a JSON object in the following format:
 {
@@ -127,9 +201,11 @@ You have access to the following TOOLS. If the user's request requires an action
 
     // 2. FILL_FORM (Only on form pages)
     // Check if path indicates a form page (new or edit)
-    const isFormPage = currentContext.path?.includes('/new') || currentContext.path?.includes('/edit');
+    const isFormPage =
+      currentContext.path?.includes('/new') ||
+      currentContext.path?.includes('/edit');
     if (isFormPage) {
-        toolsDocs.push(`
+      toolsDocs.push(`
 2. FILL_FORM: Fill the current form with data.
    - Payload: { "data": { "field": "value", ... } }
    - Use this when the user provides data for the currently open form.
@@ -144,9 +220,11 @@ You have access to the following TOOLS. If the user's request requires an action
     }
 
     // 3. FILTER_LIST (Only on list pages)
-    const isListPage = currentContext.path === '/applications' || currentContext.path === '/tasks';
+    const isListPage =
+      currentContext.path === '/applications' ||
+      currentContext.path === '/tasks';
     if (isListPage) {
-        toolsDocs.push(`
+      toolsDocs.push(`
 3. FILTER_LIST: Filter the CURRENT list view you are looking at.
    - Use this ONLY when the user asks to "filter this list", "show only pending items", "search in this list".
    - DO NOT use this when the user asks general questions about past data or "tell me about..." (Use SEARCH_PAST_DATA for that).
@@ -172,14 +250,16 @@ You have access to the following TOOLS. If the user's request requires an action
 
     // 6. DESIGNER TOOLS (Context Specific)
     // Check if path indicates Form Designer
-    const isFormDesigner = currentContext.path?.includes('/designer/apps/') && currentContext.path?.includes('/form');
+    const isFormDesigner =
+      currentContext.path?.includes('/designer/apps/') &&
+      currentContext.path?.includes('/form');
     if (isFormDesigner) {
-        toolsDocs.push(`
+      toolsDocs.push(`
 6. REVIEW_DESIGN: Review the current Form definition.
    - Use this when the user asks to "review this form", "check for errors", or "improve this design".
    - Payload: { "requirements": "Explain what to focus on (optional)" }
 `);
-        toolsDocs.push(`
+      toolsDocs.push(`
 7. GENERATE_DESIGN: Generate or update the Form definition.
    - Use this when the user asks to "create a travel expense form", "add a reson field", etc.
    - Payload: { "prompt": "The user's instruction for generation" }
@@ -187,14 +267,16 @@ You have access to the following TOOLS. If the user's request requires an action
     }
 
     // Check if path indicates Flow Designer
-    const isFlowDesigner = currentContext.path?.includes('/designer/apps/') && currentContext.path?.includes('/flow');
+    const isFlowDesigner =
+      currentContext.path?.includes('/designer/apps/') &&
+      currentContext.path?.includes('/flow');
     if (isFlowDesigner) {
-        toolsDocs.push(`
+      toolsDocs.push(`
 6. REVIEW_DESIGN: Review the current Flow definition.
    - Use this when the user asks to "review this flow", "check logic", or "optimize".
    - Payload: { "requirements": "Explain what to focus on (optional)" }
 `);
-        toolsDocs.push(`
+      toolsDocs.push(`
 7. GENERATE_DESIGN: Generate or update the Flow definition.
    - Use this when the user asks to "create an approval flow", "add a branch", etc.
    - Payload: { "prompt": "The user's instruction for generation" }
@@ -212,7 +294,7 @@ If no tool is needed, just respond with a helpful text message.
     // Simple RAG: Inject relevant policies if keywords are detected
     const relevantPolicies = this.getRelevantPolicies(request.message);
     if (relevantPolicies) {
-        systemPrompt += `\n\nCurrent Company Policies (Reference ONLY when relevant):\n${relevantPolicies}`;
+      systemPrompt += `\n\nCurrent Company Policies (Reference ONLY when relevant):\n${relevantPolicies}`;
     }
 
     // Call LLM
@@ -236,23 +318,35 @@ If no tool is needed, just respond with a helpful text message.
       const jsonMatch = assistantMessage.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
         const parsed = JSON.parse(jsonMatch[0]);
-        
+
         // Case 1: Wrapped in ACTION_RESPONSE
         if (parsed.type === 'ACTION_RESPONSE' && parsed.action) {
           action = parsed.action;
           assistantMessage = parsed.message;
-        } 
+        }
         // Case 2: Direct Action Object (Fallback)
-        else if (['NAVIGATE', 'FILL_FORM', 'FILTER_LIST', 'SHOW_ALERT', 'SEARCH_PAST_DATA', 'REVIEW_DESIGN', 'GENERATE_DESIGN', 'SHOW_REVIEW_RESULT', 'PREVIEW_DESIGN'].includes(parsed.type)) {
-             action = {
-                 type: parsed.type,
-                 payload: parsed.action || parsed.payload || parsed 
-             };
-             if (parsed.action && !parsed.payload) {
-                 action.payload = parsed.action;
-             }
-             
-             assistantMessage = parsed.message || "実行しました。";
+        else if (
+          [
+            'NAVIGATE',
+            'FILL_FORM',
+            'FILTER_LIST',
+            'SHOW_ALERT',
+            'SEARCH_PAST_DATA',
+            'REVIEW_DESIGN',
+            'GENERATE_DESIGN',
+            'SHOW_REVIEW_RESULT',
+            'PREVIEW_DESIGN',
+          ].includes(parsed.type)
+        ) {
+          action = {
+            type: parsed.type,
+            payload: parsed.action || parsed.payload || parsed,
+          };
+          if (parsed.action && !parsed.payload) {
+            action.payload = parsed.action;
+          }
+
+          assistantMessage = parsed.message || '実行しました。';
         }
       }
     } catch (e) {
@@ -262,19 +356,26 @@ If no tool is needed, just respond with a helpful text message.
 
     // SERVER-SIDE ACTION HANDLING
     if (action) {
-        if (action.type === 'SEARCH_PAST_DATA') {
-            // ... (Existing implementation) ...
-            const targetUserId = (currentContext.applicantId as string) || request.userId;
-            
-            const searchResult = await this.applicationsService.searchApplications(request.userId, {
-                keyword: action.payload.keyword,
-                status: action.payload.status === 'all' ? undefined : action.payload.status,
-                limit: action.payload.limit || 5,
-                targetUserId: targetUserId,
-                applicationDefinitionId: (currentContext.applicationDefinitionId as string), 
-            });
+      if (action.type === 'SEARCH_PAST_DATA') {
+        const targetUserId =
+          (currentContext.applicantId as string) || request.userId;
 
-            const toolOutputMessage = `
+        const searchResult = await this.applicationsService.searchApplications(
+          request.userId,
+          {
+            keyword: action.payload.keyword,
+            status:
+              action.payload.status === 'all'
+                ? undefined
+                : action.payload.status,
+            limit: action.payload.limit || 5,
+            targetUserId: targetUserId,
+            applicationDefinitionId:
+              currentContext.applicationDefinitionId as string,
+          },
+        );
+
+        const toolOutputMessage = `
 [System] Tool 'SEARCH_PAST_DATA' Execution Result:
 Target User: ${targetUserId}
 ${JSON.stringify(searchResult, null, 2)}
@@ -285,71 +386,81 @@ Please use the above search results to answer the user's question.
 Summarize the findings. If specific details are found, mention them.
 If no relevant data is found, state that.
 `;
-            
-            const secondResponse = await this.llmGateway.generate({
-                model: this.configService.get('AI_CHAT_MODEL', 'qwen2.5-coder:14b'),
-                systemPrompt: systemPrompt + "\n\nYou have just executed a search tool. Use the results to answer the user.",
-                userPrompt: conversationContext + "\n" + `Assistant: ${assistantMessage}` + "\n" + toolOutputMessage,
-                temperature: 0.5,
-            });
 
-            assistantMessage = secondResponse.rawContent;
-            action = undefined; 
+        const secondResponse = await this.llmGateway.generate({
+          model: this.configService.get('AI_CHAT_MODEL', 'qwen2.5-coder:14b'),
+          systemPrompt:
+            systemPrompt +
+            '\n\nYou have just executed a search tool. Use the results to answer the user.',
+          userPrompt:
+            conversationContext +
+            '\n' +
+            `Assistant: ${assistantMessage}` +
+            '\n' +
+            toolOutputMessage,
+          temperature: 0.5,
+        });
 
-        } else if (action.type === 'REVIEW_DESIGN') {
-            const requirements = action.payload.requirements;
-            this.logger.log(`Executing REVIEW_DESIGN: ${requirements}`);
-            
-            const designData = currentContext.designerContext?.data;
-            const designType = currentContext.designerContext?.type;
+        assistantMessage = secondResponse.rawContent;
+        action = undefined;
+      } else if (action.type === 'REVIEW_DESIGN') {
+        const requirements = action.payload.requirements;
+        this.logger.log(`Executing REVIEW_DESIGN: ${requirements}`);
 
-            if (designData && designType) {
-                 try {
-                    const reviewResult = await this.aiValidatorService.reviewDefinition(designType, designData, requirements);
-                    action = {
-                        type: 'SHOW_REVIEW_RESULT',
-                        payload: reviewResult
-                    };
-                    assistantMessage = "レビューが完了しました。結果を表示します。";
-                 } catch (e) {
-                    this.logger.error('Review failed', e);
-                    assistantMessage = "レビュー中にエラーが発生しました。";
-                    action = undefined;
-                 }
-            } else {
-                 assistantMessage = "デザインデータが見つかりませんでした。";
-                 action = undefined;
-            }
+        const designData = currentContext.designerContext?.data;
+        const designType = currentContext.designerContext?.type;
 
-        } else if (action.type === 'GENERATE_DESIGN') {
-            const prompt = action.payload.prompt;
-            this.logger.log(`Executing GENERATE_DESIGN: ${prompt}`);
-
-            const designData = currentContext.designerContext?.data;
-            const designType = currentContext.designerContext?.type;
-
-            if (designType) {
-                try {
-                    const generatedResult = await this.aiGeneratorService.generate({
-                        type: designType,
-                        prompt: prompt,
-                        currentDefinition: designData
-                    });
-                    action = {
-                        type: 'PREVIEW_DESIGN',
-                        payload: generatedResult 
-                    };
-                    assistantMessage = "デザイン案を生成しました。プレビューを表示します。";
-                } catch (e) {
-                    this.logger.error('Generation failed', e);
-                    assistantMessage = "デザイン生成に失敗しました。";
-                    action = undefined;
-                }
-            } else {
-                assistantMessage = "デザインコンテキストが見つかりませんでした。";
-                action = undefined;
-            }
+        if (designData && designType) {
+          try {
+            const reviewResult = await this.aiValidatorService.reviewDefinition(
+              designType,
+              designData,
+              requirements,
+            );
+            action = {
+              type: 'SHOW_REVIEW_RESULT',
+              payload: reviewResult,
+            };
+            assistantMessage = 'レビューが完了しました。結果を表示します。';
+          } catch (e) {
+            this.logger.error('Review failed', e);
+            assistantMessage = 'レビュー中にエラーが発生しました。';
+            action = undefined;
+          }
+        } else {
+          assistantMessage = 'デザインデータが見つかりませんでした。';
+          action = undefined;
         }
+      } else if (action.type === 'GENERATE_DESIGN') {
+        const prompt = action.payload.prompt;
+        this.logger.log(`Executing GENERATE_DESIGN: ${prompt}`);
+
+        const designData = currentContext.designerContext?.data;
+        const designType = currentContext.designerContext?.type;
+
+        if (designType) {
+          try {
+            const generatedResult = await this.aiGeneratorService.generate({
+              type: designType,
+              prompt: prompt,
+              currentDefinition: designData,
+            });
+            action = {
+              type: 'PREVIEW_DESIGN',
+              payload: generatedResult,
+            };
+            assistantMessage =
+              'デザイン案を生成しました。プレビューを表示します。';
+          } catch (e) {
+            this.logger.error('Generation failed', e);
+            assistantMessage = 'デザイン生成に失敗しました。';
+            action = undefined;
+          }
+        } else {
+          assistantMessage = 'デザインコンテキストが見つかりませんでした。';
+          action = undefined;
+        }
+      }
     }
 
     // Append assistant message to history
@@ -391,14 +502,16 @@ If no relevant data is found, state that.
         text: 'Procurement Policy: Purchases over 100,000 JPY require 3 competitive quotes. Software subscriptions must be approved by IT Security.',
       },
       {
-         keywords: ['limit', 'max', 'cap', 'allowance'],
-         text: 'General Limits: Petty cash limit is 20,000 JPY. Any expense above this must be paid via bank transfer.'
-      }
+        keywords: ['limit', 'max', 'cap', 'allowance'],
+        text: 'General Limits: Petty cash limit is 20,000 JPY. Any expense above this must be paid via bank transfer.',
+      },
     ];
 
     const messageLower = message.toLowerCase();
     const relevantTexts = policies
-      .filter((policy) => policy.keywords.some((kw) => messageLower.includes(kw)))
+      .filter((policy) =>
+        policy.keywords.some((kw) => messageLower.includes(kw)),
+      )
       .map((policy) => policy.text);
 
     return relevantTexts.length > 0 ? relevantTexts.join('\n') : null;

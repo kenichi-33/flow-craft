@@ -36,7 +36,7 @@ export class ApplicationRecoveryService {
         childApplications: {
           none: {
             status: {
-              in: ['IN_PROGRESS', 'DRAFT'],  // Also exclude DRAFT if it's being created? Mainly IN_PROGRESS.
+              in: ['IN_PROGRESS', 'DRAFT'], // Also exclude DRAFT if it's being created? Mainly IN_PROGRESS.
             },
           },
         },

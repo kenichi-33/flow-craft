@@ -29,7 +29,7 @@ export class OpenAIProvider implements ILLMProvider {
     // Use runtime API Key if provided, otherwise use default client
     let client = this.client;
     if (request.providerConfig?.apiKey) {
-        client = new OpenAI({ apiKey: request.providerConfig.apiKey });
+      client = new OpenAI({ apiKey: request.providerConfig.apiKey });
     }
 
     if (request.systemPrompt) {
@@ -70,5 +70,18 @@ export class OpenAIProvider implements ILLMProvider {
       },
       provider: 'openai',
     };
+  }
+
+  async embed(text: string): Promise<number[]> {
+    const model =
+      this.configService.get<string>('AI_EMBEDDING_MODEL') ||
+      'text-embedding-3-small';
+
+    const response = await this.client.embeddings.create({
+      model,
+      input: text,
+    });
+
+    return response.data[0].embedding;
   }
 }

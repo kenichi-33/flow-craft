@@ -201,6 +201,80 @@ sequenceDiagram
     deactivate Worker
 ```
 
+## RAG (知識ベース) 登録フロー
+
+ドキュメントを知識ベースに登録し、検索可能にするまでのフローです。
+
+```mermaid
+sequenceDiagram
+    participant U as User (Designer)
+    participant API as RagController
+    participant Service as RagService
+    participant LLM as LlmGateway
+    participant DB as PostgreSQL (pgvector)
+
+    U->>API: POST /sources (File or Text)
+    activate API
+    
+    API->>Service: createSource()
+    activate Service
+    Service->>DB: Insert RagSource
+    
+    Service->>Service: processSource()
+    note right of Service: 1. Text Extraction (PDF parse)<br/>2. Chunking
+    
+    loop For Each Chunk
+        Service->>LLM: embed(text)
+        LLM-->>Service: Vector [0.1, 0.5, ...]
+    end
+    
+    Service->>DB: Insert RagDocument (content + vector)
+    
+    Service-->>API: Result
+    deactivate Service
+    
+    API-->>U: 201 Created
+    deactivate API
+```
+
+## RAG 検索・回答フロー (Copilot)
+
+ユーザーの質問に対して、知識ベースを用いて回答を生成するフローです。
+
+```mermaid
+sequenceDiagram
+    participant U as User (Copilot)
+    participant Chat as AiCopilotService
+    participant RAG as RagService
+    participant DB as PostgreSQL
+    participant LLM as LlmGateway
+
+    U->>Chat: "出張手当の上限は？"
+    activate Chat
+    
+    Chat->>Chat: Determine AppContext
+    
+    Chat->>RAG: retrieve(appId, query)
+    activate RAG
+    
+    RAG->>LLM: embed(query)
+    LLM-->>RAG: Vector [0.2, 0.4, ...]
+    
+    RAG->>DB: Vector Similarity Search (Cosine)
+    note right of DB: SELECT * FROM rag_documents<br/>ORDER BY embedding <=> query_vector
+    DB-->>RAG: Relevant Chunks
+    
+    RAG-->>Chat: Context Text
+    deactivate RAG
+    
+    Chat->>Chat: Build Prompt with Context
+    Chat->>LLM: Generate Answer
+    LLM-->>Chat: "上限は12000円です"
+    
+    Chat-->>U: Answer
+    deactivate Chat
+```
+
 ## Scheduler: アプリケーションリカバリー
 
 ```mermaid

@@ -36,7 +36,10 @@ export class AiFormFillerService {
     // 1. Fetch History
     // Fetch last 5 approved applications for this user
     // We will implement `findApprovedHistory` in ApplicationsService
-    const historyApps = await this.applicationService.findApprovedHistory(currentUser.id, 5);
+    const historyApps = await this.applicationService.findApprovedHistory(
+      currentUser.id,
+      5,
+    );
 
     // 2. Minify History
     const minifiedHistory = historyApps.map((app) => ({
@@ -44,7 +47,7 @@ export class AiFormFillerService {
       title: app.title,
       submittedAt: app.createdAt,
       // We assume app.inputData contains the actual form values
-      formData: app.inputData, 
+      formData: app.inputData,
     }));
 
     // 3. Construct Prompts

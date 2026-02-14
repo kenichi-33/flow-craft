@@ -13,6 +13,7 @@ import { AiFormFillerService } from './services/ai-form-filler.service';
 import { ApplicationsModule } from '../applications/applications.module';
 import { ChatController } from './chat.controller';
 import { UsersModule } from '../users/users.module';
+import { StorageModule } from '../storage/storage.module';
 import { AiIntentService } from './services/ai-intent.service';
 import { AiSlotFillingService } from './services/ai-slot-filling.service';
 import { AiValidatorService } from './services/ai-validator.service';
@@ -20,11 +21,25 @@ import { AiExecutionService } from './services/ai-execution.service';
 import { AiConversationService } from './services/ai-conversation.service';
 import { AiCopilotService } from './services/ai-copilot.service';
 import { CopilotController } from './copilot.controller';
+import { RagService } from './services/rag.service';
+import { RagController } from './rag.controller';
 
 @Global()
 @Module({
-  imports: [ConfigModule, WorkflowCoreModule, QueueModule, ApplicationsModule, UsersModule],
-  controllers: [AiCoreController, ChatController, CopilotController],
+  imports: [
+    ConfigModule,
+    WorkflowCoreModule,
+    QueueModule,
+    ApplicationsModule,
+    UsersModule,
+    StorageModule,
+  ],
+  controllers: [
+    AiCoreController,
+    ChatController,
+    CopilotController,
+    RagController,
+  ],
   providers: [
     LlmGatewayService,
     OpenAIProvider,
@@ -38,6 +53,7 @@ import { CopilotController } from './copilot.controller';
     AiExecutionService,
     AiConversationService,
     AiCopilotService,
+    RagService,
     {
       provide: 'LLM_PROVIDERS',
       useFactory: (openai: OpenAIProvider, ollama: OllamaProvider) => [
@@ -48,16 +64,17 @@ import { CopilotController } from './copilot.controller';
     },
   ],
   exports: [
-    LlmGatewayService, 
-    AiBranchService, 
-    AiGeneratorService, 
+    LlmGatewayService,
+    AiBranchService,
+    AiGeneratorService,
     AiFormFillerService,
     AiIntentService,
     AiSlotFillingService,
     AiValidatorService,
     AiExecutionService,
     AiConversationService,
-    AiCopilotService
+    AiCopilotService,
+    RagService,
   ],
 })
 export class AiCoreModule {}

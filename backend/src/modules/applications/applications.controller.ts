@@ -46,7 +46,12 @@ export class ApplicationsController {
       requestUserId: user.username,
       // 'true': only test, 'false': only real (default), 'all': both?
       // For now, let's treat presence of 'true' as true, 'false' as false, undefined means default (which service handles).
-      isTestMode: isTestMode === 'true' ? true : isTestMode === 'false' ? false : undefined,
+      isTestMode:
+        isTestMode === 'true'
+          ? true
+          : isTestMode === 'false'
+            ? false
+            : undefined,
     });
   }
 

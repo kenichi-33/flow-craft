@@ -54,8 +54,8 @@ export default function AiGenericDialog({ open, onOpenChange, onGenerated, type,
           if (initialResult) {
               // Direct Preview Mode
               setGeneratedResult({
-                  reasoning: "AI Copilotが生成したデザイン案です。内容を確認して「反映する」ボタンを押してください。",
-                  data: initialResult
+                  reasoning: initialResult.reasoning || "AI Copilotが生成したデザイン案です。内容を確認して「反映する」ボタンを押してください。",
+                  data: (initialResult.data && !initialResult.nodes) ? initialResult.data : initialResult // Handle both wrapped and flat data
               });
           } else if (initialPrompt) {
               setPrompt(initialPrompt);

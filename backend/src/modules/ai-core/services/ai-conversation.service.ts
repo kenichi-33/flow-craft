@@ -1,4 +1,11 @@
-import { Injectable, Logger, NotFoundException, BadRequestException, Inject, forwardRef } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  NotFoundException,
+  BadRequestException,
+  Inject,
+  forwardRef,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { ConversationStatus } from '@prisma/client';
@@ -49,7 +56,9 @@ export class AiConversationService {
     },
   ) {
     this.logger.log(`Starting conversation for user ${userId}, flow ${flowId}`);
-    this.logger.log(`Config allowedApps: ${JSON.stringify(config?.allowedApps)}`);
+    this.logger.log(
+      `Config allowedApps: ${JSON.stringify(config?.allowedApps)}`,
+    );
 
     // FlowDefinitionを取得してformDefinitionIdを確認
     const flowDef = await this.prisma.flowDefinition.findUnique({
@@ -67,18 +76,20 @@ export class AiConversationService {
 
     // ApplicationDefinitionから親Application作成
     let parentApplicationId: string | null = null;
-    
-    if (flowDef.applicationDefinitions && flowDef.applicationDefinitions.length > 0) {
-      const appDef = flowDef.applicationDefinitions[0];
-      
-      if (appDef.formDefinitionId && appDef.flowDefinitionId) {
 
+    if (
+      flowDef.applicationDefinitions &&
+      flowDef.applicationDefinitions.length > 0
+    ) {
+      const appDef = flowDef.applicationDefinitions[0];
+
+      if (appDef.formDefinitionId && appDef.flowDefinitionId) {
         const formattedDate = new Date().toLocaleString('ja-JP', {
-             year: 'numeric',
-             month: '2-digit',
-             day: '2-digit',
-             hour: '2-digit',
-             minute: '2-digit'
+          year: 'numeric',
+          month: '2-digit',
+          day: '2-digit',
+          hour: '2-digit',
+          minute: '2-digit',
         });
 
         // 親Application作成
@@ -90,7 +101,7 @@ export class AiConversationService {
           title: `AIチャット申請 - ${formattedDate}`,
           inputData: {},
         });
-        
+
         parentApplicationId = parentApp.id;
         this.logger.log(`Created parent application: ${parentApplicationId}`);
       }
@@ -124,7 +135,9 @@ export class AiConversationService {
           },
         },
       });
-      this.logger.log(`Set __conversationId on parent application: ${parentApplicationId}`);
+      this.logger.log(
+        `Set __conversationId on parent application: ${parentApplicationId}`,
+      );
     }
 
     this.logger.log(
@@ -166,23 +179,32 @@ export class AiConversationService {
     });
 
     let responseMessage: string;
-    let isComplete = false;
+    const isComplete = false;
 
     // ステータスに応じた処理分岐
     switch (session.status) {
       case ConversationStatus.ACTIVE:
         // フェーズ1: アプリ検出
-        responseMessage = await this.handleAppDetection(session, request.message);
+        responseMessage = await this.handleAppDetection(
+          session,
+          request.message,
+        );
         break;
 
       case ConversationStatus.COLLECTING:
         // フェーズ2: 情報収集
-        responseMessage = await this.handleSlotFilling(session, request.message);
+        responseMessage = await this.handleSlotFilling(
+          session,
+          request.message,
+        );
         break;
 
       case ConversationStatus.CONFIRMING:
         // フェーズ3: 確認
-        responseMessage = await this.handleConfirmation(session, request.message);
+        responseMessage = await this.handleConfirmation(
+          session,
+          request.message,
+        );
         break;
 
       default:
@@ -213,9 +235,12 @@ export class AiConversationService {
   /**
    * フェーズ1: アプリ検出処理
    */
-  private async handleAppDetection(session: any, message: string): Promise<string> {
+  private async handleAppDetection(
+    session: any,
+    message: string,
+  ): Promise<string> {
     const allowedApps = session.allowedApps || [];
-    
+
     if (allowedApps.length === 0) {
       return '申し訳ございません。利用可能なアプリケーションが設定されていません。';
     }
@@ -229,7 +254,7 @@ export class AiConversationService {
     // アプリを検出
     const detection = await this.aiIntentService.detectApps({
       message,
-      availableApps: appDefs.map(a => ({
+      availableApps: appDefs.map((a) => ({
         id: a.id,
         name: a.name,
         description: a.description || undefined,
@@ -261,9 +286,9 @@ export class AiConversationService {
     );
 
     // スロット更新
-    const slots = session.slots as any || {};
+    const slots = session.slots || {};
     slots[firstApp.appId] = slotResponse.extractedInfo;
-     await this.prisma.conversationSession.update({
+    await this.prisma.conversationSession.update({
       where: { id: session.id },
       data: { slots },
     });
@@ -280,9 +305,12 @@ export class AiConversationService {
   /**
    * フェーズ2: スロットフィリング処理
    */
-  private async handleSlotFilling(session: any, message: string): Promise<string> {
+  private async handleSlotFilling(
+    session: any,
+    message: string,
+  ): Promise<string> {
     const detectedApps = session.detectedApps as any[];
-    const slots = session.slots as any || {};
+    const slots = session.slots || {};
 
     // ターゲットアプリを決定（必須項目が不足しているアプリを優先）
     let targetAppId: string | null = null;
@@ -292,10 +320,17 @@ export class AiConversationService {
       if (!fallbackAppId) fallbackAppId = app.appId;
 
       const appSlots = slots[app.appId] || {};
-      const fields = await this.aiSlotFillingService.extractFormFields(app.appId);
-      const requiredFields = fields.filter(f => f.required);
+      const fields = await this.aiSlotFillingService.extractFormFields(
+        app.appId,
+      );
+      const requiredFields = fields.filter((f) => f.required);
       // Fix: Check for strictly undefined or null, allow false/0
-      const missingCount = requiredFields.filter(f => appSlots[f.id] === undefined || appSlots[f.id] === null || appSlots[f.id] === '').length;
+      const missingCount = requiredFields.filter(
+        (f) =>
+          appSlots[f.id] === undefined ||
+          appSlots[f.id] === null ||
+          appSlots[f.id] === '',
+      ).length;
 
       if (missingCount > 0) {
         targetAppId = app.appId;
@@ -309,7 +344,7 @@ export class AiConversationService {
       return 'アプリケーションが見つかりません。';
     }
 
-    const targetApp = detectedApps.find(a => a.appId === appIdToUse);
+    const targetApp = detectedApps.find((a) => a.appId === appIdToUse);
 
     // 情報収集を実行（ユーザーメッセージを処理し、スロットを更新）
     // 必須項目が揃っていても、任意項目の追加や値の修正のために呼び出す必要がある
@@ -325,25 +360,32 @@ export class AiConversationService {
     // スロット更新
     const updatedSlots = { ...slots };
     updatedSlots[appIdToUse] = {
-        ...(updatedSlots[appIdToUse] || {}),
-        ...slotResponse.extractedInfo
+      ...(updatedSlots[appIdToUse] || {}),
+      ...slotResponse.extractedInfo,
     };
-    
+
     // DB更新
-     await this.prisma.conversationSession.update({
+    await this.prisma.conversationSession.update({
       where: { id: session.id },
       data: { slots: updatedSlots },
     });
 
     // スロット更新後の状態で再度完了判定
     let allComplete = true;
-    
+
     for (const app of detectedApps) {
       const appSlots = updatedSlots[app.appId] || {};
-      const fields = await this.aiSlotFillingService.extractFormFields(app.appId);
-      const requiredFields = fields.filter(f => f.required);
+      const fields = await this.aiSlotFillingService.extractFormFields(
+        app.appId,
+      );
+      const requiredFields = fields.filter((f) => f.required);
       // Fix: Check for strictly undefined or null, allow false/0
-      const missingCount = requiredFields.filter(f => appSlots[f.id] === undefined || appSlots[f.id] === null || appSlots[f.id] === '').length;
+      const missingCount = requiredFields.filter(
+        (f) =>
+          appSlots[f.id] === undefined ||
+          appSlots[f.id] === null ||
+          appSlots[f.id] === '',
+      ).length;
 
       if (missingCount > 0) {
         allComplete = false;
@@ -362,7 +404,9 @@ export class AiConversationService {
         data: { status: ConversationStatus.CONFIRMING },
       });
 
-      return await this.aiExecutionService.generateConfirmationMessage(session.id);
+      return await this.aiExecutionService.generateConfirmationMessage(
+        session.id,
+      );
     }
 
     // LLMからの質問はないが、システム的には未完了の場合
@@ -370,10 +414,18 @@ export class AiConversationService {
     const missingFieldLabels: string[] = [];
     for (const app of detectedApps) {
       const appSlots = updatedSlots[app.appId] || {};
-      const fields = await this.aiSlotFillingService.extractFormFields(app.appId);
-      const requiredFields = fields.filter(f => f.required && (appSlots[f.id] === undefined || appSlots[f.id] === null || appSlots[f.id] === ''));
+      const fields = await this.aiSlotFillingService.extractFormFields(
+        app.appId,
+      );
+      const requiredFields = fields.filter(
+        (f) =>
+          f.required &&
+          (appSlots[f.id] === undefined ||
+            appSlots[f.id] === null ||
+            appSlots[f.id] === ''),
+      );
       if (requiredFields.length > 0) {
-        missingFieldLabels.push(...requiredFields.map(f => f.label));
+        missingFieldLabels.push(...requiredFields.map((f) => f.label));
       }
     }
 
@@ -388,23 +440,39 @@ export class AiConversationService {
   /**
    * フェーズ3: 確認処理
    */
-  private async handleConfirmation(session: any, message: string): Promise<string> {
+  private async handleConfirmation(
+    session: any,
+    message: string,
+  ): Promise<string> {
     const lowerMessage = message.toLowerCase().trim();
-    
-    if (lowerMessage.includes('はい') || lowerMessage.includes('実行') || lowerMessage.includes('yes')) {
+
+    if (
+      lowerMessage.includes('はい') ||
+      lowerMessage.includes('実行') ||
+      lowerMessage.includes('yes')
+    ) {
       try {
         // アプリケーション実行
-        const result = await this.aiExecutionService.executeApplications(session.id, session.userId);
-        
-        return `✅ アプリケーションを実行しました!\n\n` +
-               `親Application ID: ${result.parentApplicationId}\n` +
-               `実行した子Application数: ${result.childApplicationIds.length}\n\n` +
-               `各アプリケーションのワークフローが開始されました。`;
+        const result = await this.aiExecutionService.executeApplications(
+          session.id,
+          session.userId,
+        );
+
+        return (
+          `✅ アプリケーションを実行しました!\n\n` +
+          `親Application ID: ${result.parentApplicationId}\n` +
+          `実行した子Application数: ${result.childApplicationIds.length}\n\n` +
+          `各アプリケーションのワークフローが開始されました。`
+        );
       } catch (error) {
         this.logger.error('Failed to execute applications', error);
         return '申し訳ございません。アプリケーションの実行中にエラーが発生しました。';
       }
-    } else if (lowerMessage.includes('いいえ') || lowerMessage.includes('キャンセル') || lowerMessage.includes('no')) {
+    } else if (
+      lowerMessage.includes('いいえ') ||
+      lowerMessage.includes('キャンセル') ||
+      lowerMessage.includes('no')
+    ) {
       // キャンセル
       await this.prisma.conversationSession.update({
         where: { id: session.id },
@@ -419,42 +487,52 @@ export class AiConversationService {
       let updated = false;
 
       // セッションから最新のスロットを取得
-      const slots = session.slots as any || {};
+      const slots = session.slots || {};
       const updatedSlots = { ...slots };
 
       for (const app of detectedApps) {
-         try {
-             // 修正のみを目的とする場合
-             const result = await this.aiSlotFillingService.performSlotFilling(
-                 app.appId,
-                 message,
-                 updatedSlots[app.appId] || {},
-                 session.history as any[],
-             );
-             
-             if (Object.keys(result.extractedInfo).length > 0) {
-                 updated = true;
-                 updatedSlots[app.appId] = {
-                   ...(updatedSlots[app.appId] || {}),
-                   ...result.extractedInfo
-                 };
-             }
-         } catch (e) {
-             this.logger.warn(`Failed to update slots for app ${app.appId}`, e);
-         }
+        try {
+          // 修正のみを目的とする場合
+          const result = await this.aiSlotFillingService.performSlotFilling(
+            app.appId,
+            message,
+            updatedSlots[app.appId] || {},
+            session.history as any[],
+          );
+
+          if (Object.keys(result.extractedInfo).length > 0) {
+            updated = true;
+            updatedSlots[app.appId] = {
+              ...(updatedSlots[app.appId] || {}),
+              ...result.extractedInfo,
+            };
+          }
+        } catch (e) {
+          this.logger.warn(`Failed to update slots for app ${app.appId}`, e);
+        }
       }
 
       if (updated) {
-          // DB更新
-          await this.prisma.conversationSession.update({
-              where: { id: session.id },
-              data: { slots: updatedSlots },
-          });
+        // DB更新
+        await this.prisma.conversationSession.update({
+          where: { id: session.id },
+          data: { slots: updatedSlots },
+        });
 
-          return '承知しました。情報を更新しました。\n\n' + await this.aiExecutionService.generateConfirmationMessage(session.id);
+        return (
+          '承知しました。情報を更新しました。\n\n' +
+          (await this.aiExecutionService.generateConfirmationMessage(
+            session.id,
+          ))
+        );
       } else {
-          // 再確認
-          return '申し訳ございません。修正内容を特定できませんでした。修正したい項目と値を具体的に教えてください。\n\n' + await this.aiExecutionService.generateConfirmationMessage(session.id);
+        // 再確認
+        return (
+          '申し訳ございません。修正内容を特定できませんでした。修正したい項目と値を具体的に教えてください。\n\n' +
+          (await this.aiExecutionService.generateConfirmationMessage(
+            session.id,
+          ))
+        );
       }
     }
   }
@@ -462,7 +540,10 @@ export class AiConversationService {
   /**
    * 通常の会話処理（フォールバック）
    */
-  private async handleNormalChat(session: any, history: any[]): Promise<string> {
+  private async handleNormalChat(
+    session: any,
+    history: any[],
+  ): Promise<string> {
     const systemPrompt =
       session.systemPrompt ||
       `

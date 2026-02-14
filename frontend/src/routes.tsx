@@ -24,6 +24,7 @@ const DesignerNewAppPage = Loadable(lazy(() => import("@/features/designer/pages
 const DesignerOverviewPage = Loadable(lazy(() => import("@/features/designer/pages/DesignerOverviewPage")));
 const DesignerVersionsPage = Loadable(lazy(() => import("@/features/designer/pages/DesignerVersionsPage")));
 const DesignerSearchPage = Loadable(lazy(() => import("@/features/designer/pages/DesignerSearchPage")));
+const DesignerRagPage = Loadable(lazy(() => import("@/features/designer/pages/DesignerRagPage")));
 const FormEditorPage = Loadable(lazy(() => import("@/features/designer/pages/FormEditorPage")));
 const FlowEditorPage = Loadable(lazy(() => import("@/features/designer/pages/FlowEditorPage")));
 const VersionPreviewPage = Loadable(lazy(() => import("@/features/designer/pages/VersionPreviewPage")));
@@ -87,6 +88,7 @@ export const router = createBrowserRouter([
             { path: "flow", element: <FlowEditorPage /> },
             { path: "versions", element: <DesignerVersionsPage /> },
             { path: "search", element: <DesignerSearchPage /> },
+            { path: "rag", element: <DesignerRagPage /> },
         ]
     },
     // App Studio (Read Only)

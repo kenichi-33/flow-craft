@@ -140,14 +140,20 @@ export class EmailTaskHandler implements ITaskHandler {
 
       // TEST MODE: Divert to Applicant
       if (application?.isTestMode) {
-        this.logger.warn(`[TEST MODE] Original recipients for Task ${taskId}: ${toList.join(', ')}`);
+        this.logger.warn(
+          `[TEST MODE] Original recipients for Task ${taskId}: ${toList.join(', ')}`,
+        );
         const applicantEmail = applicantUser?.email;
         if (applicantEmail) {
           toList = [applicantEmail];
           subject = `[TEST MODE] ${subject}`;
-          this.logger.log(`[TEST MODE] Diverting email to applicant: ${applicantEmail}`);
+          this.logger.log(
+            `[TEST MODE] Diverting email to applicant: ${applicantEmail}`,
+          );
         } else {
-          this.logger.warn(`[TEST MODE] Applicant email not found, suppressing email.`);
+          this.logger.warn(
+            `[TEST MODE] Applicant email not found, suppressing email.`,
+          );
           toList = [];
         }
       }

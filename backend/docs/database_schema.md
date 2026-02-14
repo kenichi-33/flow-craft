@@ -13,6 +13,9 @@ erDiagram
     Application ||--o{ WorkflowTask : "has tasks"
     Application ||--o{ ApprovalHistory : "has history"
     
+    ApplicationDefinition ||--o{ RagSource : "has sources"
+    RagSource ||--o{ RagDocument : "has chunks"
+
     WorkflowTask ||--o{ WorkflowTaskHistory : "has execution logs"
 
     ApplicationDefinition {
@@ -81,6 +84,21 @@ erDiagram
         string connectorId FK
         json data
     }
+    
+    RagSource {
+        string id PK
+        string name
+        string type "file, text"
+        string content
+        string fileId
+    }
+    
+    RagDocument {
+        string id PK
+        string ragSourceId FK
+        string content
+        vector embedding
+    }
 ```
 
 ## テーブル概要
@@ -97,6 +115,8 @@ erDiagram
 | **master_connectors** | 外部システム連携設定。`isShared`による共有設定や、作成・更新者の監査情報(`createdBy`, `updatedBy`)を保持。 |
 | **master_data_items** | CSV連携タイプの場合のインポートデータレコード。 |
 | **conversation_sessions** | AIチャットのセッション管理。会話履歴や収集中のスロット情報を保持。 |
+| **rag_sources** | RAG用の知識ソース（ファイルメタデータやテキスト本文）を管理。 |
+| **rag_documents** | 分割されたテキストチャンクと、そのEmbeddingベクトル(`vector`型)を保持。 |
 
 ## スナップショット機能
 

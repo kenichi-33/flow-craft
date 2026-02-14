@@ -52,10 +52,15 @@ export class WorkflowEngineService {
         'ApplicationDefinition is not fully configured',
       );
     }
-    
+
     // Check Active status
     // Allow if isTestMode OR version specified OR useDraft specified
-    if (appDef.status !== 'ACTIVE' && !input.isTestMode && !input.version && !input.useDraft) {
+    if (
+      appDef.status !== 'ACTIVE' &&
+      !input.isTestMode &&
+      !input.version &&
+      !input.useDraft
+    ) {
       throw new BadRequestException('ApplicationDefinition is not active');
     }
 
@@ -67,22 +72,22 @@ export class WorkflowEngineService {
     let publishedVersion: any = null;
 
     if (!input.useDraft) {
-        // Determine Version to Use (if not using draft)
-        const targetVersion = input.version || appDef.version;
+      // Determine Version to Use (if not using draft)
+      const targetVersion = input.version || appDef.version;
 
-        publishedVersion = await this.prisma.appVersion.findUnique({
-          where: {
-            applicationDefinitionId_version: {
-              applicationDefinitionId: appDef.id,
-              version: targetVersion,
-            },
+      publishedVersion = await this.prisma.appVersion.findUnique({
+        where: {
+          applicationDefinitionId_version: {
+            applicationDefinitionId: appDef.id,
+            version: targetVersion,
           },
-        });
+        },
+      });
 
-        // If explicit version requested but not found, error
-        if (input.version && !publishedVersion) {
-            throw new NotFoundException(`Version ${input.version} not found`);
-        }
+      // If explicit version requested but not found, error
+      if (input.version && !publishedVersion) {
+        throw new NotFoundException(`Version ${input.version} not found`);
+      }
     }
 
     const flowNodes = publishedVersion?.flowNodes ?? flowDef.nodes;
@@ -125,9 +130,11 @@ export class WorkflowEngineService {
         appDef.adminIds?.includes(input.applicantId) ||
         (applicantInfo as any).roles?.includes('admin') ||
         (applicantInfo as any).roles?.includes('sys_admin'); // Assuming role names
-      
+
       if (!isAdmin) {
-         throw new BadRequestException('Only application administrators can start in Test Mode');
+        throw new BadRequestException(
+          'Only application administrators can start in Test Mode',
+        );
       }
     }
 
@@ -354,10 +361,14 @@ export class WorkflowEngineService {
 
     // Claim Requirement Check
     if (!task.claimedBy) {
-        throw new BadRequestException('You must start (claim) the task before completing it');
+      throw new BadRequestException(
+        'You must start (claim) the task before completing it',
+      );
     }
     if (task.claimedBy !== input.actorId) {
-        throw new BadRequestException(`Task is claimed by ${task.claimedBy}, not you`);
+      throw new BadRequestException(
+        `Task is claimed by ${task.claimedBy}, not you`,
+      );
     }
 
     // Allow approval and input tasks
@@ -707,7 +718,7 @@ export class WorkflowEngineService {
       this.logger.log(
         `Application ${applicationId} has been canceled by ${actorId}.`,
       );
-      
+
       return { parentId: app?.parentId };
     });
 
@@ -811,14 +822,14 @@ export class WorkflowEngineService {
       this.logger.log(
         `Application ${applicationId} has been withdrawn by ${actorId}.`,
       );
-      
+
       return { parentId: app.parentId };
     });
-    
+
     if (result?.parentId) {
       await this.checkParentCompletion(result.parentId);
     }
-    
+
     return result;
   }
 

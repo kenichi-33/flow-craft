@@ -114,7 +114,7 @@ Select the best matching workflow.
 4. なぜそのアプリが必要かの理由を説明
 
 ## 利用可能なアプリケーション:
-${request.availableApps.map(app => `- ${app.name} (ID: ${app.id})${app.description ? `: ${app.description}` : ''}`).join('\n')}
+${request.availableApps.map((app) => `- ${app.name} (ID: ${app.id})${app.description ? `: ${app.description}` : ''}`).join('\n')}
 
 ## 回答形式
 以下のJSON形式で回答してください:
@@ -142,14 +142,16 @@ ${request.availableApps.map(app => `- ${app.name} (ID: ${app.id})${app.descripti
       });
 
       const parsed = JSON.parse(response.rawContent);
-      
-      const detectedApps: DetectedApp[] = (parsed.detectedApps || []).map((d: any) => {
-        const appDef = request.availableApps.find(a => a.id === d.appId);
-        return {
-          ...d,
-          description: appDef?.description
-        };
-      });
+
+      const detectedApps: DetectedApp[] = (parsed.detectedApps || []).map(
+        (d: any) => {
+          const appDef = request.availableApps.find((a) => a.id === d.appId);
+          return {
+            ...d,
+            description: appDef?.description,
+          };
+        },
+      );
 
       return {
         detectedApps,

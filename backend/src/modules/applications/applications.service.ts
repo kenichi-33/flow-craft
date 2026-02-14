@@ -533,7 +533,7 @@ export class ApplicationsService {
       where.OR = [
         { title: { contains: query.keyword, mode: 'insensitive' } },
         // If searching a specific user's things, we don't necessarily search applicantId by keyword
-        // unless it's a general search. 
+        // unless it's a general search.
         // But for backwards compatibility/safety:
         { applicantId: { contains: query.keyword, mode: 'insensitive' } },
       ];
@@ -541,12 +541,12 @@ export class ApplicationsService {
 
     // 2. targetUserId Filter (e.g. "Tanaka's data")
     if (query.targetUserId) {
-        where.applicantId = query.targetUserId;
+      where.applicantId = query.targetUserId;
     }
 
     // 3. Application Type Filter
     if (query.applicationDefinitionId) {
-        where.applicationDefinitionId = query.applicationDefinitionId;
+      where.applicationDefinitionId = query.applicationDefinitionId;
     }
 
     if (query.status) {

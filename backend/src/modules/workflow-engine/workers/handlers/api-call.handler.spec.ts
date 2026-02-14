@@ -69,8 +69,7 @@ describe('ApiCallHandler', () => {
     expect(result.success).toBe(true);
     expect(result.outputData?._statusCode).toBe(200);
   });
-// ... (skipping some intermediate unmodified tests for brevity in tool call, but replace tool needs context. I will target specific blocks)
-
+  // ... (skipping some intermediate unmodified tests for brevity in tool call, but replace tool needs context. I will target specific blocks)
 
   it('should handle variable substitution in URL and Body', async () => {
     mockFetch.mockResolvedValue({

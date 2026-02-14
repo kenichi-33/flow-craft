@@ -22,21 +22,21 @@ export class ApiCallHandler implements ITaskHandler {
 
     // Check Test Mode
     const application = await this.prisma.application.findUnique({
-        where: { id: applicationId },
-        select: { isTestMode: true },
+      where: { id: applicationId },
+      select: { isTestMode: true },
     });
 
     if (application?.isTestMode) {
-        this.logger.log(`[TEST MODE] Skipping API Call Task ${taskId}`);
-        return {
+      this.logger.log(`[TEST MODE] Skipping API Call Task ${taskId}`);
+      return {
         success: true,
         shouldAdvance: true,
         outputData: {
-            [`api_skipped_${nodeId}`]: true,
-            _statusCode: 200,
-            _response: { message: 'Skipped in Test Mode' },
+          [`api_skipped_${nodeId}`]: true,
+          _statusCode: 200,
+          _response: { message: 'Skipped in Test Mode' },
         },
-        };
+      };
     }
 
     const retryCount = parseInt(nodeData.retryCount || '0', 10);

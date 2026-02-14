@@ -92,4 +92,3 @@ export class WorkflowWorkerModule implements OnModuleInit {
     ]);
   }
 }
-

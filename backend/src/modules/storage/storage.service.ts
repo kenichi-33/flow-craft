@@ -226,4 +226,27 @@ export class StorageService implements OnModuleInit {
       data: { status: 'deleted' },
     });
   }
+
+  /**
+   * ファイル内容を取得 (Internal)
+   */
+  async getFileContent(fileId: string): Promise<Buffer> {
+    const file = await this.prisma.file.findUnique({ where: { id: fileId } });
+
+    if (!file || file.status !== 'uploaded') {
+      throw new NotFoundException('ファイルが見つかりません');
+    }
+
+    try {
+      const stream = await this.internalClient.getObject(this.bucket, file.key);
+      const chunks: Buffer[] = [];
+      for await (const chunk of stream) {
+        chunks.push(chunk);
+      }
+      return Buffer.concat(chunks);
+    } catch (error) {
+      console.error('Failed to get file content from MinIO:', error);
+      throw new BadRequestException('ファイル読み込みに失敗しました');
+    }
+  }
 }

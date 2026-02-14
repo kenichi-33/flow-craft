@@ -113,10 +113,14 @@ Extract available parameters and identify missing ones.
         let type = def.type || 'string';
 
         // ファイルタイプの判定
-        if (def.type === 'file' || def['x-type'] === 'file' || (def.type === 'string' && def.format === 'binary')) {
-             type = 'file';
+        if (
+          def.type === 'file' ||
+          def['x-type'] === 'file' ||
+          (def.type === 'string' && def.format === 'binary')
+        ) {
+          type = 'file';
         } else if (def.format) {
-            type = `${def.type} (${def.format})`;
+          type = `${def.type} (${def.format})`;
         }
 
         fields.push({
@@ -158,7 +162,7 @@ Extract available parameters and identify missing ones.
 - **重要**: ユーザーの入力がこのアプリケーションに関連するかどうかを判断し、関連する場合のみ情報を抽出してください。
 
 ## 必要な情報フィールド:
-${fields.map(f => `- ${f.label} (${f.id}): ${f.type}${f.required ? ' [必須]' : ' [任意]'}${f.description ? ` - ${f.description}` : ''}`).join('\n')}
+${fields.map((f) => `- ${f.label} (${f.id}): ${f.type}${f.required ? ' [必須]' : ' [任意]'}${f.description ? ` - ${f.description}` : ''}`).join('\n')}
 
 ## 現在収集済みの情報:
 ${JSON.stringify(currentSlots, null, 2)}
@@ -229,21 +233,29 @@ ${historyText}
       this.logger.log(`LLM raw response: ${response.rawContent}`);
 
       const parsed = JSON.parse(response.rawContent);
-      
-      this.logger.log(`Parsed extractedInfo: ${JSON.stringify(parsed.extractedInfo)}`);
-      this.logger.log(`Available fields: ${JSON.stringify(fields.map(f => ({ id: f.id, type: f.type })))}`);
+
+      this.logger.log(
+        `Parsed extractedInfo: ${JSON.stringify(parsed.extractedInfo)}`,
+      );
+      this.logger.log(
+        `Available fields: ${JSON.stringify(fields.map((f) => ({ id: f.id, type: f.type })))}`,
+      );
 
       // キーごとに型変換を実行
       const convertedInfo: Record<string, any> = {};
       for (const [key, value] of Object.entries(parsed.extractedInfo || {})) {
-        const field = fields.find(f => f.id === key);
-        this.logger.log(`Converting field "${key}": value="${value}", fieldType="${field?.type || 'unknown'}"`);
+        const field = fields.find((f) => f.id === key);
+        this.logger.log(
+          `Converting field "${key}": value="${value}", fieldType="${field?.type || 'unknown'}"`,
+        );
         if (field) {
           convertedInfo[key] = this.convertValue(value, field.type, key);
         } else {
           convertedInfo[key] = value;
         }
-        this.logger.log(`Converted "${key}": ${convertedInfo[key]} (${typeof convertedInfo[key]})`);
+        this.logger.log(
+          `Converted "${key}": ${convertedInfo[key]} (${typeof convertedInfo[key]})`,
+        );
       }
 
       return {
@@ -272,38 +284,39 @@ ${historyText}
       // 値として使えそうなプロパティが見つからない場合は、JSON文字列化して返す（Reactエラー回避のため）
       return JSON.stringify(value);
     }
-    
+
     // 型情報からフォーマットを除去 ("number (currency)" -> "number")
     const baseType = type.split(' ')[0].trim();
-    
+
     // 金額関連のフィールド名は強制的に数値変換を試みる
-    const isAmountField = fieldId && /amount|price|cost|fee|salary|total|sum/i.test(fieldId);
-    
+    const isAmountField =
+      fieldId && /amount|price|cost|fee|salary|total|sum/i.test(fieldId);
+
     switch (baseType) {
       case 'number':
       case 'integer':
-         return this.convertToNumber(value);
-      
+        return this.convertToNumber(value);
+
       case 'boolean':
-         if (typeof value === 'boolean') return value;
-         if (typeof value === 'string') {
-             const lower = value.toLowerCase().trim();
-             if (['true', 'yes', 'on', '1'].includes(lower)) return true;
-             if (['false', 'no', 'off', '0'].includes(lower)) return false;
-         }
-         return value;
+        if (typeof value === 'boolean') return value;
+        if (typeof value === 'string') {
+          const lower = value.toLowerCase().trim();
+          if (['true', 'yes', 'on', '1'].includes(lower)) return true;
+          if (['false', 'no', 'off', '0'].includes(lower)) return false;
+        }
+        return value;
 
       case 'date':
       case 'datetime':
-         return value;
+        return value;
 
       default:
-         // フィールド名が金額を示唆する場合は数値変換を試みる
-         if (isAmountField && typeof value === 'string') {
-           const numValue = this.convertToNumber(value);
-           if (typeof numValue === 'number') return numValue;
-         }
-         return value;
+        // フィールド名が金額を示唆する場合は数値変換を試みる
+        if (isAmountField && typeof value === 'string') {
+          const numValue = this.convertToNumber(value);
+          if (typeof numValue === 'number') return numValue;
+        }
+        return value;
     }
   }
 
@@ -312,11 +325,11 @@ ${historyText}
    */
   private convertToNumber(value: any): any {
     if (typeof value === 'number') return value;
-    
+
     if (typeof value === 'string') {
       // 全角数字を半角数字に変換
       const zenkaku = value.replace(/[０-９]/g, (s) => {
-        return String.fromCharCode(s.charCodeAt(0) - 0xFEE0);
+        return String.fromCharCode(s.charCodeAt(0) - 0xfee0);
       });
 
       // 3桁区切りのカンマを除去し、数字・小数点・マイナス以外を除去
@@ -325,7 +338,7 @@ ${historyText}
       const num = Number(cleanStr);
       return isNaN(num) ? value : num;
     }
-    
+
     const num = Number(value);
     return isNaN(num) ? value : num;
   }

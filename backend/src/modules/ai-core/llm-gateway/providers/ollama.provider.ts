@@ -26,7 +26,7 @@ export class OllamaProvider implements ILLMProvider {
       request.model ||
       this.configService.get<string>('OLLAMA_MODEL') ||
       'qwen2.5-coder:14b';
-    
+
     // Use runtime Base URL if provided
     const baseUrl = request.providerConfig?.baseUrl || this.baseUrl;
     const url = `${baseUrl.replace(/\/$/, '')}/api/chat`;
@@ -81,5 +81,32 @@ export class OllamaProvider implements ILLMProvider {
       },
       provider: 'ollama',
     };
+  }
+
+  async embed(text: string): Promise<number[]> {
+    const model =
+      this.configService.get<string>('AI_EMBEDDING_MODEL') ||
+      'nomic-embed-text';
+    const baseUrl = this.baseUrl;
+    const url = `${baseUrl.replace(/\/$/, '')}/api/embeddings`;
+
+    const body = {
+      model,
+      prompt: text,
+    };
+
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+
+    if (!res.ok) {
+      const errorText = await res.text();
+      throw new Error(`Ollama Embedding Error: ${res.status} ${errorText}`);
+    }
+
+    const data = await res.json();
+    return data.embedding;
   }
 }

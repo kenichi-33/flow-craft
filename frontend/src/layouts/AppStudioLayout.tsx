@@ -76,6 +76,7 @@ export default function AppStudioLayout() {
         { text: 'フロー定義', icon: GitBranch, href: `/designer/apps/${id}/flow` },
         { text: 'データ検索', icon: Search, href: `/designer/apps/${id}/search` },
         { text: 'バージョン履歴', icon: History, href: `/designer/apps/${id}/versions` },
+        { text: '知識ベース (RAG)', icon: Bot, href: `/designer/apps/${id}/rag` },
     ];
 
     if (isLoading) {

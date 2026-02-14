@@ -21,7 +21,8 @@ export class SlackTaskHandler implements ITaskHandler {
   }
 
   async execute(context: TaskContext): Promise<TaskResult> {
-    const { taskId, nodeId, nodeData, inputData, applicantId, applicationId } = context;
+    const { taskId, nodeId, nodeData, inputData, applicantId, applicationId } =
+      context;
     this.logger.log(`Executing Slack/Webhook Task ${taskId} (Node: ${nodeId})`);
 
     // Check Test Mode

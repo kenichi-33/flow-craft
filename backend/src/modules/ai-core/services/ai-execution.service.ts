@@ -1,4 +1,11 @@
-import { Injectable, Logger, BadRequestException, NotFoundException, Inject, forwardRef } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  BadRequestException,
+  NotFoundException,
+  Inject,
+  forwardRef,
+} from '@nestjs/common';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { ApplicationsService } from '../../applications/applications.service';
 import { WorkflowEngineService } from '../../workflow-engine/workflow-engine.service';
@@ -43,10 +50,10 @@ export class AiExecutionService {
     for (let i = 0; i < detectedApps.length; i++) {
       const app = detectedApps[i];
       const appSlots = slots[app.appId] || {};
-      
+
       message += `${i + 1}. **${app.appName}**\n`;
       message += `   理由: ${app.reason}\n`;
-      
+
       if (Object.keys(appSlots).length > 0) {
         message += '   入力情報:\n';
         for (const [key, value] of Object.entries(appSlots)) {
@@ -65,7 +72,10 @@ export class AiExecutionService {
    * アプリケーションを実行
    * 親Applicationと複数の子Applicationを作成し、ワークフローを開始
    */
-  async executeApplications(sessionId: string, userId: string): Promise<{
+  async executeApplications(
+    sessionId: string,
+    userId: string,
+  ): Promise<{
     parentApplicationId: string;
     childApplicationIds: string[];
   }> {
@@ -88,7 +98,7 @@ export class AiExecutionService {
 
     // 親ApplicationIDを取得（startConversationで作成済み）
     const parentApplicationId = (session as any).applicationId;
-    
+
     if (!parentApplicationId) {
       throw new BadRequestException(
         'Parent application not found. Session may not have been properly initialized.',
@@ -127,7 +137,9 @@ export class AiExecutionService {
         });
 
         if (!appDef || !appDef.formDefinitionId || !appDef.flowDefinitionId) {
-          this.logger.error(`Invalid application definition: ${detectedApp.appId}`);
+          this.logger.error(
+            `Invalid application definition: ${detectedApp.appId}`,
+          );
           continue;
         }
 
@@ -147,7 +159,9 @@ export class AiExecutionService {
         });
 
         if (!flowDef) {
-          this.logger.error(`Flow definition not found: ${appDef.flowDefinitionId}`);
+          this.logger.error(
+            `Flow definition not found: ${appDef.flowDefinitionId}`,
+          );
           continue;
         }
 
@@ -155,7 +169,9 @@ export class AiExecutionService {
         const startNode = flowNodes.find((n: any) => n.type === 'start');
 
         if (!startNode) {
-          this.logger.error(`Start node not found in flow: ${appDef.flowDefinitionId}`);
+          this.logger.error(
+            `Start node not found in flow: ${appDef.flowDefinitionId}`,
+          );
           continue;
         }
 
@@ -187,9 +203,14 @@ export class AiExecutionService {
         );
 
         childApplicationIds.push(childApp.id);
-        this.logger.log(`Created and started child application: ${childApp.id}`);
+        this.logger.log(
+          `Created and started child application: ${childApp.id}`,
+        );
       } catch (error) {
-        this.logger.error(`Failed to create child app ${detectedApp.appId}`, error);
+        this.logger.error(
+          `Failed to create child app ${detectedApp.appId}`,
+          error,
+        );
         // エラーでも続行（一部失敗を許容）
       }
     }
@@ -209,100 +230,120 @@ export class AiExecutionService {
 
     // 親申請のワークフロー開始
     if (parentApplicationId) {
-        try {
-            const session = await this.prisma.conversationSession.findUnique({
-                where: { id: sessionId },
-                select: { flowId: true }
-            });
+      try {
+        const session = await this.prisma.conversationSession.findUnique({
+          where: { id: sessionId },
+          select: { flowId: true },
+        });
 
-            if (session) {
-                // フロー定義からstartノードを取得
-                const flowDef = await this.prisma.flowDefinition.findUnique({
-                    where: { id: session.flowId },
-                });
+        if (session) {
+          // フロー定義からstartノードを取得
+          const flowDef = await this.prisma.flowDefinition.findUnique({
+            where: { id: session.flowId },
+          });
 
-                if (flowDef && flowDef.nodes) {
-                    const nodes = flowDef.nodes as any[];
-                    const startNode = nodes.find((n: any) => n.type === 'start' || n.type === 'aiStart'); // aiStartも考慮
+          if (flowDef && flowDef.nodes) {
+            const nodes = flowDef.nodes as any[];
+            const startNode = nodes.find(
+              (n: any) => n.type === 'start' || n.type === 'aiStart',
+            ); // aiStartも考慮
 
-                    if (startNode) {
-                        // ApplicationをIN_PROGRESSに更新し、currentNodeIdを設定
-                        // inputDataにconversationIdを保存
-                        const parentApp = await this.prisma.application.findUnique({
-                             where: { id: parentApplicationId },
-                             select: { inputData: true, applicantId: true }
-                        });
-                        
-                        const currentInput = parentApp?.inputData ? (parentApp.inputData as Record<string, any>) : {};
-                        const newInputData = {
-                            ...currentInput,
-                            __conversationId: sessionId,
-                            __childApplicationIds: childApplicationIds
-                        };
+            if (startNode) {
+              // ApplicationをIN_PROGRESSに更新し、currentNodeIdを設定
+              // inputDataにconversationIdを保存
+              const parentApp = await this.prisma.application.findUnique({
+                where: { id: parentApplicationId },
+                select: { inputData: true, applicantId: true },
+              });
 
-                        await this.prisma.application.update({
-                            where: { id: parentApplicationId },
-                            data: {
-                                status: 'IN_PROGRESS',
-                                currentNodeId: startNode.id,
-                                inputData: newInputData,
-                            },
-                        });
+              const currentInput = parentApp?.inputData
+                ? (parentApp.inputData as Record<string, any>)
+                : {};
+              const newInputData = {
+                ...currentInput,
+                __conversationId: sessionId,
+                __childApplicationIds: childApplicationIds,
+              };
 
-                         this.logger.log(`Updated parent application status to IN_PROGRESS: ${parentApplicationId}`);
-                         
-                         // 親申請の履歴を作成 (AI_STARTアクション)
-                         await this.prisma.approvalHistory.create({
-                             data: {
-                                 applicationId: parentApplicationId,
-                                 actorId: parentApp?.applicantId || 'SYSTEM', // 申請者またはSYSTEM
-                                 actorInfo: { username: parentApp?.applicantId || 'AI' },
-                                 action: 'AI_START',
-                                 stepId: startNode.id,
-                                 comment: 'AIチャットにより申請が自動生成され、子申請が開始されました。全ての子申請が完了すると自動的に進行します。',
-                             }
-                         });
+              await this.prisma.application.update({
+                where: { id: parentApplicationId },
+                data: {
+                  status: 'IN_PROGRESS',
+                  currentNodeId: startNode.id,
+                  inputData: newInputData,
+                },
+              });
 
-                         // 親申請は子申請の完了を待つため、ここでは進めない
-                         // タスクを作成して待機状態にする
-                         // ユーザー名を取得
-                         let displayName = parentApp?.applicantId || 'SYSTEM';
-                         if (parentApp?.applicantId) {
-                             try {
-                                 const userSnapshot = await this.usersService.getUserSnapshotByUsername(parentApp.applicantId);
-                                 if (userSnapshot.lastName || userSnapshot.firstName) {
-                                     displayName = `${userSnapshot.lastName || ''} ${userSnapshot.firstName || ''}`.trim();
-                                 } else {
-                                     displayName = userSnapshot.username;
-                                 }
-                             } catch (e) {
-                                 this.logger.warn(`Failed to get user snapshot for ${parentApp.applicantId}`, e);
-                             }
-                         }
-                         
-                         await this.prisma.workflowTask.create({
-                             data: {
-                                 applicationId: parentApplicationId,
-                                 stepId: startNode.id,
-                                 status: 'PENDING',
-                                 assignedTo: parentApp?.applicantId || 'SYSTEM',
-                                 assignedToDisplay: displayName,
-                                 type: 'aiStarting', // 識別しやすいタイプにする
-                                 config: {
-                                     title: 'AI申請調整中',
-                                     description: 'AIチャットによる申請内容の調整中です。子申請が全て完了すると自動的に進行します。'
-                                 },
-                             }
-                         });
-                         
-                         this.logger.log(`Created pending task for AI Start node: ${startNode.id}`);
-                         // await this.workflowEngineService['helper'].advanceToNextNode(parentApplicationId);
-                    }
+              this.logger.log(
+                `Updated parent application status to IN_PROGRESS: ${parentApplicationId}`,
+              );
+
+              // 親申請の履歴を作成 (AI_STARTアクション)
+              await this.prisma.approvalHistory.create({
+                data: {
+                  applicationId: parentApplicationId,
+                  actorId: parentApp?.applicantId || 'SYSTEM', // 申請者またはSYSTEM
+                  actorInfo: { username: parentApp?.applicantId || 'AI' },
+                  action: 'AI_START',
+                  stepId: startNode.id,
+                  comment:
+                    'AIチャットにより申請が自動生成され、子申請が開始されました。全ての子申請が完了すると自動的に進行します。',
+                },
+              });
+
+              // 親申請は子申請の完了を待つため、ここでは進めない
+              // タスクを作成して待機状態にする
+              // ユーザー名を取得
+              let displayName = parentApp?.applicantId || 'SYSTEM';
+              if (parentApp?.applicantId) {
+                try {
+                  const userSnapshot =
+                    await this.usersService.getUserSnapshotByUsername(
+                      parentApp.applicantId,
+                    );
+                  if (userSnapshot.lastName || userSnapshot.firstName) {
+                    displayName =
+                      `${userSnapshot.lastName || ''} ${userSnapshot.firstName || ''}`.trim();
+                  } else {
+                    displayName = userSnapshot.username;
+                  }
+                } catch (e) {
+                  this.logger.warn(
+                    `Failed to get user snapshot for ${parentApp.applicantId}`,
+                    e,
+                  );
                 }
+              }
+
+              await this.prisma.workflowTask.create({
+                data: {
+                  applicationId: parentApplicationId,
+                  stepId: startNode.id,
+                  status: 'PENDING',
+                  assignedTo: parentApp?.applicantId || 'SYSTEM',
+                  assignedToDisplay: displayName,
+                  type: 'aiStarting', // 識別しやすいタイプにする
+                  config: {
+                    title: 'AI申請調整中',
+                    description:
+                      'AIチャットによる申請内容の調整中です。子申請が全て完了すると自動的に進行します。',
+                  },
+                },
+              });
+
+              this.logger.log(
+                `Created pending task for AI Start node: ${startNode.id}`,
+              );
+              // await this.workflowEngineService['helper'].advanceToNextNode(parentApplicationId);
             }
-        } catch (error) {
-            this.logger.error(`Failed to start parent application ${parentApplicationId}`, error);
+          }
         }
+      } catch (error) {
+        this.logger.error(
+          `Failed to start parent application ${parentApplicationId}`,
+          error,
+        );
+      }
     }
 
     return {

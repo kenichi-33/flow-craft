@@ -51,9 +51,7 @@ describe('AiBranchNodeProcessor', () => {
         id: 'node-1',
         type: 'aiBranch',
         data: {
-          rules: [
-            { id: 'rule-1', label: 'Rule 1', aiCondition: 'cond 1' },
-          ],
+          rules: [{ id: 'rule-1', label: 'Rule 1', aiCondition: 'cond 1' }],
         },
       },
       inputData: { field1: 'value1' },
@@ -73,17 +71,17 @@ describe('AiBranchNodeProcessor', () => {
       'app-1',
       expect.objectContaining({
         id: 'node-1',
-        type: 'aiBranch', 
+        type: 'aiBranch',
         data: expect.objectContaining({
           rules: expect.any(Array),
           edgeMap: {
             'rule-1': 'node-2',
-            'default': 'node-3',
-          }
-        })
+            default: 'node-3',
+          },
+        }),
       }),
       { field1: 'value1' },
-      'system'
+      'system',
     );
   });
 });

@@ -1,5 +1,9 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { ITaskHandler, TaskContext, TaskResult } from '../task-handler.interface';
+import {
+  ITaskHandler,
+  TaskContext,
+  TaskResult,
+} from '../task-handler.interface';
 import { AiBranchService } from '../../../ai-core/services/ai-branch.service';
 import { WorkflowHelperService } from '../../workflow-helper.service';
 
@@ -44,19 +48,21 @@ export class AiBranchHandler implements ITaskHandler {
         baseUrl: nodeData.baseUrl,
       });
 
-      this.logger.log(`AI selected route: ${result.selectedRouteId} (${result.reasoning})`);
+      this.logger.log(
+        `AI selected route: ${result.selectedRouteId} (${result.reasoning})`,
+      );
 
       // 3. Determine Next Node
       // We need to map ruleId (selectedRouteId) to the actual target Node ID.
       // Unlike the old worker, we don't have 'edgeMap' pre-calculated in the payload.
-      // But we can use `workflowHelper` to find it? 
-      // Actually, `GenericWorker` passes `nodeData`. 
+      // But we can use `workflowHelper` to find it?
+      // Actually, `GenericWorker` passes `nodeData`.
       // It DOES NOT pass Edges. `context` has limited info.
       // We need to fetch edges or helper needs to support "Find Target by Handle".
-      
-      // Let's check `WorkflowHelperService`. Does it have edge lookup? 
+
+      // Let's check `WorkflowHelperService`. Does it have edge lookup?
       // No, `enqueueTask` takes context, but execution happens later.
-      // However, `AiBranchNodeProcessor` *had* access to edges. 
+      // However, `AiBranchNodeProcessor` *had* access to edges.
       // Can `AiBranchNodeProcessor` put the edge map into `nodeData` (runtime override) or `inputData`?
       // `inputData` is for form data. `nodeData` is config.
       // `TaskExecuteJob.nodeData` comes from `node.data`.
@@ -69,18 +75,23 @@ export class AiBranchHandler implements ITaskHandler {
       // `job` is queued by `WorkflowHelper.enqueueTask` (line 118 calls `node.data`).
       // So if `AiBranchNodeProcessor` modifies `node.data` before passing to `enqueueTask`, we are good.
       // OR, we pass it as a separate property in `job`? `TaskExecuteJob` has `nodeData`.
-      
+
       // Better approach: `nodeData` in the Handler Context *should* contain what we need.
       // In `AiBranchNodeProcessor`, we calculates edgeMap. We can add it to `nodeData` specific for this execution?
       // `enqueueTask` takes `node`. We can pass `{ ...node, data: { ...node.data, edgeMap } }`.
-      
+
       const edgeMap = nodeData.edgeMap || {};
-      const targetNodeId = edgeMap[result.selectedRouteId] || edgeMap['default'];
+      const targetNodeId =
+        edgeMap[result.selectedRouteId] || edgeMap['default'];
 
       if (targetNodeId) {
         // 4. Manually Advance
-        await this.workflowHelper.advanceToNextNode(applicationId, nodeId, targetNodeId);
-        
+        await this.workflowHelper.advanceToNextNode(
+          applicationId,
+          nodeId,
+          targetNodeId,
+        );
+
         return {
           success: true,
           outputData: {
@@ -92,13 +103,12 @@ export class AiBranchHandler implements ITaskHandler {
           logs: [`AI Reasoning: ${result.reasoning}`],
         };
       } else {
-         return {
+        return {
           success: false,
           error: `No target node found for route ${result.selectedRouteId}`,
           shouldAdvance: false,
         };
       }
-
     } catch (error) {
       this.logger.error(`AI Branch failed: ${error}`);
       return {

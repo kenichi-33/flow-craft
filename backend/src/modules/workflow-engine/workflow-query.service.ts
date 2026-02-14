@@ -27,7 +27,9 @@ export class WorkflowQueryService {
     // God Mode for Test Execution
     let application = task.application;
     if (!application && task.applicationId) {
-       application = await this.prisma.application.findUnique({ where: { id: task.applicationId } });
+      application = await this.prisma.application.findUnique({
+        where: { id: task.applicationId },
+      });
     }
 
     if (application?.isTestMode && application.applicantId === userId) {
@@ -39,7 +41,9 @@ export class WorkflowQueryService {
 
     if (assignedTo === 'applicant') {
       if (!application && task.applicationId) {
-         application = await this.prisma.application.findUnique({ where: { id: task.applicationId } });
+        application = await this.prisma.application.findUnique({
+          where: { id: task.applicationId },
+        });
       }
       return application?.applicantId === userId;
     }

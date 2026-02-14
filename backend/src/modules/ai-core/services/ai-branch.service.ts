@@ -30,7 +30,15 @@ export class AiBranchService {
   constructor(private readonly llmGateway: LlmGatewayService) {}
 
   async evaluate(request: AiBranchRequest): Promise<AiBranchResponse> {
-    const { formData, branchRules, model, temperature, provider, apiKey, baseUrl } = request;
+    const {
+      formData,
+      branchRules,
+      model,
+      temperature,
+      provider,
+      apiKey,
+      baseUrl,
+    } = request;
 
     // TODO: Implement PII Masking logic here if needed
     // const maskedFormData = this.maskPii(formData);
@@ -72,8 +80,8 @@ Select the best route.
       temperature: temperature ?? 0.1, // Low temperature for deterministic results (0 is falsy, so use ??)
       providerConfig: {
         apiKey,
-        baseUrl
-      }
+        baseUrl,
+      },
     });
 
     const content = response.content;

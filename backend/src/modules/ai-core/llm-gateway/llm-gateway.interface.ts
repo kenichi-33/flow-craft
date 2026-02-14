@@ -26,4 +26,5 @@ export interface LLMResponse<T = any> {
 export interface ILLMProvider {
   getName(): string;
   generate(request: LLMRequest): Promise<LLMResponse>;
+  embed(text: string): Promise<number[]>;
 }

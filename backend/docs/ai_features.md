@@ -21,6 +21,7 @@ graph TD
         AgentService -->|LLM Call| LlmGateway
         AgentService -->|DB Access| Prisma
         AgentService -->|File Check| StorageService
+        AgentService -->|RAG Search| RagService
     end
     
     subgraph Infrastructure
@@ -28,8 +29,17 @@ graph TD
         LlmGateway -->|API| Ollama[Local Ollama]
         StorageService -->|S3 API| MinIO[MinIO (Object Storage)]
         Prisma -->|SQL| DB[(PostgreSQL)]
+        RagService -->|Vector Search| DB
     end
 ```
+
+### RAG (Retrieval-Augmented Generation)
+
+アプリケーション定義に紐付いた知識ベース（ドキュメント）を検索し、AIの回答を補強する機能です。
+
+1.  **登録時**: テキストやファイルをチャンク（塊）に分割し、LLM (`nomic-embed-text` 等) でベクトル化して `pgvector` に保存します。
+2.  **検索時**: ユーザーの質問を同じモデルでベクトル化し、コサイン類似度で関連するチャンクを検索します。
+3.  **回答時**: 検索されたチャンクを「参考情報」としてシステムプロンプトに注入します。
 
 ### ステートマシン
 
