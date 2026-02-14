@@ -40,7 +40,7 @@ export default function PermissionMatrix({ nodes, onSave, onCancel, formFields }
     useEffect(() => {
         // Initialize matrix from nodes
         // Target ApprovalNodes and InputNodes
-        const targetNodes = nodes.filter(n => n.type === 'approval' || n.type === 'userInput');
+        const targetNodes = nodes.filter(n => n.type === 'approval' || n.type === 'userInput' || n.type === 'start');
         
         const initialData: NodePermissionData[] = targetNodes.map(node => {
             return {
